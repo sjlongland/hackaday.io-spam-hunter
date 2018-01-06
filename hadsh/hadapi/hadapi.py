@@ -155,6 +155,7 @@ class HackadayAPI(object):
         try:
             yield self._rq_sem.acquire()
             yield self._ratelimit_sleep()
+            self._log.debug('%s %r', kwargs.get('method','GET'), uri)
             response = yield self._client.fetch(uri, **kwargs)
         finally:
             self._rq_sem.release()
