@@ -30,7 +30,7 @@ class ImageResizer(object):
                 future.set_result(result)
 
         # What to do in the thread pool
-        def _do_resize():
+        def _do_resize(image_data, image_format, width, height):
             try:
                 image = Image.open(BytesIO(image_data))
 
@@ -61,7 +61,8 @@ class ImageResizer(object):
                 self._io_loop.add_callback(_on_done, exc_info())
 
         # Run the above in the thread pool:
-        self._pool.apply_async(_do_resize)
+        self._pool.apply_async(_do_resize, image_data,
+                image_format, width, height)
 
         # Wait for the result
         resized_data = yield future
