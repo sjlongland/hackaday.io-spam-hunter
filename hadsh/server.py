@@ -76,9 +76,14 @@ class AvatarHandler(AuthRequestHandler):
         self.finish()
 
 
-class NewcomerDataHandler(RequestHandler):
+class NewcomerDataHandler(AuthRequestHandler):
     @coroutine
     def get(self):
+        # Are we logged in?
+        session = self._get_session_or_redirect()
+        if session is None:
+            return
+
         try:
             page = int(self.get_query_argument('page', strip=False))
         except MissingArgumentError:
