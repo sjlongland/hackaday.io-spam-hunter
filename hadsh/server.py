@@ -53,6 +53,28 @@ class RootHandler(AuthRequestHandler):
                 user_profile=user.url)
 
 
+class AvatarHandler(AuthRequestHandler):
+    def get(self, avatar_id):
+        # Are we logged in?
+        session = self._get_session_or_redirect()
+        if session is None:
+            return
+
+        avatar_id = int(avatar_id)
+        log = self.application._log.getChild('avatar[%d]' % avatar_id)
+        log.debug('Retrieving from database')
+        avatar = self.application._db.query(Avatar).get(avatar_id)
+        if avatar is None:
+            self.set_status(404)
+            self.finish()
+            return
+
+        self.set_status(200)
+        self.set_header('Content-Type', avatar.avatar_type)
+        self.write(avatar.avatar)
+        self.finish()
+
+
 class CallbackHandler(RequestHandler):
     @coroutine
     def get(self):
@@ -133,6 +155,7 @@ class HADSHApp(Application):
         self._secure = secure
         super(HADSHApp, self).__init__([
             (r"/", RootHandler),
+            (r"/avatar/([0-9]+)", AvatarHandler),
             (r"/callback", CallbackHandler),
             (r"/authorize", RedirectHandler, {
                 "url": self._api.auth_uri
