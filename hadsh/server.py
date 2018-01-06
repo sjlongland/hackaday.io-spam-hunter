@@ -14,6 +14,7 @@ from tornado.gen import coroutine
 from tornado.ioloop import IOLoop
 
 from .hadapi.hadapi import HackadayAPI
+from .crawler.crawler import Crawler
 from .db.db import get_db, User, Group, GroupMember, Session, UserDetail, \
         UserLink, Avatar, Tag, UserTag
 
@@ -88,39 +89,9 @@ class CallbackHandler(RequestHandler):
         token = oauth_data['access_token']
         user_data = yield self.application._api.get_current_user(token)
 
-        # Do we have their avatar on file?
-        avatar = self.application._db.query(Avatar).filter(
-                Avatar.url==user_data['image_url']).first()
-        if avatar is None:
-            # We don't have the avatar yet
-            log.debug('Retrieving avatar at %s',
-                    user_data['image_url'])
-            avatar_res = yield self.application._client.fetch(
-                    user_data['image_url'])
-            avatar = Avatar(url=user_data['image_url'],
-                        avatar_type=avatar_res.headers['Content-Type'],
-                        avatar=avatar_res.body)
-            self.application._db.add(avatar)
-            self.application._db.commit()
-
-        # Look up the user in the database
-        user = self.application._db.query(User).get(user_data['id'])
-        if user is None:
-            # New user
-            user = User(user_id=user_data['id'],
-                        screen_name=user_data['screen_name'],
-                        url=user_data['url'],
-                        avatar_id=avatar.avatar_id,
-                        last_update=datetime.datetime.now(tz=pytz.utc))
-            self.application._db.add(user)
-        else:
-            # Existing user, update the user details
-            user.screen_name = user_data['screen_name']
-            user.avatar_id=avatar.avatar_id
-            user.url = user_data['url']
-            user.last_update = datetime.datetime.now(tz=pytz.utc)
-
-        self.application._db.commit()
+        # Retrieve and update the user from the website data.
+        user = yield self.application._crawler.update_user_from_data(
+                user_data)
 
         # We have the user account, create the session
         session = Session(
@@ -151,6 +122,8 @@ class HADSHApp(Application):
         self._api = HackadayAPI(client_id=client_id,
                 client_secret=client_secret, api_key=api_key,
                 client=self._client, log=self._log.getChild('api'))
+        self._crawler = Crawler(self._db, self._api, self._client,
+                self._log.getChild('crawler'))
         self._domain = domain
         self._secure = secure
         super(HADSHApp, self).__init__([
