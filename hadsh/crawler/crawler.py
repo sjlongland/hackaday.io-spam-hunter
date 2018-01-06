@@ -170,4 +170,4 @@ class Crawler(object):
             user = yield self.update_user_from_data(user_data)
             users.append(user)
 
-        raise Return((users, new_user_data['last_page']))
+        raise Return((users, new_user_data.get('last_page')))
