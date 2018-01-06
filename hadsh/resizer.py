@@ -37,7 +37,7 @@ class ImageResizer(object):
         # What to do in the thread pool
         def _do_resize(image_data, image_format, width, height):
             try:
-                log.debug('Opening image')
+                log.debug('Opening image, format %s', image_format)
                 image = Image.open(BytesIO(image_data))
 
                 # Get the aspect ratio
@@ -55,7 +55,7 @@ class ImageResizer(object):
 
                 # Scale
                 log.debug('Scaling to %dx%d', width, height)
-                image.resize((width, height), Image.LANCZOS)
+                image = image.resize((width, height), Image.LANCZOS)
 
                 # Write out result
                 if image_format == 'image/jpeg':
