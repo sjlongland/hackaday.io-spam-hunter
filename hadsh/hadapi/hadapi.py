@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
+import re
 import json
 import logging
 
-from tornado.httpclient import AsyncHTTPClient
+from tornado.httpclient import AsyncHTTPClient, HTTPError
 from tornado.ioloop import IOLoop
 from tornado.gen import coroutine, Return, sleep
 from tornado.locks import Semaphore
@@ -159,6 +160,7 @@ class HackadayAPI(object):
             yield self._ratelimit_sleep()
             self._log.debug('%s %r', kwargs.get('method','GET'), uri)
             response = yield self._client.fetch(uri, **kwargs)
+            response.rethrow()
         finally:
             self._rq_sem.release()
 
@@ -216,6 +218,26 @@ class HackadayAPI(object):
         query['sortby'] = sortby.value
         return query
 
+    _GET_USERS_WORKAROUND_RE = re.compile(
+            '    <a href="/hacker/(\d+)" class="hacker-image">')
+    @coroutine
+    def _get_users_workaround(self, sortby=UserSortBy.influence, page=1):
+        sortby = UserSortBy(sortby)
+        response = yield self._client.fetch(
+                'https://hackaday.io/hackers?sort=%s&page=%d' \
+                        % (sortby.value, page))
+        (ct, ctopts, body) = self._decode(response)
+
+        # Body is in HTML
+        ids = []
+        for line in body.split('\n'):
+            match = self._GET_USERS_WORKAROUND_RE.match(line)
+            if match:
+                ids = int(match.group(1))
+        users = yield self.get_users(ids=ids, sortby=sortby)
+        raise Return(users)
+
+
     def get_users(self, sortby=UserSortBy.influence,
             ids=None, page=None, per_page=None):
         """
@@ -224,7 +246,13 @@ class HackadayAPI(object):
         query = self._user_query_opts(sortby, page, per_page)
 
         if ids is None:
-            return self._api_call('/users', query=query)
+            # This is currently broken for sortby=newest,
+            # see if it's fixed though.
+            try:
+                return self._api_call('/users', query=query)
+            except HTTPError:
+                # Nope, it isn't work-around time!
+                return self._get_users_workaround(sortby, page)
         elif isinstance(ids, slice):
             query['ids'] = '%d,%d' % (slice.start, slice.stop)
             return self._api_call('/users/range', query=query)
@@ -232,7 +260,7 @@ class HackadayAPI(object):
             ids = list(ids)
             if len(ids) > 50:
                 raise ValueError('Too many IDs')
-            query['ids'] = ','.join(ids)
+            query['ids'] = ','.join(['%d' % uid for uid in ids])
             return self._api_call('/users/batch', query=query)
 
     def search_users(self, screen_name=None, location=None, tag=None,
@@ -305,7 +333,7 @@ class HackadayAPI(object):
             ids = list(ids)
             if len(ids) > 50:
                 raise ValueError('Too many IDs')
-            query['ids'] = ','.join(ids)
+            query['ids'] = ','.join(['%d' % pid for pid in ids])
             return self._api_call('/projects/batch', query=query)
 
     def search_projects(self, term,
