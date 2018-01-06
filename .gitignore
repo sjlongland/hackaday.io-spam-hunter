@@ -1,0 +1,7 @@
+.*.sw?
+*.sw?
+.sw?
+*.pyo
+*.pyc
+__pycache__
+build
