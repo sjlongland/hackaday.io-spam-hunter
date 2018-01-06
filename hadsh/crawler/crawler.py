@@ -49,71 +49,79 @@ class Crawler(object):
         """
         Inspect the user, see if they're worth investigating.
         """
-        if user is None:
-            user = self._db.query(User).get(user_data['id'])
+        try:
+            if user is None:
+                user = self._db.query(User).get(user_data['id'])
 
-        # Does the user have any hyperlinks or other patterns in their
-        # profile?
-        self._log.debug('Inspecting user %s [#%d]',
-            user_data['screen_name'], user_data['id'])
-        match = False
-        for pattern in CHECK_PATTERNS:
-            if match:
-                break
-            for field in ('about_me', 'who_am_i', 'location'):
-                pmatch = pattern.match(user_data[field])
-                if pmatch:
-                    self._log.info('Found match for %s (%r) in '\
-                            '%s of %s [#%d]',
-                            pattern.pattern, pattern.group(0),
-                            user_data['screen_name'], user_data['id'])
-                    match = True
+            # Does the user have any hyperlinks or other patterns in their
+            # profile?
+            self._log.debug('Inspecting user %s [#%d]',
+                user_data['screen_name'], user_data['id'])
+            match = False
+            for pattern in CHECK_PATTERNS:
+                if match:
                     break
+                for field in ('about_me', 'who_am_i', 'location'):
+                    pmatch = pattern.match(user_data[field])
+                    if pmatch:
+                        self._log.info('Found match for %s (%r) in '\
+                                '%s of %s [#%d]',
+                                pattern.pattern, pattern.group(0),
+                                user_data['screen_name'], user_data['id'])
+                        match = True
+                        break
 
-        # Does the user have any hyperlinks?  Not an indicator that they're
-        # a spammer, just one of the traits.
-        pg_idx = 1
-        pg_cnt = 1  # Don't know how many right now, but let's start here
-        while pg_idx <= pg_cnt:
-            link_res = yield self._api.get_user_links(user.user_id,
-                    page=pg_idx, per_page=50)
-            for link in link_res['links']:
-                # Do we have the link already?
-                l = self._db.query(UserLink).filter(
-                        UserLink.user_id==user.user_id,
-                        UserLink.url==link['url']).first()
-                if l is None:
-                    # Record the link
-                    self._log.info('User %s [#%d] has link to %s <%s>',
-                            user_data['screen_name'], user_data['id'],
-                            link['title'], link['url'])
+            # Does the user have any hyperlinks?  Not an indicator that they're
+            # a spammer, just one of the traits.
+            pg_idx = 1
+            pg_cnt = 1  # Don't know how many right now, but let's start here
+            while pg_idx <= pg_cnt:
+                link_res = yield self._api.get_user_links(user.user_id,
+                        page=pg_idx, per_page=50)
+                try:
+                    for link in link_res['links']:
+                        # Do we have the link already?
+                        l = self._db.query(UserLink).filter(
+                                UserLink.user_id==user.user_id,
+                                UserLink.url==link['url']).first()
+                        if l is None:
+                            # Record the link
+                            self._log.info('User %s [#%d] has link to %s <%s>',
+                                    user_data['screen_name'], user_data['id'],
+                                    link['title'], link['url'])
 
-                    l = UserLink(user_id=user.user_id,
-                                title=link['title'],
-                                url=link['url'])
-                    self._db.add(l)
+                            l = UserLink(user_id=user.user_id,
+                                        title=link['title'],
+                                        url=link['url'])
+                            self._db.add(l)
+                        else:
+                            l.title = link['title']
+
+                        match = True
+                except:
+                    self._log.error('Failed to process link result %r', link_res)
+                    raise
+                pg_cnt = link_res['last_page']
+
+                # Next page
+                pg_idx = link_res['page'] + 1
+
+            if match:
+                # Record the user information
+                detail = self._db.query(UserDetail).get(user_data['id'])
+                if detail is None:
+                    detail = UserDetail(
+                            user_id=user_data['id'],
+                            about_me=user_data['about_me'],
+                            who_am_i=user_data['who_am_i'],
+                            location=user_data['location'])
                 else:
-                    l.title = link['title']
-
-                match = True
-            pg_cnt = link_res['last_page']
-
-            # Next page
-            pg_idx = link_res['page'] + 1
-
-        if match:
-            # Record the user information
-            detail = self._db.query(UserDetail).get(user_data['id'])
-            if detail is None:
-                detail = UserDetail(
-                        user_id=user_data['id'],
-                        about_me=user_data['about_me'],
-                        who_am_i=user_data['who_am_i'],
-                        location=user_data['location'])
-            else:
-                detail.about_me = user_data['about_me']
-                detail.who_am_i = user_data['who_am_i']
-                detail.location = user_data['location']
+                    detail.about_me = user_data['about_me']
+                    detail.who_am_i = user_data['who_am_i']
+                    detail.location = user_data['location']
+        except:
+            self._log.error('Failed to process user data %r', user_data)
+            raise
 
     @coroutine
     def update_user_from_data(self, user_data):
