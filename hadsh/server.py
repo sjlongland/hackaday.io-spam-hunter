@@ -50,24 +50,24 @@ class CallbackHandler(RequestHandler):
                 avatar = Avatar(url=user_data['image_url'],
                             avatar_type=avatar_res.headers['Content-Type'],
                             avatar=avatar_res.body)
-                self._db.add(avatar)
-                self._db.commit()
+                self.application._db.add(avatar)
+                self.application._db.commit()
                 # We should now!
 
             user = User(user_id=user_data['id'],
                         screen_name=user_data['screen_name'],
                         url=user_data['url'],
                         avatar_id=avatar.avatar_id)
-            self._db.add(user)
-            self._db_commit()
+            self.application._db.add(user)
+            self.application._db_commit()
 
         # We have the user account, create the session
         session = Session(
                 session_id=uuid.uuid4(),
                 user_id=user.user_id,
                 token=token)
-        self._db.add(session)
-        self._db.commit()
+        self.application._db.add(session)
+        self.application._db.commit()
 
         # Grab the session ID and set that in a cookie.
         self.set_cookie(name='hadsh', value=session.session_id,
