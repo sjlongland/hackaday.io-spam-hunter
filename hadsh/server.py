@@ -18,8 +18,8 @@ from .db.db import get_db, User, Group, GroupMember, Session, UserDetail, \
         UserLink, Avatar, Tag, UserTag
 
 
-class RootHandler(RequestHandler):
-    def get(self):
+class AuthRequestHandler(RequestHandler):
+    def _get_session_or_redirect(self):
         # Are we logged in?
         session_id = self.get_cookie('hadsh')
         if session_id is None:
@@ -32,6 +32,16 @@ class RootHandler(RequestHandler):
         if session is None:
             # Session is invalid
             self.redirect('/authorize')
+            return
+
+        return session
+
+
+class RootHandler(AuthRequestHandler):
+    def get(self):
+        # Are we logged in?
+        session = self._get_session_or_redirect()
+        if session is None:
             return
 
         user = session.user
