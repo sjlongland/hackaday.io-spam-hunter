@@ -16,6 +16,7 @@ from tornado.ioloop import IOLoop
 
 from .hadapi.hadapi import HackadayAPI
 from .crawler.crawler import Crawler
+from .resizer import ImageResizer
 from .db.db import get_db, User, Group, GroupMember, Session, UserDetail, \
         UserLink, Avatar, Tag, UserTag
 
@@ -56,11 +57,21 @@ class RootHandler(AuthRequestHandler):
 
 
 class AvatarHandler(AuthRequestHandler):
+    @coroutine
     def get(self, avatar_id):
         # Are we logged in?
         session = self._get_session_or_redirect()
         if session is None:
             return
+
+        try:
+            width = int(self.get_query_argument('width'))
+        except MissingArgumentError:
+            width = None
+        try:
+            height = int(self.get_query_argument('height'))
+        except MissingArgumentError:
+            height = None
 
         avatar_id = int(avatar_id)
         log = self.application._log.getChild('avatar[%d]' % avatar_id)
@@ -71,9 +82,16 @@ class AvatarHandler(AuthRequestHandler):
             self.finish()
             return
 
+        if (width is not None) or (height is not None):
+            image_data = yield self.application._resizer.resize(
+                    avatar.avatar, avatar.avatar_type,
+                    width, height)
+        else:
+            image_data = avatar.avatar
+
         self.set_status(200)
         self.set_header('Content-Type', avatar.avatar_type)
-        self.write(avatar.avatar)
+        self.write(image_data)
         self.finish()
 
 
@@ -175,6 +193,7 @@ class HADSHApp(Application):
                 client=self._client, log=self._log.getChild('api'))
         self._crawler = Crawler(self._db, self._api, self._client,
                 self._log.getChild('crawler'))
+        self._resizer = ImageResizer()
         self._domain = domain
         self._secure = secure
         super(HADSHApp, self).__init__([
