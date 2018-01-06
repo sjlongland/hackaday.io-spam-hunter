@@ -286,7 +286,7 @@ class HackadayAPI(object):
         query['sortby'] = sortby.value
         return query
 
-    def get_projects(self, sortby=ProjectSortBy.influence,
+    def get_projects(self, sortby=ProjectSortBy.skulls,
             ids=None, page=None, perpage=None):
         """
         Retrieve a list of all projects
@@ -306,7 +306,7 @@ class HackadayAPI(object):
             return self._api_call('/projects/batch', query=query)
 
     def search_projects(self, term,
-            sortby=ProjectSortBy.influence, page=None, perpage=None):
+            sortby=ProjectSortBy.skulls, page=None, perpage=None):
         query = self._project_query_opts(sortby, page, perpage)
         query['search_term'] = str(term)
         return self._api_call('/projects/search', query=query)
