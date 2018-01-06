@@ -258,7 +258,7 @@ class HackadayAPI(object):
             query['ids'] = '%d,%d' % (slice.start, slice.stop)
             result = yield self._api_call('/users/range', query=query)
         else:
-            ids = list(ids)
+            ids = set(ids)
             if len(ids) > 50:
                 raise ValueError('Too many IDs')
             query['ids'] = ','.join(['%d' % uid for uid in ids])
@@ -332,7 +332,7 @@ class HackadayAPI(object):
             query['ids'] = '%d,%d' % (slice.start, slice.stop)
             return self._api_call('/projects/range', query=query)
         else:
-            ids = list(ids)
+            ids = set(ids)
             if len(ids) > 50:
                 raise ValueError('Too many IDs')
             query['ids'] = ','.join(['%d' % pid for pid in ids])
