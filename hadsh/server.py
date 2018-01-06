@@ -103,6 +103,8 @@ def main(*args, **kwargs):
     parser.add_argument('--cleartext', action='store_const',
             default=True, const=False, dest='secure',
             help='Use cleartext HTTP not HTTPS')
+    parser.add_argument('--db-uri', dest='db_uri',
+            help='Back-end database URI')
     parser.add_argument('--client-id', dest='client_id',
             help='Hackaday.io client ID')
     parser.add_argument('--client-secret', dest='client_secret',
@@ -131,6 +133,7 @@ def main(*args, **kwargs):
                 'https://dev.hackaday.io/applications')
 
     application = HADSHApp(
+            db_uri=args.db_uri,
             client_id=args.client_id,
             client_secret=args.client_secret,
             api_key=args.api_key,
