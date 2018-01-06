@@ -2,13 +2,20 @@
 /* Window state */
 var page = 1;
 var textbox = null;
+var busy = false;
 
 var getNextPage = function() {
 	var rq = new XMLHttpRequest();
+	busy = true;
+	var loading_msg = document.createElement('h3');
+	loading_msg.innerHTML = 'Loading...';
+	textbox.appendChild(loading_msg);
+
 	rq.onreadystatechange = function() {
 		if (this.readyState == 4 && this.status == 200) {
 			// Typical action to be performed when
 			// the document is ready:
+			textbox.removeChild(loading_msg);
 
 			var data = JSON.parse(rq.responseText);
 			data.users.forEach(function (user) {
@@ -27,14 +34,17 @@ var getNextPage = function() {
 				user.links.forEach(function (link) {
 					var link_tag = document.createElement('a');
 					link_tag.href = link.url;
-					link_tag.title = link.title;
-					links.appendChild(link_tag);
+					link_tag.innerHTML = link.title;
+					var link_item = document.createElement('li');
+					link_item.appendChild(link_tag);
+					links.appendChild(link_item);
 				});
 				userBox.appendChild(links);
 				textbox.appendChild(userBox);
 			});
 			textbox.appendChild(document.createElement('hr'));
 			page++;
+			busy = false;
 		}
 		};
 	rq.open("GET", "/data/newcomers.json?page=" + page, true);
@@ -45,7 +55,8 @@ var main = function() {
 	window.onscroll = function(ev) {
 		if ((window.innerHeight + window.scrollY)
 			>= document.body.offsetHeight) {
-			getNextPage();
+			if (!busy)
+				getNextPage();
 		}
 	};
 
