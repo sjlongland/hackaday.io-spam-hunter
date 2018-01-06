@@ -14,7 +14,7 @@ var getNextPage = function() {
 
 	var nextSpinner = function() {
 		if (busy) {
-			window.setTimeout(nextSpinner, 100);
+			window.setTimeout(nextSpinner, 250);
 		}
 
 		switch (spinner) {
