@@ -96,7 +96,7 @@ class Crawler(object):
                     l.title = link['title']
 
                 match = True
-            pg_cnt = link_res['page_count']
+            pg_cnt = link_res['last_page']
 
             # Next page
             pg_idx = link_res['page'] + 1
