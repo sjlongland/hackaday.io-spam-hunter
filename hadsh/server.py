@@ -32,8 +32,13 @@ class RootHandler(RequestHandler):
             self.redirect('/authorize')
             return
 
+        user = session.user
+
         self.set_status(200)
-        self.render('index.html')
+        self.render('index.html',
+                user_name=user.screen_name,
+                user_avatar_id=user.avatar_id,
+                user_profile=user.url)
 
 
 class CallbackHandler(RequestHandler):
