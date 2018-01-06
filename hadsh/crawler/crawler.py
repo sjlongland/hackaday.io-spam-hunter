@@ -125,6 +125,7 @@ class Crawler(object):
                             about_me=user_data['about_me'],
                             who_am_i=user_data['who_am_i'],
                             location=user_data['location'])
+                    self._db.add(detail)
                 else:
                     detail.about_me = user_data['about_me']
                     detail.who_am_i = user_data['who_am_i']
