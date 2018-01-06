@@ -8,8 +8,28 @@ var getNextPage = function() {
 	var rq = new XMLHttpRequest();
 	busy = true;
 	var loading_msg = document.createElement('h3');
-	loading_msg.innerHTML = 'Loading...';
+	var spinner = '-';
+	var dots = '';
 	textbox.appendChild(loading_msg);
+
+	var nextSpinner = function() {
+		if (busy) {
+			window.setTimeout(nextSpinner, 100);
+		}
+
+		switch (spinner) {
+		case '-':	spinner = '\\';	break;
+		case '\\':	spinner = '|'; break;
+		case '|':	spinner = '/'; break;
+		default:
+				spinner = '-';
+				dots += '.';
+				break;
+		}
+
+		loading_msg.innerHTML = 'Loading' + dots + spinner;
+	};
+	nextSpinner();
 
 	rq.onreadystatechange = function() {
 		if (this.readyState == 4) {
