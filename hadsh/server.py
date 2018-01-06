@@ -84,8 +84,7 @@ class AvatarHandler(AuthRequestHandler):
 
         if (width is not None) or (height is not None):
             image_data = yield self.application._resizer.resize(
-                    avatar.avatar, avatar.avatar_type,
-                    width, height)
+                    avatar, width, height)
         else:
             image_data = avatar.avatar
 
@@ -193,7 +192,7 @@ class HADSHApp(Application):
                 client=self._client, log=self._log.getChild('api'))
         self._crawler = Crawler(self._db, self._api, self._client,
                 self._log.getChild('crawler'))
-        self._resizer = ImageResizer()
+        self._resizer = ImageResizer(self._log.getChild('resizer'))
         self._domain = domain
         self._secure = secure
         super(HADSHApp, self).__init__([
