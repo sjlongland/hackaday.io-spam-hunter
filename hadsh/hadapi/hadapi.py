@@ -162,7 +162,7 @@ class HackadayAPI(object):
         (ct, ctopts, body) = self._decode(response)
         if ct.lower() != 'application/json':
             raise ValueError('Server returned unrecognised type %s' % ct)
-        raise Return(json.loads(body)
+        raise Return(json.loads(body))
 
     # oAuth endpoints
 
