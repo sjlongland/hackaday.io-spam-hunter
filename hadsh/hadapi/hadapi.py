@@ -139,7 +139,7 @@ class HackadayAPI(object):
         if api_key:
             query.setdefault('api_key', self._api_key)
 
-        encode_kv = lambda k, v : '%s=%s' % (k, quote_plus(str(v)))
+        encode_kv = lambda k, v : '%s=%s' % (k, urlparse.quote_plus(str(v)))
         def encode_item(item):
             (key, value) = item
             if isinstance(value, list):
@@ -180,9 +180,9 @@ class HackadayAPI(object):
         """
         # Determine where to retrieve the access token from
         post_uri = self._token_uri % dict(
-                CLIENT_ID=quote_plus(self._client_id),
-                CLIENT_SECRET=quote_plus(self._client_secret),
-                CODE=quote_plus(code)
+                CLIENT_ID=urlparse.quote_plus(self._client_id),
+                CLIENT_SECRET=urlparse.quote_plus(self._client_secret),
+                CODE=urlparse.quote_plus(code)
         )
 
         return self._api_call(
