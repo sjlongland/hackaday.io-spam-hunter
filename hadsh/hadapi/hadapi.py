@@ -40,7 +40,9 @@ class HackadayAPI(object):
     """
 
     HAD_API_URI='https://api.hackaday.io/v1'
-    HAD_AUTH_URI='https://hackaday.io/authorize'
+    HAD_AUTH_URI='https://hackaday.io/authorize'\
+            '?client_id=%(CLIENT_ID)s'\
+            '&response_type=code'
     HAD_TOKEN_URI='https://auth.hackaday.io/access_token'\
             '?client_id=%(CLIENT_ID)s'\
             '&client_secret=%(CLIENT_SECRET)s'\
@@ -163,6 +165,14 @@ class HackadayAPI(object):
         raise Return(json.loads(body)
 
     # oAuth endpoints
+
+    @property
+    def auth_uri(self):
+        """
+        Return the auth URI that we need to send the user to if they're not
+        logged in.
+        """
+        return self._auth_uri % dict(CLIENT_ID=self._client_id)
 
     def get_token(self, code):
         """
