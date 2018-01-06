@@ -234,7 +234,7 @@ class HackadayAPI(object):
             match = self._GET_USERS_WORKAROUND_RE.match(line)
             if match:
                 ids.append(int(match.group(1)))
-        users = yield self.get_users(ids=ids, sortby=sortby)
+        users = yield self.get_users(ids=ids)
         raise Return(users)
 
 
