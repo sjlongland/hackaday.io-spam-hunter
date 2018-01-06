@@ -25,9 +25,13 @@ class RootHandler(RequestHandler):
 class CallbackHandler(RequestHandler):
     @coroutine
     def get(self):
+        log = self.application._log.getChild('callback')
+
         # Retrieve the code
         code = self.get_query_argument('code', strip=False)
+        log.debug('Code is %s, retrieving token', code)
         oauth_data = yield self.application._api.get_token(code)
+        log.debug('OAuth response %s', oauth_data)
         token = oauth_data['access_token']
         user_data = yield self.application._api.get_current_user(token)
 
@@ -76,11 +80,12 @@ class HADSHApp(Application):
     """
     def __init__(self, db_uri, client_id, client_secret, api_key,
             domain, secure):
+        self._log = logging.getLogger(self.__class__.__name__)
         self._db = get_db(db_uri)
         self._client = AsyncHTTPClient()
         self._api = HackadayAPI(client_id=client_id,
                 client_secret=client_secret, api_key=api_key,
-                client=self._client)
+                client=self._client, log=self._log.getChild('api'))
         self._domain = domain
         self._secure = secure
         super(HADSHApp, self).__init__([
