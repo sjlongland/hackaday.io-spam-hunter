@@ -18,6 +18,20 @@ from .db.db import get_db, User, Group, GroupMember, Session, UserDetail, \
 
 class RootHandler(RequestHandler):
     def get(self):
+        # Are we logged in?
+        session_id = self.get_cookie('hadsh')
+        if session_id is None:
+            # Not yet logged in
+            self.redirect('/authorize')
+            return
+
+        # Fetch the user details from the session
+        session = self.application._db.query(Session).get(session_id)
+        if session is None:
+            # Session is invalid
+            self.redirect('/authorize')
+            return
+
         self.set_status(200)
         self.render('index.html')
 
