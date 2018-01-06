@@ -43,7 +43,10 @@ class CallbackHandler(RequestHandler):
                     Avatar.url==user_data['image_url']).first()
             if avatar is None:
                 # We don't have the avatar yet
-                avatar_res = yield self._client.fetch(user_data['image_url'])
+                log.debug('Retrieving avatar at %s',
+                        user_data['image_url'])
+                avatar_res = yield self.application._client.fetch(
+                        user_data['image_url'])
                 avatar = Avatar(url=user_data['image_url'],
                             avatar_type=avatar_res.headers['Content-Type'],
                             avatar=avatar_res.body)
