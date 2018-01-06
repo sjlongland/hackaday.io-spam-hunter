@@ -211,7 +211,7 @@ class HackadayAPI(object):
         return self._api_call('/me', token=token)
 
     def _user_query_opts(self, sortby, page, perpage):
-        query = _page_query_opts(page, perpage)
+        query = self._page_query_opts(page, perpage)
         sortby = UserSortBy(sortby)
         query['sortby'] = sortby.value
         return query
