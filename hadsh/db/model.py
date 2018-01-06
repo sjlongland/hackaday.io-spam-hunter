@@ -87,7 +87,7 @@ class UserLink(Base):
     user_id         = Column(BigInteger, ForeignKey('user.user_id'),
                         primary_key=True)
     title           = Column(Text)
-    url             = Column(String)
+    url             = Column(String, primary_key=True)
 
     user            = relationship("User", back_populates="links")
 
