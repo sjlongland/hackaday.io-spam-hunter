@@ -5,7 +5,8 @@ import logging
 
 from tornado.httpclient import AsyncHTTPClient
 from tornado.ioloop import IOLoop
-from tornado.gen import coroutine, Return
+from tornado.gen import coroutine, Return, sleep
+from tornado.locks import Semaphore
 from enum import Enum
 
 try:
@@ -46,10 +47,16 @@ class HackadayAPI(object):
             '&code=%(CODE)s'\
             '&grant_type=authorization_code'
 
+    # Rate limiting
+    RQLIM_NUM=5    # requests
+    RQLIM_TIME=10  # seconds
+    RQLIM_CONCURRENT=1
+
     def __init__(self, client_id, client_secret, api_key,
             api_uri=HAD_API_URI, auth_uri=HAD_AUTH_URI,
-            token_uri=HAD_TOKEN_URI, client=None, log=None,
-            io_loop=None):
+            token_uri=HAD_TOKEN_URI, rqlim_num=RQLIM_NUM,
+            rqlim_time=RQLIM_TIME, rqlim_concurrent=RQLIM_CONCURRENT,
+            client=None, log=None, io_loop=None):
 
         if log is None:
             log = logging.getLogger(self.__class__.__module__)
@@ -69,6 +76,42 @@ class HackadayAPI(object):
         self._api_uri = api_uri
         self._auth_uri = auth_uri
         self._token_uri = token_uri
+
+        # Timestamps of last rqlim_num requests
+        self._last_rq = []
+        self._rqlim_num = rqlim_num
+        self._rqlim_time = rqlim_time
+
+        # Semaphore to limit concurrent access
+        self._rq_sem = Semaphore(rqlim_concurrent)
+
+    @coroutine
+    def _ratelimit_sleep(self):
+        """
+        Ensure we don't exceed the rate limit by tracking the request
+        timestamps and adding a sleep if required.
+        """
+        now = self._io_loop.time()
+
+        # Push the current request expiry time to the end.
+        self._last_rq.append(now + self._rqlim_time)
+
+        # Drop any that are more than rqlim_time seconds ago.
+        self._last_rq = list(filter(lambda t : t < now, self._last_rq))
+
+        # Are there rqlim_num or more requests?
+        if len(self._last_rq) < self._rqlim_num:
+            # There aren't, we can go.
+            return
+
+        # When does the next one expire?
+        expiry = self._last_rq[0]
+
+        # Wait until then
+        delay = expiry - now
+        self._log.debug('Waiting %f sec for rate limit', delay)
+        yield sleep(delay)
+        self._log.debug('Resuming operations')
 
     def _decode(self, response, default_encoding='UTF-8'):
         """
@@ -107,7 +150,13 @@ class HackadayAPI(object):
         if not uri.startswith('http'):
             uri = self._api_uri + uri
 
-        response = yield self._client.fetch(uri, **kwargs)
+        try:
+            yield self._rq_sem.acquire()
+            yield self._ratelimit_sleep()
+            response = yield self._client.fetch(uri, **kwargs)
+        finally:
+            self._rq_sem.release()
+
         (ct, ctopts, body) = self._decode(response)
         if ct.lower() != 'application/json':
             raise ValueError('Server returned unrecognised type %s' % ct)
