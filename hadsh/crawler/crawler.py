@@ -26,22 +26,33 @@ class Crawler(object):
         self._api = api
         self._client = client
 
-    @coroutine
-    def fetch_avatar(self, avatar_uri):
-        # Do we have their avatar on file?
+    def get_avatar(self, avatar_url):
         avatar = self._db.query(Avatar).filter(
                 Avatar.url==avatar_uri).first()
         if avatar is None:
+            avatar = Avatar(url=avatar_uri,
+                        avatar_type='',
+                        avatar=b'')
+            self._db.add(avatar)
+            self._db.commit()
+        raise Return(avatar)
+
+    @coroutine
+    def fetch_avatar(self, avatar):
+        # Do we have their avatar on file?
+        if isinstance(avatar, str):
+            avatar = self.get_avatar(avatar_uri)
+
+        if not avatar.avatar_type:
             # We don't have the avatar yet
             self._log.debug('Retrieving avatar at %s',
                     avatar_uri)
             avatar_res = yield self._client.fetch(
                     avatar_uri)
-            avatar = Avatar(url=avatar_uri,
-                        avatar_type=avatar_res.headers['Content-Type'],
-                        avatar=avatar_res.body)
-            self._db.add(avatar)
+            avatar.avatar_type = avatar_res.headers['Content-Type']
+            avatar.avatar=avatar_res.body
             self._db.commit()
+
         raise Return(avatar)
 
     @coroutine
