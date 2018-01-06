@@ -76,7 +76,7 @@ class Crawler(object):
         pg_cnt = 1  # Don't know how many right now, but let's start here
         while pg_idx <= pg_cnt:
             link_res = yield self._api.get_user_links(user.user_id,
-                    page=pg_idx, perpage=50)
+                    page=pg_idx, per_page=50)
             for link in link_res['links']:
                 # Do we have the link already?
                 l = self._db.query(UserLink).filter(
@@ -151,7 +151,7 @@ class Crawler(object):
         Returns the list of users on the given page and the total number of pages.
         """
         new_user_data = yield self._api.get_users(sortby=UserSortBy.newest,
-                page=page, perpage=50)
+                page=page, per_page=50)
         users = []
         for user_data in new_user_data['users']:
             user = yield self.update_user_from_data(user_data)

@@ -193,12 +193,12 @@ class HackadayAPI(object):
 
     # Pagination options
 
-    def _page_query_opts(self, page, perpage):
+    def _page_query_opts(self, page, per_page):
         query = {}
         if page is not None:
             query['page'] = int(page)
-        if perpage is not None:
-            query['perpage'] = int(perpage)
+        if per_page is not None:
+            query['per_page'] = int(perpage)
 
         return query
 
@@ -210,18 +210,18 @@ class HackadayAPI(object):
         """
         return self._api_call('/me', token=token)
 
-    def _user_query_opts(self, sortby, page, perpage):
-        query = self._page_query_opts(page, perpage)
+    def _user_query_opts(self, sortby, page, per_page):
+        query = self._page_query_opts(page, per_page)
         sortby = UserSortBy(sortby)
         query['sortby'] = sortby.value
         return query
 
     def get_users(self, sortby=UserSortBy.influence,
-            ids=None, page=None, perpage=None):
+            ids=None, page=None, per_page=None):
         """
         Retrieve a list of all users
         """
-        query = self._user_query_opts(sortby, page, perpage)
+        query = self._user_query_opts(sortby, page, per_page)
 
         if ids is None:
             return self._api_call('/users', query=query)
@@ -236,8 +236,8 @@ class HackadayAPI(object):
             return self._api_call('/users/batch', query=query)
 
     def search_users(self, screen_name=None, location=None, tag=None,
-            sortby=UserSortBy.influence, page=None, perpage=None):
-        query = self._user_query_opts(sortby, page, perpage)
+            sortby=UserSortBy.influence, page=None, per_page=None):
+        query = self._user_query_opts(sortby, page, per_page)
 
         for (arg, val) in   (   ('screen_name', screen_name),
                                 ('location', location),
@@ -250,51 +250,51 @@ class HackadayAPI(object):
         return self._api_call('/users/%d' % user_id)
 
     def get_user_followers(self, user_id,
-            sortby=UserSortBy.influence, page=None, perpage=None):
-        query = self._user_query_opts(sortby, page, perpage)
+            sortby=UserSortBy.influence, page=None, per_page=None):
+        query = self._user_query_opts(sortby, page, per_page)
         return self._api_call('/users/%d/followers' % user_id, query=query)
 
     def get_user_following(self, user_id,
-            sortby=UserSortBy.influence, page=None, perpage=None):
-        query = self._user_query_opts(sortby, page, perpage)
+            sortby=UserSortBy.influence, page=None, per_page=None):
+        query = self._user_query_opts(sortby, page, per_page)
         return self._api_call('/users/%d/following' % user_id, query=query)
 
     def get_user_projects(self, user_id,
-            sortby=ProjectSortBy.skulls, page=None, perpage=None):
-        query = self._project_query_opts(sortby, page, perpage)
+            sortby=ProjectSortBy.skulls, page=None, per_page=None):
+        query = self._project_query_opts(sortby, page, per_page)
         return self._api_call('/users/%d/projects' % user_id, query=query)
 
     def get_user_skulls(self, user_id,
-            sortby=UserSortBy.influence, page=None, perpage=None):
-        query = self._user_query_opts(sortby, page, perpage)
+            sortby=UserSortBy.influence, page=None, per_page=None):
+        query = self._user_query_opts(sortby, page, per_page)
         return self._api_call('/users/%d/skulls' % user_id, query=query)
 
-    def get_user_links(self, user_id, page=None, perpage=None):
-        query = self._page_query_opts(page, perpage)
+    def get_user_links(self, user_id, page=None, per_page=None):
+        query = self._page_query_opts(page, per_page)
         return self._api_call('/users/%d/links' % user_id, query=query)
 
-    def get_user_tags(self, user_id, page=None, perpage=None):
-        query = self._page_query_opts(page, perpage)
+    def get_user_tags(self, user_id, page=None, per_page=None):
+        query = self._page_query_opts(page, per_page)
         return self._api_call('/users/%d/tags' % user_id, query=query)
 
-    def get_user_pages(self, user_id, page=None, perpage=None):
-        query = self._page_query_opts(page, perpage)
+    def get_user_pages(self, user_id, page=None, per_page=None):
+        query = self._page_query_opts(page, per_page)
         return self._api_call('/users/%d/pages' % user_id, query=query)
 
     # Projects API
 
-    def _project_query_opts(self, sortby, page, perpage):
-        query = _page_query_opts(page, perpage)
+    def _project_query_opts(self, sortby, page, per_page):
+        query = _page_query_opts(page, per_page)
         sortby = ProjectSortBy(sortby)
         query['sortby'] = sortby.value
         return query
 
     def get_projects(self, sortby=ProjectSortBy.skulls,
-            ids=None, page=None, perpage=None):
+            ids=None, page=None, per_page=None):
         """
         Retrieve a list of all projects
         """
-        query = self._project_query_opts(sortby, page, perpage)
+        query = self._project_query_opts(sortby, page, per_page)
 
         if ids is None:
             return self._api_call('/projects', query=query)
@@ -309,8 +309,8 @@ class HackadayAPI(object):
             return self._api_call('/projects/batch', query=query)
 
     def search_projects(self, term,
-            sortby=ProjectSortBy.skulls, page=None, perpage=None):
-        query = self._project_query_opts(sortby, page, perpage)
+            sortby=ProjectSortBy.skulls, page=None, per_page=None):
+        query = self._project_query_opts(sortby, page, per_page)
         query['search_term'] = str(term)
         return self._api_call('/projects/search', query=query)
 
@@ -318,57 +318,57 @@ class HackadayAPI(object):
         return self._api_call('/projects/%d' % project_id)
 
     def get_project_team(self, project_id,
-            sortby=UserSortBy.influence, page=None, perpage=None):
-        query = self._user_query_opts(sortby, page, perpage)
+            sortby=UserSortBy.influence, page=None, per_page=None):
+        query = self._user_query_opts(sortby, page, per_page)
         return self._api_call('/projects/%d/team' % project_id, query=query)
 
     def get_project_followers(self, project_id,
-            sortby=UserSortBy.influence, page=None, perpage=None):
-        query = self._user_query_opts(sortby, page, perpage)
+            sortby=UserSortBy.influence, page=None, per_page=None):
+        query = self._user_query_opts(sortby, page, per_page)
         return self._api_call('/projects/%d/followers' % project_id,
                 query=query)
 
     def get_project_skulls(self, project_id,
-            sortby=UserSortBy.influence, page=None, perpage=None):
-        query = self._user_query_opts(sortby, page, perpage)
+            sortby=UserSortBy.influence, page=None, per_page=None):
+        query = self._user_query_opts(sortby, page, per_page)
         return self._api_call('/projects/%d/skulls' % project_id,
                 query=query)
 
     def get_project_comments(self, project_id,
-            sortby=UserSortBy.influence, page=None, perpage=None):
-        query = self._user_query_opts(sortby, page, perpage)
+            sortby=UserSortBy.influence, page=None, per_page=None):
+        query = self._user_query_opts(sortby, page, per_page)
         return self._api_call('/projects/%d/comments' % project_id,
                 query=query)
 
-    def get_project_links(self, project_id, page=None, perpage=None):
-        query = self._page_query_opts(page, perpage)
+    def get_project_links(self, project_id, page=None, per_page=None):
+        query = self._page_query_opts(page, per_page)
         return self._api_call('/projects/%d/links' % project_id,
                 query=query)
 
-    def get_project_images(self, project_id, page=None, perpage=None):
-        query = self._page_query_opts(page, perpage)
+    def get_project_images(self, project_id, page=None, per_page=None):
+        query = self._page_query_opts(page, per_page)
         return self._api_call('/projects/%d/images' % project_id,
                 query=query)
 
-    def get_project_components(self, project_id, page=None, perpage=None):
-        query = self._page_query_opts(page, perpage)
+    def get_project_components(self, project_id, page=None, per_page=None):
+        query = self._page_query_opts(page, per_page)
         return self._api_call('/projects/%d/components' % project_id,
                 query=query)
 
-    def get_project_tags(self, project_id, page=None, perpage=None):
-        query = self._page_query_opts(page, perpage)
+    def get_project_tags(self, project_id, page=None, per_page=None):
+        query = self._page_query_opts(page, per_page)
         return self._api_call('/projects/%d/tags' % project_id, query=query)
 
-    def get_project_logs(self, project_id, page=None, perpage=None):
-        query = self._page_query_opts(page, perpage)
+    def get_project_logs(self, project_id, page=None, per_page=None):
+        query = self._page_query_opts(page, per_page)
         return self._api_call('/projects/%d/logs' % project_id, query=query)
 
-    def get_project_instructions(self, project_id, page=None, perpage=None):
-        query = self._page_query_opts(page, perpage)
+    def get_project_instructions(self, project_id, page=None, per_page=None):
+        query = self._page_query_opts(page, per_page)
         return self._api_call('/projects/%d/instructions' % project_id,
                 query=query)
 
-    def get_project_details(self, project_id, page=None, perpage=None):
-        query = self._page_query_opts(page, perpage)
+    def get_project_details(self, project_id, page=None, per_page=None):
+        query = self._page_query_opts(page, per_page)
         return self._api_call('/projects/%d/details' % project_id,
                 query=query)
