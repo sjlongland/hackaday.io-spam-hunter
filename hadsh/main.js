@@ -64,8 +64,8 @@ var getNextPage = function() {
 					textbox.appendChild(userBox);
 				});
 				textbox.appendChild(document.createElement('hr'));
+				page++;
 			}
-			page++;
 			busy = false;
 		}
 		};
