@@ -116,6 +116,7 @@ class NewcomerDataHandler(AuthRequestHandler):
                     'who_am_i': detail.who_am_i,
                     'location': detail.location,
                 })
+            return data
 
         self.set_status(200)
         self.set_header('Content-Type', 'application/json')
