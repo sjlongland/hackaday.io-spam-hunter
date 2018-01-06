@@ -7,7 +7,7 @@ import datetime
 import pytz
 
 from tornado.web import Application, RequestHandler, \
-        RedirectHandler
+        RedirectHandler, MissingArgumentError
 from tornado.httpclient import AsyncHTTPClient
 from tornado.httpserver import HTTPServer
 from tornado.gen import coroutine
@@ -76,6 +76,50 @@ class AvatarHandler(AuthRequestHandler):
         self.finish()
 
 
+class NewcomerDataHandler(RequestHandler):
+    @coroutine
+    def get(self):
+        try:
+            page = int(self.get_query_argument('page', strip=False))
+        except MissingArgumentError:
+            page = 1
+
+        (new_users, last_page) = \
+                yield self.application._crawler.fetch_new_users(page=page)
+
+        # Return JSON data
+        def _dump_link(link):
+            return {
+                    'title':        link.title,
+                    'url':          link.url
+            }
+
+        def _dump_user(user):
+            data = {
+                    'id':           user.user_id,
+                    'screen_name':  user.screen_name,
+                    'url':          user.url,
+                    'avatar_id':    user.avatar_id,
+                    'last_update':  user.last_update.isoformat(),
+                    'links':        list(map(_dump_link, user.links))
+            }
+            detail = user.detail
+            if detail is not None:
+                data.update({
+                    'about_me': detail.about_me,
+                    'who_am_i': detail.who_am_i,
+                    'location': detail.location,
+                })
+
+        self.set_status(200)
+        self.set_header('Content-Type', 'application/json')
+        self.write(json.dumps({
+                'page': page,
+                'last_page': last_page,
+                'users': list(map(_dump_user, new_users))
+        }))
+
+
 class CallbackHandler(RequestHandler):
     @coroutine
     def get(self):
@@ -130,6 +174,7 @@ class HADSHApp(Application):
             (r"/", RootHandler),
             (r"/avatar/([0-9]+)", AvatarHandler),
             (r"/callback", CallbackHandler),
+            (r"/data/newcomers.json", NewcomerDataHandler),
             (r"/authorize", RedirectHandler, {
                 "url": self._api.auth_uri
             }),
