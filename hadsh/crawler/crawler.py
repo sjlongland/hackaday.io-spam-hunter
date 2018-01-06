@@ -148,6 +148,7 @@ class Crawler(object):
     def fetch_new_users(self, page=1):
         """
         Retrieve new users from the Hackaday.io API and inspect the new arrivals.
+        Returns the list of users on the given page and the total number of pages.
         """
         new_user_data = yield self._api.get_users(sortby=UserSortBy.newest,
                 page=page, perpage=50)
@@ -156,4 +157,4 @@ class Crawler(object):
             user = yield self.update_user_from_data(user_data)
             users.append(user)
 
-        raise Return(users)
+        raise Return((users, new_user_data['last_page']))
