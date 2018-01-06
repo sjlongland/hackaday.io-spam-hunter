@@ -3,6 +3,8 @@
 import argparse
 import logging
 import uuid
+import datetime
+import pytz
 
 from tornado.web import Application, RequestHandler, \
         RedirectHandler
@@ -54,31 +56,39 @@ class CallbackHandler(RequestHandler):
         token = oauth_data['access_token']
         user_data = yield self.application._api.get_current_user(token)
 
+        # Do we have their avatar on file?
+        avatar = self.application._db.query(Avatar).filter(
+                Avatar.url==user_data['image_url']).first()
+        if avatar is None:
+            # We don't have the avatar yet
+            log.debug('Retrieving avatar at %s',
+                    user_data['image_url'])
+            avatar_res = yield self.application._client.fetch(
+                    user_data['image_url'])
+            avatar = Avatar(url=user_data['image_url'],
+                        avatar_type=avatar_res.headers['Content-Type'],
+                        avatar=avatar_res.body)
+            self.application._db.add(avatar)
+            self.application._db.commit()
+
         # Look up the user in the database
         user = self.application._db.query(User).get(user_data['id'])
         if user is None:
-            # New user, do we have their avatar on file?
-            avatar = self.application._db.query(Avatar).filter(
-                    Avatar.url==user_data['image_url']).first()
-            if avatar is None:
-                # We don't have the avatar yet
-                log.debug('Retrieving avatar at %s',
-                        user_data['image_url'])
-                avatar_res = yield self.application._client.fetch(
-                        user_data['image_url'])
-                avatar = Avatar(url=user_data['image_url'],
-                            avatar_type=avatar_res.headers['Content-Type'],
-                            avatar=avatar_res.body)
-                self.application._db.add(avatar)
-                self.application._db.commit()
-                # We should now!
-
+            # New user
             user = User(user_id=user_data['id'],
                         screen_name=user_data['screen_name'],
                         url=user_data['url'],
-                        avatar_id=avatar.avatar_id)
+                        avatar_id=avatar.avatar_id,
+                        last_update=datetime.datetime.now(tz=pytz.utc))
             self.application._db.add(user)
-            self.application._db.commit()
+        else:
+            # Existing user, update the user details
+            user.screen_name = user_data['screen_name']
+            user.avatar_id=avatar.avatar_id
+            user.url = user_data['url']
+            user.last_update = datetime.datetime.now(tz=pytz.utc)
+
+        self.application._db.commit()
 
         # We have the user account, create the session
         session = Session(
