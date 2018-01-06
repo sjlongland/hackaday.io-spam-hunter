@@ -1,6 +1,6 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, BigInteger, String, ForeignKey, \
-        Boolean, LargeBinary, Text
+        Boolean, LargeBinary, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 
 Base = declarative_base()
