@@ -49,7 +49,7 @@ class Session(Base):
     """
     __tablename__   = 'session'
 
-    session_id      = Column(UUID, primary_key=True)
+    session_id      = Column(UUID(as_uuid=True), primary_key=True)
     user_id         = Column(BigInteger, ForeignKey('user.user_id'))
     token           = Column(String)
 
