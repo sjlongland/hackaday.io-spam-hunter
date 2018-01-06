@@ -1,6 +1,6 @@
 
 /* Window state */
-var page = 0;
+var page = 1;
 var textbox = null;
 
 var getNextPage = function() {
@@ -34,9 +34,10 @@ var getNextPage = function() {
 				textbox.appendChild(userBox);
 			});
 			textbox.appendChild(document.createElement('hr'));
+			page++;
 		}
 		};
-	rq.open("GET", "/data/newcomers.json", true);
+	rq.open("GET", "/data/newcomers.json?page=" + page, true);
 	rq.send();
 };
 
