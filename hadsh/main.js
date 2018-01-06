@@ -7,7 +7,7 @@ var busy = false;
 var getNextPage = function() {
 	var rq = new XMLHttpRequest();
 	busy = true;
-	var loading_msg = document.createElement('h3');
+	var loading_msg = document.createElement('pre');
 	var spinner = '-';
 	var dots = '';
 	textbox.appendChild(loading_msg);
@@ -42,7 +42,8 @@ var getNextPage = function() {
 				data.users.forEach(function (user) {
 					var userBox = document.createElement('div');
 					var avatar = document.createElement('img');
-					avatar.src = '/avatar/' + user.avatar_id;
+					avatar.src = '/avatar/' + user.avatar_id
+								+ '?width=100&height=100';
 					avatar.class = 'avatar';
 					userBox.appendChild(avatar);
 					var profile_link = document.createElement('a');
