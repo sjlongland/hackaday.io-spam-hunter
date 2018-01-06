@@ -5,16 +5,15 @@
 	<head>
 		<meta http-equiv="Content-Type"
 			content="text/html; charset=utf-8"/>
-		<title>Hackaday.io Spambot Hunter Project</title>
+		<title>Hackaday.io Spambot Hunter Project: Recent arrivals</title>
+		<script type="application/javascript" src="main.js"></script>
 	</head>
-	<body>
-		<h1>Hackaday.io Spambot Hunter Project</h1>
+	<body onload="main()">
+		<h1>Hackaday.io Spambot Hunter Project: Recent arrivals</h1>
 
-		<p>
-			Sorry <a href="{{user_profile}}">{{user_name}}</a>,
-			not much to see yet.  We're working on it!
-			<img alt="avatar" align="right"
-				src="/avatar/{{user_avatar_id}}" />
-		</p>
+		<div id="recent"></div>
+		<hr />
+		<p><address>Logged in as
+			<a href="{{user_profile}}">{{user_name}}</a></address></p>
 	</body>
 </html>
