@@ -150,7 +150,7 @@ class Crawler(object):
         """
         Update a user in the database from data retrieved via the API.
         """
-        avatar = yield self.fetch_avatar(user_data['image_url'])
+        avatar = self.get_avatar(user_data['image_url'])
 
         # Look up the user in the database
         user = self._db.query(User).get(user_data['id'])
