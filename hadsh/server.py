@@ -134,9 +134,6 @@ def main(*args, **kwargs):
             client_id=args.client_id,
             client_secret=args.client_secret,
             api_key=args.api_key,
-            api_uri=args.api_uri,
-            auth_uri=args.auth_uri,
-            token_uri=args.token_uri,
             domain=args.domain,
             secure=args.secure
     )
