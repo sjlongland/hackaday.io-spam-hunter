@@ -139,6 +139,7 @@ class HackadayAPI(object):
         if api_key:
             query.setdefault('api_key', self._api_key)
 
+        self._log.debug('Query arguments: %r', query)
         encode_kv = lambda k, v : '%s=%s' % (k, urlparse.quote_plus(str(v)))
         def encode_item(item):
             (key, value) = item
