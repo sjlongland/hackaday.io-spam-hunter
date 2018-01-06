@@ -19,6 +19,10 @@ class User(Base):
     avatar_id       = Column(BigInteger, ForeignKey('avatar.avatar_id'))
     last_update     = Column(DateTime(timezone=True))
 
+    sessions = relationship("Session", back_populates="user")
+    links = relationship("UserLink", back_populates="user")
+    detail = relationship("UserDetail", uselist=False, back_populates="user") 
+
 
 class Group(Base):
     """
