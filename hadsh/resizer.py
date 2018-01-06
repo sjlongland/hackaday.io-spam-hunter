@@ -71,7 +71,7 @@ class ImageResizer(object):
 
         # Run the above in the thread pool:
         self._pool.apply_async(_do_resize, avatar.avatar,
-                avatar.format, width, height)
+                avatar.avatar_type, width, height)
 
         # Wait for the result
         resized_data = yield future
