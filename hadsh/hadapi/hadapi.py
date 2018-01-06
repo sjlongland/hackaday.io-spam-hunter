@@ -200,7 +200,7 @@ class HackadayAPI(object):
         if page is not None:
             query['page'] = int(page)
         if per_page is not None:
-            query['per_page'] = int(perpage)
+            query['per_page'] = int(per_page)
 
         return query
 
