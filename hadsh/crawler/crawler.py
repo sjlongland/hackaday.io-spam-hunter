@@ -53,6 +53,11 @@ class Crawler(object):
             if user is None:
                 user = self._db.query(User).get(user_data['id'])
 
+            if user.last_update is not None:
+                age = datetime.datetime.now(tz=pytz.utc) - user.last_update;
+                if age.total_seconds() < 300:
+                    return
+
             # Does the user have any hyperlinks or other patterns in their
             # profile?
             self._log.debug('Inspecting user %s [#%d]',
