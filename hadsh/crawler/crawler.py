@@ -78,6 +78,11 @@ class Crawler(object):
             while pg_idx <= pg_cnt:
                 link_res = yield self._api.get_user_links(user.user_id,
                         page=pg_idx, per_page=50)
+
+                if link_res['links'] == 0:
+                    # No links, yes sometimes it's an integer.
+                    break
+
                 try:
                     for link in link_res['links']:
                         # Do we have the link already?
