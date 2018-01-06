@@ -40,7 +40,7 @@ class CallbackHandler(RequestHandler):
         if user is None:
             # New user, do we have their avatar on file?
             avatar = self.application._db.query(Avatar).filter(
-                    url==user_data['image_url'])
+                    Avatar.url==user_data['image_url'])
             if avatar is None:
                 # We don't have the avatar yet
                 avatar_res = yield self._client.fetch(user_data['image_url'])
