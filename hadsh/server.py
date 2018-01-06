@@ -70,7 +70,8 @@ class CallbackHandler(RequestHandler):
         self.application._db.commit()
 
         # Grab the session ID and set that in a cookie.
-        self.set_cookie(name='hadsh', value=session.session_id,
+        self.set_cookie(name='hadsh',
+                value=str(session.session_id),
                 domain=self.application._domain,
                 secure=self.application._secure,
                 expires_days=7)
