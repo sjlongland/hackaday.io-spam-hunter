@@ -37,6 +37,7 @@ class ImageResizer(object):
         # What to do in the thread pool
         def _do_resize(image_data, image_format, width, height):
             try:
+                log.debug('Opening image')
                 image = Image.open(BytesIO(image_data))
 
                 # Get the aspect ratio
@@ -63,10 +64,11 @@ class ImageResizer(object):
                     pil_format = 'PNG'
 
                 out_buffer = BytesIO()
-                log.debug('Saving output')
+                log.debug('Saving output as %s', pil_format)
                 image.save(out_buffer, pil_format)
                 self._io_loop.add_callback(_on_done, out_buffer.getvalue())
             except:
+                log.exception('Failed to resize')
                 self._io_loop.add_callback(_on_done, exc_info())
 
         # Run the above in the thread pool:
