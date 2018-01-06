@@ -1,4 +1,5 @@
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 from sqlalchemy import Column, BigInteger, String, ForeignKey, \
         Boolean, LargeBinary, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID
@@ -53,6 +54,8 @@ class Session(Base):
     user_id         = Column(BigInteger, ForeignKey('user.user_id'))
     token           = Column(String)
 
+    user            = relationship("User", back_populates="sessions")
+
 
 class UserDetail(Base):
     """
@@ -67,6 +70,8 @@ class UserDetail(Base):
     about_me        = Column(Text)
     who_am_i        = Column(Text)
 
+    user            = relationship("User", back_populates="detail")
+
 
 class UserLink(Base):
     """
@@ -79,6 +84,8 @@ class UserLink(Base):
     title           = Column(Text)
     location        = Column(String)
     url             = Column(String)
+
+    user            = relationship("User", back_populates="links")
 
 
 class Avatar(Base):
