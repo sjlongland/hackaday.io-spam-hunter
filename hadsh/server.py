@@ -59,7 +59,7 @@ class CallbackHandler(RequestHandler):
                         url=user_data['url'],
                         avatar_id=avatar.avatar_id)
             self.application._db.add(user)
-            self.application._db_commit()
+            self.application._db.commit()
 
         # We have the user account, create the session
         session = Session(
