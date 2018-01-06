@@ -135,7 +135,7 @@ class Crawler(object):
             raise
 
     @coroutine
-    def update_user_from_data(self, user_data):
+    def update_user_from_data(self, user_data, inspect_all=True):
         """
         Update a user in the database from data retrieved via the API.
         """
@@ -157,14 +157,15 @@ class Crawler(object):
             user.url = user_data['url']
 
         # Inspect the user
-        yield self._inspect_user(user_data, user=user)
-        user.last_update = datetime.datetime.now(tz=pytz.utc)
+        if inspect_all or (user.last_update is None):
+            yield self._inspect_user(user_data, user=user)
+            user.last_update = datetime.datetime.now(tz=pytz.utc)
         self._db.commit()
 
         raise Return(user)
 
     @coroutine
-    def fetch_new_users(self, page=1):
+    def fetch_new_users(self, page=1, inspect_all=True):
         """
         Retrieve new users from the Hackaday.io API and inspect the new arrivals.
         Returns the list of users on the given page and the total number of pages.
@@ -172,8 +173,11 @@ class Crawler(object):
         new_user_data = yield self._api.get_users(sortby=UserSortBy.newest,
                 page=page, per_page=50)
         users = []
+        now = datetime.datetime.now(tz=pytz.utc)
         for user_data in new_user_data['users']:
-            user = yield self.update_user_from_data(user_data)
+            user = yield self.update_user_from_data(user_data, inspect_all)
+            if (now - user.last_update).total_seconds() > 300.0:
+                continue
             users.append(user)
 
         raise Return((users, new_user_data.get('last_page')))
