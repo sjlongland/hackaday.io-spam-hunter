@@ -73,6 +73,7 @@ class UserDetail(Base):
                         primary_key=True)
     about_me        = Column(Text)
     who_am_i        = Column(Text)
+    location        = Column(String)
 
     user            = relationship("User", back_populates="detail")
 
@@ -86,7 +87,6 @@ class UserLink(Base):
     user_id         = Column(BigInteger, ForeignKey('user.user_id'),
                         primary_key=True)
     title           = Column(Text)
-    location        = Column(String)
     url             = Column(String)
 
     user            = relationship("User", back_populates="links")
