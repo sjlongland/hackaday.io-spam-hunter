@@ -148,7 +148,8 @@ class HackadayAPI(object):
             else:
                 return encode_kv(key, value)
 
-        uri += '?%s' % '&'.join(map(encode_item, query.items()))
+        if len(query) > 0:
+            uri += '?%s' % '&'.join(map(encode_item, query.items()))
 
         if not uri.startswith('http'):
             uri = self._api_uri + uri
