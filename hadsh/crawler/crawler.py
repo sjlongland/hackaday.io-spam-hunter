@@ -71,7 +71,7 @@ class Crawler(object):
                     if pmatch:
                         self._log.info('Found match for %s (%r) in '\
                                 '%s of %s [#%d]',
-                                pattern.pattern, pattern.group(0),
+                                pattern.pattern, pmatch.group(0),
                                 user_data['screen_name'], user_data['id'])
                         match = True
                         break
