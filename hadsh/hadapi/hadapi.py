@@ -238,6 +238,7 @@ class HackadayAPI(object):
         raise Return(users)
 
 
+    @coroutine
     def get_users(self, sortby=UserSortBy.influence,
             ids=None, page=None, per_page=None):
         """
@@ -249,19 +250,20 @@ class HackadayAPI(object):
             # This is currently broken for sortby=newest,
             # see if it's fixed though.
             try:
-                return self._api_call('/users', query=query)
+                result = yield self._api_call('/users', query=query)
             except HTTPError:
                 # Nope, it isn't work-around time!
-                return self._get_users_workaround(sortby, page)
+                result = yield self._get_users_workaround(sortby, page)
         elif isinstance(ids, slice):
             query['ids'] = '%d,%d' % (slice.start, slice.stop)
-            return self._api_call('/users/range', query=query)
+            result = yield self._api_call('/users/range', query=query)
         else:
             ids = list(ids)
             if len(ids) > 50:
                 raise ValueError('Too many IDs')
             query['ids'] = ','.join(['%d' % uid for uid in ids])
-            return self._api_call('/users/batch', query=query)
+            result = yield self._api_call('/users/batch', query=query)
+        raise Return(result)
 
     def search_users(self, screen_name=None, location=None, tag=None,
             sortby=UserSortBy.influence, page=None, per_page=None):
