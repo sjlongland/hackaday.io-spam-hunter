@@ -16,7 +16,7 @@ CHECK_PATTERNS = (
         re.compile(r'<a .*href=".*">'),     # Hyperlink
         re.compile(r'\([0-9]+\)[ 0-9\-]+'), # US-style telephone number
         re.compile(r'\+[0-9]+[ 0-9\-]+'),   # International telephone number
-        re.compile(r'\+[0-9]+ *\([0-9]+\)[ 0-9\-]+)',   # Hybrid telephone
+        re.compile(r'\+[0-9]+ *\([0-9]+\)[ 0-9\-]+'),  # Hybrid telephone
 )
 
 class Crawler(object):
@@ -74,7 +74,7 @@ class Crawler(object):
         # a spammer, just one of the traits.
         pg_idx = 1
         pg_cnt = 1  # Don't know how many right now, but let's start here
-        while pg_idx <= pg_cnt
+        while pg_idx <= pg_cnt:
             link_res = yield self._api.get_user_links(user.user_id,
                     page=pg_idx, perpage=50)
             for link in link_res['links']:
