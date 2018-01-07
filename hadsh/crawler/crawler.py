@@ -13,6 +13,7 @@ from ..hadapi.hadapi import UserSortBy
 from ..db.model import User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag, NewestUserPageRefresh
 from sqlalchemy.exc import InvalidRequestError
+from sqlalchemy import or_
 
 
 # Patterns to look for:
@@ -57,6 +58,7 @@ class Crawler(object):
         self._manual_suspect = self._get_or_make_group('suspect')
         self._manual_legit = self._get_or_make_group('legit')
 
+        self._refresh_admin_group_timeout = None
         self._io_loop.add_callback(self.refresh_admin_group)
         self._io_loop.add_timeout(
                 self._io_loop.time() + 60,
@@ -64,7 +66,9 @@ class Crawler(object):
         self._io_loop.add_timeout(
                 self._io_loop.time() + 5,
                 self._background_fetch_hist_users)
-        self._refresh_admin_group_timeout = None
+        self._io_loop.add_timeout(
+                self._io_loop.time() + 300.0,
+                self._background_update_users)
 
         # Event to indicate when new users have been added
         self.new_user_event = Event()
@@ -308,6 +312,32 @@ class Crawler(object):
         self._db.commit()
 
         raise Return(user)
+
+    @coroutine
+    def _background_update_users(self):
+        """
+        Fetch some users from the database and update them if not yet classified.
+        """
+        try:
+            update_time = datetime.datetime.now(tz=pytz.utc) \
+                        - datetime.timedelta(days=1)
+            to_update = self._db.query(User).filter(or_(\
+                    User.created == None,
+                    User.last_update < update_time)).order_by(\
+                            User.last_update).all()
+
+            # Fetch the user data for these users
+            ids = [u.user_id for u in to_update[:50]]
+            all_user_data = yield self._api.get_users(ids=ids)
+
+            for user_data in all_user_data:
+                yield self._inspect_user(user_data)
+        except:
+            self._log.exception('Failed to update existing users')
+
+        self._io_loop.add_timeout(
+                self._io_loop.time() + 300.0,
+                self._background_update_users)
 
     @coroutine
     def _background_fetch_new_users(self):
