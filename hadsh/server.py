@@ -128,7 +128,13 @@ class NewcomerDataHandler(AuthRequestHandler):
                     'avatar_id':    user.avatar_id,
                     'created':      user.created.isoformat(),
                     'last_update':  user.last_update.isoformat(),
-                    'links':        list(map(_dump_link, user.links))
+                    'links':        list(map(_dump_link, user.links)),
+                    'groups':       [
+                        g.name for g in user.groups
+                    ],
+                    'tags':         [
+                        t.tag for t in user.tags
+                    ]
             }
             detail = user.detail
             if detail is not None:
