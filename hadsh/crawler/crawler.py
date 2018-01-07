@@ -26,6 +26,8 @@ class Crawler(object):
         self._api = api
         self._client = client
 
+        self._page_last_refresh = {}
+
     def get_avatar(self, avatar_url):
         avatar = self._db.query(Avatar).filter(
                 Avatar.url==avatar_url).first()
@@ -182,11 +184,20 @@ class Crawler(object):
         Returns the list of users on the given page and the total number of pages.
         """
         users = []
-        now = datetime.datetime.now(tz=pytz.utc)
 
         while len(users) < 10:
+            now = datetime.datetime.now(tz=pytz.utc)
+            if page > 10:
+                last_refresh = self._page_last_refresh.get(page)
+                if (last_refresh is not None) and \
+                        ((now - last_refresh).total_seconds() < 3600.0):
+                    # Skip this page for now
+                    page += 1
+                    continue
+
             new_user_data = yield self._api.get_users(sortby=UserSortBy.newest,
                     page=page, per_page=50)
+            self._page_last_refresh[page] = now
 
             for user_data in new_user_data['users']:
                 user = yield self.update_user_from_data(user_data, inspect_all)
