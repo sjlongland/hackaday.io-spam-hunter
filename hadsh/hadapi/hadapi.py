@@ -217,7 +217,13 @@ class HackadayAPI(object):
     _GET_USERS_WORKAROUND_RE = re.compile(
             '    <a href="/hacker/(\d+)" class="hacker-image">')
     @coroutine
-    def _get_users_workaround(self, sortby=UserSortBy.influence, page=1):
+    def _get_users_workaround(self, sortby=UserSortBy.influence, page=None,
+            per_page=None):
+        if page is None:
+            page = 1
+        if per_page is None:
+            per_page = 50
+
         sortby = UserSortBy(sortby)
         response = yield self._client.fetch(
                 'https://hackaday.io/hackers?sort=%s&page=%d' \
@@ -230,7 +236,11 @@ class HackadayAPI(object):
             match = self._GET_USERS_WORKAROUND_RE.match(line)
             if match:
                 ids.append(int(match.group(1)))
-        users = yield self.get_users(ids=ids)
+
+        # Find highest ID number and subtract per_page.
+        last = max(ids)
+        first = last - per_page
+        users = yield self.get_users(ids=slice(first,last))
         raise Return(users)
 
 
@@ -249,7 +259,8 @@ class HackadayAPI(object):
                 result = yield self._api_call('/users', query=query)
             except HTTPError:
                 # Nope, it isn't work-around time!
-                result = yield self._get_users_workaround(sortby, page)
+                result = yield self._get_users_workaround(sortby,
+                        query.get('page'), query.get('per_page'))
         elif isinstance(ids, slice):
             query['ids'] = '%d,%d' % (slice.start, slice.stop)
             result = yield self._api_call('/users/range', query=query)
