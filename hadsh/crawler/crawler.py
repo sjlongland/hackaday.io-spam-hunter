@@ -181,12 +181,13 @@ class Crawler(object):
         Retrieve new users from the Hackaday.io API and inspect the new arrivals.
         Returns the list of users on the given page and the total number of pages.
         """
-        new_user_data = yield self._api.get_users(sortby=UserSortBy.newest,
-                page=page, per_page=50)
         users = []
         now = datetime.datetime.now(tz=pytz.utc)
 
         while len(users) < 10:
+            new_user_data = yield self._api.get_users(sortby=UserSortBy.newest,
+                    page=page, per_page=50)
+
             for user_data in new_user_data['users']:
                 user = yield self.update_user_from_data(user_data, inspect_all)
                 if (now - user.last_update).total_seconds() > 300.0:
