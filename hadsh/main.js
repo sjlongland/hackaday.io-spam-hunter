@@ -85,7 +85,7 @@ var getNextPage = function() {
 					textbox.appendChild(userBox);
 				});
 				textbox.appendChild(document.createElement('hr'));
-				page++;
+				page = data.page + 1;
 			}
 			busy = false;
 		}
