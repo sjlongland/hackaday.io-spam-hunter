@@ -351,12 +351,13 @@ class Crawler(object):
 
             user_data = yield self._api.get_users(ids=slice(start, end),
                     per_page=50)
-            for this_user_data in user_data['users']:
-                try:
-                    user = yield self.update_user_from_data(
-                            this_user_data, inspect_all=True)
-                except InvalidUser:
-                    continue
+            if isinstance(user_data['users'], list):
+                for this_user_data in user_data['users']:
+                    try:
+                        user = yield self.update_user_from_data(
+                                this_user_data, inspect_all=True)
+                    except InvalidUser:
+                        continue
         except InvalidRequestError:
             # SQL cock up, roll back.
             self._db.rollback()
@@ -366,7 +367,7 @@ class Crawler(object):
             self._log.exception('Failed to retrieve newer users')
 
         self._io_loop.add_timeout(
-                self._io_loop.time() + 300.0,
+                self._io_loop.time() + 3600.0,
                 self._background_fetch_new_users)
 
     @coroutine
