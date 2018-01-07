@@ -115,6 +115,11 @@ class NewcomerDataHandler(AuthRequestHandler):
             return
 
         try:
+            page = int(self.get_query_argument('page'))
+        except MissingArgumentError:
+            page = 0
+
+        try:
             before_user_id = int(self.get_query_argument('before_user_id'))
         except MissingArgumentError:
             before_user_id = None
@@ -137,7 +142,8 @@ class NewcomerDataHandler(AuthRequestHandler):
                 query = query.filter(User.user_id < before_user_id)
             if after_user_id is not None:
                 query = query.filter(User.user_id > after_user_id)
-            new_users = query.order_by(User.created.desc()).limit(50).all()
+            new_users = query.order_by(\
+                    User.created.desc()).offset(page*50).limit(50).all()
 
             if len(new_users) == 0:
                 # There are no more new users, wait for crawl to happen
@@ -180,8 +186,7 @@ class NewcomerDataHandler(AuthRequestHandler):
         self.set_status(200)
         self.set_header('Content-Type', 'application/json')
         self.write(json.dumps({
-                'page': 1,
-                'last_page': 1000,
+                'page': page,
                 'users': list(map(_dump_user, new_users))
         }))
 
