@@ -4,12 +4,14 @@ import pytz
 
 import re
 
+from tornado.httpclient import HTTPError
 from tornado.gen import coroutine, Return
 from tornado.ioloop import IOLoop
 
 from ..hadapi.hadapi import UserSortBy
 from ..db.model import User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag, NewestUserPageRefresh
+from sqlalchemy.exc import InvalidRequestError
 
 
 # Patterns to look for:
@@ -19,6 +21,9 @@ CHECK_PATTERNS = (
         re.compile(r'\+[0-9]+[ 0-9\-]+'),   # International telephone number
         re.compile(r'\+[0-9]+ *\([0-9]+\)[ 0-9\-]+'),  # Hybrid telephone
 )
+
+class InvalidUser(ValueError):
+    pass
 
 class Crawler(object):
     def __init__(self, project_id, db, api, client, log, io_loop=None):
@@ -137,6 +142,25 @@ class Crawler(object):
         try:
             if user is None:
                 user = self._db.query(User).get(user_data['id'])
+
+            # Is the link valid?
+            try:
+                result = yield self._client.fetch(
+                        user.url, method='HEAD')
+            except HTTPError as e:
+                if e.code != 404:
+                    raise
+                self._log.info('Link to user %s [#%d] no longer valid',
+                        user.screen_name, user.user_id)
+
+                try:
+                    self._db.delete(user)
+                    self._db.commit()
+                except InvalidRequestError:
+                    # Possible if the object hasn't yet been committed yet.
+                    self._db.expunge(user)
+                    pass
+                raise InvalidUser('no longer valid')
 
             if user.last_update is not None:
                 age = datetime.datetime.now(tz=pytz.utc) - user.last_update;
@@ -294,7 +318,11 @@ class Crawler(object):
                 self._db.commit()
 
             for user_data in new_user_data['users']:
-                user = yield self.update_user_from_data(user_data, inspect_all)
+                try:
+                    user = yield self.update_user_from_data(
+                            user_data, inspect_all)
+                except InvalidUser:
+                    continue
 
                 # See if the user has been manually classified or not
                 user_groups = set([g.name for g in user.groups])
