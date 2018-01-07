@@ -192,7 +192,7 @@ class HADSHApp(Application):
     """
     Hackaday.io Spambot Hunter application.
     """
-    def __init__(self, db_uri, client_id, client_secret, api_key,
+    def __init__(self, db_uri, project_id, client_id, client_secret, api_key,
             domain, secure):
         self._log = logging.getLogger(self.__class__.__name__)
         self._db = get_db(db_uri)
@@ -200,7 +200,8 @@ class HADSHApp(Application):
         self._api = HackadayAPI(client_id=client_id,
                 client_secret=client_secret, api_key=api_key,
                 client=self._client, log=self._log.getChild('api'))
-        self._crawler = Crawler(self._db, self._api, self._client,
+        self._crawler = Crawler(project_id, self._db,
+                self._api, self._client,
                 self._log.getChild('crawler'))
         self._resizer = ImageResizer(self._log.getChild('resizer'))
         self._domain = domain
@@ -222,6 +223,8 @@ def main(*args, **kwargs):
     """
     parser = argparse.ArgumentParser(
             description='HAD Spambot Hunter Project')
+    parser.add_argument('--project-id', dest='project_id', type=int,
+            help='Owner project ID; for determining who gets admin rights')
     parser.add_argument('--domain', dest='domain',
             help='Domain to use for cookies')
     parser.add_argument('--cleartext', action='store_const',
@@ -257,6 +260,7 @@ def main(*args, **kwargs):
                 'https://dev.hackaday.io/applications')
 
     application = HADSHApp(
+            project_id=args.project_id,
             db_uri=args.db_uri,
             client_id=args.client_id,
             client_secret=args.client_secret,
