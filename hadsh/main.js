@@ -54,6 +54,10 @@ var getNextPage = function() {
 					profile_link.appendChild(profile_name);
 					userBox.appendChild(profile_link);
 
+					var profile_created = document.createElement('div');
+					profile_created.innerHTML = user.created;
+					userBox.appendChild(profile_created);
+
 					if (user.location) {
 						var profile_location = document.createElement('div');
 						profile_location.innerHTML = user.location;
