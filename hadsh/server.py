@@ -19,6 +19,7 @@ from .crawler.crawler import Crawler
 from .resizer import ImageResizer
 from .db.db import get_db, User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag
+from .util import decode_body
 
 
 class AuthRequestHandler(RequestHandler):
@@ -38,6 +39,14 @@ class AuthRequestHandler(RequestHandler):
             return
 
         return session
+
+
+class AuthAdminRequestHandler(AuthRequestHandler):
+    def _is_admin(self, session):
+        # Is the user an admin?
+        return 'admin' in set([
+            g.name for g in session.user.groups
+        ])
 
 
 class RootHandler(AuthRequestHandler):
@@ -154,6 +163,109 @@ class NewcomerDataHandler(AuthRequestHandler):
         }))
 
 
+class ClassifyHandler(AuthAdminRequestHandler):
+    @coroutine
+    def post(self, user_id):
+        # Are we logged in?
+        session = self._get_session_or_redirect()
+        if session is None:
+            return
+
+        self.set_header('Content-Type', 'application/json')
+        if not self._is_admin(session):
+            self.set_status(401)
+            self.write(json.dumps({
+                'error': 'not an admin'
+            }))
+            return
+
+        user_id = int(user_id)
+        log = self.application._log.getChild('classify[%d]' % user_id)
+
+        (content_type, _, body_data) = decode_body(
+                self.request.headers['Content-Type'],
+                self.request.body)
+
+        if content_type != 'application/json':
+            self.set_status(400)
+            self.write(json.dumps({
+                'error': 'unrecognised payload type',
+                'type': content_type,
+            }))
+            return
+
+        classification = json.loads(body_data)
+        if not isinstance(classification, str):
+            self.set_status(400)
+            self.write(json.dumps({
+                'error': 'payload is not a string'
+            }))
+            return
+
+        user = self.application._db.query(User).get(user_id)
+        if user is None:
+            self.set_status(404)
+            self.write(json.dumps({
+                'error': 'no such user',
+                'user_id': user_id,
+            }))
+
+        # Grab the groups for classification
+        groups = dict([
+            (g.name, g) for g in self.application._db.query(Group).all()
+        ])
+
+        if classification == 'legit':
+            try:
+                user.groups.remove(groups['auto_suspect'])
+            except ValueError:
+                pass
+
+            try:
+                user.groups.remove(groups['auto_legit'])
+            except ValueError:
+                pass
+
+            try:
+                user.groups.remove(groups['suspect'])
+            except ValueError:
+                pass
+
+            user.groups.append(groups['legit'])
+        elif classification == 'suspect':
+            try:
+                user.groups.remove(groups['auto_suspect'])
+            except ValueError:
+                pass
+
+            try:
+                user.groups.remove(groups['auto_legit'])
+            except ValueError:
+                pass
+
+            try:
+                user.groups.remove(groups['legit'])
+            except ValueError:
+                pass
+
+            user.groups.append(groups['suspect'])
+        else:
+            self.set_status(400)
+            self.write(json.dumps({
+                'error': 'unrecognised classification',
+                'classification': classification
+            }))
+            return
+
+        self.application._db.commit()
+        self.set_status(200)
+        self.write(json.dumps({
+            'user_id': user_id,
+            'groups': [g.name for g in user.groups]
+        }))
+        log.info('User %d marked as %s', user_id, classification)
+
+
 class CallbackHandler(RequestHandler):
     @coroutine
     def get(self):
@@ -210,6 +322,7 @@ class HADSHApp(Application):
             (r"/", RootHandler),
             (r"/avatar/([0-9]+)", AvatarHandler),
             (r"/callback", CallbackHandler),
+            (r"/classify/([0-9]+)", ClassifyHandler),
             (r"/data/newcomers.json", NewcomerDataHandler),
             (r"/authorize", RedirectHandler, {
                 "url": self._api.auth_uri
