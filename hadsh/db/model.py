@@ -1,10 +1,22 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, BigInteger, String, ForeignKey, \
-        Boolean, LargeBinary, Text, DateTime
+        Boolean, LargeBinary, Text, DateTime, Table
 from sqlalchemy.dialects.postgresql import UUID
 
 Base = declarative_base()
+
+
+user_group_assoc = Table('user_group_assoc', Base.metadata,
+    Column('user_id', BigInteger, ForeignKey('user.user_id')),
+    Column('group_id', BigInteger, ForeignKey('group.group_id'))
+)
+
+user_tag_assoc = Table('user_tag_assoc', Base.metadata,
+    Column('user_id', BigInteger, ForeignKey('user.user_id')),
+    Column('tag_id', BigInteger, ForeignKey('tag.tag_id'))
+)
+
 
 class User(Base):
     """
@@ -23,7 +35,10 @@ class User(Base):
     sessions = relationship("Session", back_populates="user")
     links = relationship("UserLink", back_populates="user")
     detail = relationship("UserDetail", uselist=False, back_populates="user") 
-
+    groups = relationship("Group", secondary=user_group_assoc,
+            back_populates="users")
+    tags = relationship("Tag", secondary=user_tag_assoc,
+            back_populates="users")
 
 class Group(Base):
     """
@@ -35,17 +50,8 @@ class Group(Base):
     group_id        = Column(BigInteger, primary_key=True)
     name            = Column(String, unique=True)
 
-
-class GroupMember(Base):
-    """
-    Group membership links.
-    """
-    __tablename__   = 'group_member'
-
-    group_id        = Column(BigInteger, ForeignKey('group.group_id'),
-                        primary_key=True, index=True)
-    user_id         = Column(BigInteger, ForeignKey('user.user_id'),
-                        primary_key=True, index=True)
+    users = relationship("User", secondary=user_group_assoc,
+            back_populates="groups")
 
 
 class Session(Base):
@@ -114,17 +120,8 @@ class Tag(Base):
     tag_id          = Column(BigInteger, primary_key=True)
     tag             = Column(String, unique=True, index=True)
 
-
-class UserTag(Base):
-    """
-    A list of tags applied to a user's account.
-    """
-    __tablename__   = 'user_tag'
-
-    user_id         = Column(BigInteger, ForeignKey('user.user_id'),
-                        primary_key=True)
-    tag_id          = Column(BigInteger, ForeignKey('tag.tag_id'),
-                        primary_key=True)
+    users = relationship("User", secondary=user_group_assoc,
+            back_populates="tags")
 
 
 class NewestUserPageRefresh(Base):
