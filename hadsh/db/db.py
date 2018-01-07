@@ -1,5 +1,5 @@
-from .model import Base, User, Group, GroupMember, Session, UserDetail, \
-        UserLink, Avatar, Tag, UserTag
+from .model import Base, User, Group, Session, UserDetail, \
+        UserLink, Avatar, Tag
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 
