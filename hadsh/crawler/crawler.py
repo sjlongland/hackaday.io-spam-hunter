@@ -326,11 +326,11 @@ class Crawler(object):
         more = True
         try:
             oldest = self._db.query(User).order_by(User.user_id).first()
-            start = oldest.user_id - 1
-            if start <= 0:
+            end = oldest.user_id - 1
+            if end <= 0:
                 more = False
                 return
-            end = max([1, start - 50])
+            start = max([1, end - 50])
 
             user_data = yield self._api.get_users(ids=slice(start, end),
                     per_page=50)
