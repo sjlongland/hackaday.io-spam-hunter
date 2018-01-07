@@ -8,7 +8,7 @@ from tornado.gen import coroutine, Return
 
 from ..hadapi.hadapi import UserSortBy
 from ..db.model import User, Group, GroupMember, Session, UserDetail, \
-        UserLink, Avatar, Tag, UserTag
+        UserLink, Avatar, Tag, UserTag, NewestUserPageRefresh
 
 
 # Patterns to look for:
@@ -163,7 +163,7 @@ class Crawler(object):
                         url=user_data['url'],
                         avatar_id=avatar.avatar_id,
                         created=datetime.datetime.fromtimestamp(
-                            user_data['created'], tz=pytz.utc)
+                            user_data['created'], tz=pytz.utc))
             self._db.add(user)
         else:
             # Existing user, update the user details
@@ -189,17 +189,26 @@ class Crawler(object):
 
         while len(users) < 10:
             now = datetime.datetime.now(tz=pytz.utc)
-            if page > 10:
-                last_refresh = self._page_last_refresh.get(page)
+            if page > 1:
+                last_refresh = self._db.query(NewestUserPageRefresh).get(page)
                 if (last_refresh is not None) and \
-                        ((now - last_refresh).total_seconds() < 3600.0):
+                        ((now - last_refresh.refresh_date).total_seconds() \
+                            < 86400.0):
                     # Skip this page for now
                     page += 1
                     continue
 
             new_user_data = yield self._api.get_users(sortby=UserSortBy.newest,
                     page=page, per_page=50)
-            self._page_last_refresh[page] = now
+            if page > 1:
+                if last_refresh is None:
+                    last_refresh = NewestUserPageRefresh(
+                        page_num=page,
+                        refresh_date=now)
+                    self._db.add(last_refresh)
+                else:
+                    last_refresh.refresh_date = now
+                self._db.commit()
 
             for user_data in new_user_data['users']:
                 user = yield self.update_user_from_data(user_data, inspect_all)
