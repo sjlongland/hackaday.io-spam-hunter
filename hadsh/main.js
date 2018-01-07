@@ -14,9 +14,12 @@ var getNextPage = function() {
 	var dots = '';
 	textbox.appendChild(loading_msg);
 
-	Object.keys(auto_mark).forEach(function (user_id) {
-		auto_mark[user_id]();
-	});
+	var mark_list = Object.keys(auto_mark);
+	window.setTimeout(function () {
+		mark_list.forEach(function (user_id) {
+			auto_mark[user_id]();
+		});
+	}, 30000);
 
 	var nextSpinner = function() {
 		if (busy) {
