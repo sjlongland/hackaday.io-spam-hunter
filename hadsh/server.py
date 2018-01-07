@@ -126,6 +126,7 @@ class NewcomerDataHandler(AuthRequestHandler):
                     'screen_name':  user.screen_name,
                     'url':          user.url,
                     'avatar_id':    user.avatar_id,
+                    'created':      user.created,
                     'last_update':  user.last_update.isoformat(),
                     'links':        list(map(_dump_link, user.links))
             }
