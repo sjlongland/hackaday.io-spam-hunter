@@ -40,6 +40,7 @@ class User(Base):
     tags = relationship("Tag", secondary=user_tag_assoc,
             back_populates="users")
 
+
 class Group(Base):
     """
     Groups used for classifying users.
@@ -120,7 +121,7 @@ class Tag(Base):
     tag_id          = Column(BigInteger, primary_key=True)
     tag             = Column(String, unique=True, index=True)
 
-    users = relationship("User", secondary=user_group_assoc,
+    users = relationship("User", secondary=user_tag_assoc,
             back_populates="tags")
 
 
