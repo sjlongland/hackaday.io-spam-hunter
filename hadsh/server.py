@@ -149,8 +149,8 @@ class NewcomerDataHandler(AuthRequestHandler):
             if len(new_users) == 0:
                 # There are no more new users, wait for crawl to happen
                 log.debug('No users found, waiting for more from crawler')
-                self._crawler.new_user_event.clear()
-                yield self._crawler.new_user_event.wait()
+                self.application._crawler.new_user_event.clear()
+                yield self.application._crawler.new_user_event.wait()
 
         # Return JSON data
         def _dump_link(link):
