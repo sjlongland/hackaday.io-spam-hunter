@@ -58,6 +58,22 @@ var getNextPage = function() {
 					profile_created.innerHTML = user.created;
 					userBox.appendChild(profile_created);
 
+					var profile_groups = document.createElement('div');
+					user.groups.forEach(function (group) {
+						var group_label = document.createElement('tt');
+						group_label.innerHTML = group;
+						profile_groups.appendChild(group_label);
+					});
+					userBox.appendChild(profile_groups);
+
+					var profile_tags = document.createElement('div');
+					user.tags.forEach(function (tag) {
+						var tag_label = document.createElement('tt');
+						tag_label.innerHTML = tag;
+						profile_tags.appendChild(tag_label);
+					});
+					userBox.appendChild(profile_tags);
+
 					if (user.location) {
 						var profile_location = document.createElement('div');
 						profile_location.innerHTML = user.location;
