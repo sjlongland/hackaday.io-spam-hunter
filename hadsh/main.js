@@ -59,11 +59,36 @@ var getNextPage = function() {
 					userBox.appendChild(profile_created);
 
 					var profile_groups = document.createElement('div');
+					var group_set = {};
 					user.groups.forEach(function (group) {
 						var group_label = document.createElement('tt');
 						group_label.innerHTML = group;
 						profile_groups.appendChild(group_label);
+						group_set[group] = true;
 					});
+
+					if (!group_set.legit) {
+						var classify_legit = document.createElement('button');
+						classify_legit.innerHTML = 'Legit';
+						classify_legit.onclick = function() {
+							var rq = new XMLHttpRequest();
+							rq.open('POST', '/classify/' + user.id);
+							rq.setRequestHeader("Content-type", 'application/json');
+							rq.send(JSON.stringify("legit"));
+						};
+						profile_groups.appendChild(classify_legit);
+					}
+					if (!group_set.suspect) {
+						var classify_suspect = document.createElement('button');
+						classify_suspect.innerHTML = 'Suspect';
+						classify_suspect.onclick = function() {
+							var rq = new XMLHttpRequest();
+							rq.open('POST', '/classify/' + user.id);
+							rq.setRequestHeader("Content-type", 'application/json');
+							rq.send(JSON.stringify("suspect"));
+						};
+						profile_groups.appendChild(classify_suspect);
+					}
 					userBox.appendChild(profile_groups);
 
 					var profile_tags = document.createElement('div');
