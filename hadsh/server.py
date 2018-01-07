@@ -131,20 +131,13 @@ class NewcomerDataHandler(AuthRequestHandler):
         new_users = []
         while len(new_users) == 0:
             # Retrieve users from the database
-            query = self.application._db.query(User)
+            query = self.application._db.query(User).join(User.groups).filter(\
+                    Group.name != 'suspect', Group.name != 'legit')
             if before_user_id is not None:
                 query = query.filter(User.user_id < before_user_id)
             if after_user_id is not None:
                 query = query.filter(User.user_id > after_user_id)
             new_users = query.order_by(User.created.desc()).limit(50).all()
-
-            # Filter out users we've classified.
-            def _is_classified(user):
-                groups = set([g.name for g in user.groups])
-                log.debug('User %s [#%d] is in groups %s',
-                        user.screen_name, user.user_id, groups)
-                return ('legit' not in groups) and ('suspect' not in groups)
-            new_users = list(filter(_is_classified, new_users))
 
             if len(new_users) == 0:
                 # There are no more new users, wait for crawl to happen
