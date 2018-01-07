@@ -26,6 +26,23 @@ class Crawler(object):
         self._api = api
         self._client = client
 
+        # Some standard groups
+        self._admin_group = self._get_or_make_group('admin')
+        self._auto_suspect = self._get_or_make_group('auto_suspect')
+        self._auto_legit = self._get_or_make_group('auto_legit')
+        self._manual_suspect = self._get_or_make_group('auto_suspect')
+        self._manual_legit = self._get_or_make_group('auto_legit')
+
+    def _get_or_make_group(self, name):
+        group = self._db.query(Group).filter(
+                Group.name == name).first()
+        if group is None:
+            group = Group(name=name)
+            self._db.add(group)
+            self._db.commit()
+
+        return group
+
     def get_avatar(self, avatar_url):
         avatar = self._db.query(Avatar).filter(
                 Avatar.url==avatar_url).first()
@@ -141,6 +158,12 @@ class Crawler(object):
                     detail.about_me = user_data['about_me']
                     detail.who_am_i = user_data['who_am_i']
                     detail.location = user_data['location']
+
+                # Auto-Flag the user as "suspect"
+                self._auto_suspect.users.append(user)
+            else:
+                # Auto-Flag the user as "legit"
+                self._auto_legit.users.append(user)
         except:
             self._log.error('Failed to process user data %r', user_data)
             raise
