@@ -46,12 +46,32 @@ var getNextPage = function() {
 								+ '?width=100&height=100';
 					avatar.class = 'avatar';
 					userBox.appendChild(avatar);
+
 					var profile_link = document.createElement('a');
 					profile_link.href = user.url;
 					var profile_name = document.createElement('tt');
 					profile_name.innerHTML = user.screen_name;
 					profile_link.appendChild(profile_name);
 					userBox.appendChild(profile_link);
+
+					if (user.location) {
+						var profile_location = document.createElement('div');
+						profile_location.innerHTML = user.location;
+						userBox.appendChild(profile_location);
+					}
+
+					if (user.about_me) {
+						var profile_about_me = document.createElement('div');
+						profile_about_me.innerHTML = user.about_me;
+						userBox.appendChild(profile_about_me);
+					}
+
+					if (user.who_am_i) {
+						var profile_who_am_i = document.createElement('div');
+						profile_about_me.innerHTML = user.who_am_i;
+						userBox.appendChild(profile_who_am_i);
+					}
+
 					var links = document.createElement('ul');
 					user.links.forEach(function (link) {
 						var link_tag = document.createElement('a');
