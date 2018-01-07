@@ -17,6 +17,7 @@ class User(Base):
     screen_name     = Column(String)
     url             = Column(String)
     avatar_id       = Column(BigInteger, ForeignKey('avatar.avatar_id'))
+    created         = Column(DateTime(timezone=True))
     last_update     = Column(DateTime(timezone=True))
 
     sessions = relationship("Session", back_populates="user")
