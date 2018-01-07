@@ -170,6 +170,9 @@ class Crawler(object):
             user.screen_name = user_data['screen_name']
             user.avatar_id=avatar.avatar_id
             user.url = user_data['url']
+            if user.created is None:
+                user.created = datetime.datetime.fromtimestamp(
+                        user_data['created'], tz=pytz.utc)
 
         # Inspect the user
         if inspect_all or (user.last_update is None):
