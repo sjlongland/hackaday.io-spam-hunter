@@ -110,7 +110,7 @@ class NewcomerDataHandler(AuthRequestHandler):
         except MissingArgumentError:
             page = 1
 
-        (new_users, last_page) = \
+        (new_users, page, last_page) = \
                 yield self.application._crawler.fetch_new_users(page=page)
 
         # Return JSON data
