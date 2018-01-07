@@ -35,7 +35,7 @@ class Crawler(object):
                         avatar=b'')
             self._db.add(avatar)
             self._db.commit()
-        raise Return(avatar)
+        return avatar
 
     @coroutine
     def fetch_avatar(self, avatar):
