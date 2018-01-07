@@ -26,8 +26,6 @@ class Crawler(object):
         self._api = api
         self._client = client
 
-        self._page_last_refresh = {}
-
     def get_avatar(self, avatar_url):
         avatar = self._db.query(Avatar).filter(
                 Avatar.url==avatar_url).first()
