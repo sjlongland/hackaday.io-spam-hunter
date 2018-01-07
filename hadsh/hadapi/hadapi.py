@@ -9,6 +9,8 @@ from tornado.ioloop import IOLoop
 from tornado.gen import coroutine, Return, sleep
 from tornado.locks import Semaphore
 from enum import Enum
+from socket import gaierror
+from errno import EAGAIN
 
 from ..util import decode_body
 
@@ -155,7 +157,13 @@ class HackadayAPI(object):
             yield self._rq_sem.acquire()
             yield self._ratelimit_sleep()
             self._log.debug('%s %r', kwargs.get('method','GET'), uri)
-            response = yield self._client.fetch(uri, **kwargs)
+            while True:
+                try:
+                    response = yield self._client.fetch(uri, **kwargs)
+                    break
+                except gaierror as e:
+                    if e.errno != EAGAIN:
+                        raise
             response.rethrow()
         finally:
             self._rq_sem.release()
