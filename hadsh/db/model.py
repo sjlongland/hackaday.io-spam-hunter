@@ -125,3 +125,13 @@ class UserTag(Base):
                         primary_key=True)
     tag_id          = Column(BigInteger, ForeignKey('tag.tag_id'),
                         primary_key=True)
+
+
+class NewestUserPageRefresh(Base):
+    """
+    A record of when each page of the "newst users" list was last refreshed.
+    """
+    __tablename__   = 'newest_user_page_refresh'
+
+    page_num        = Column(BigInteger, primary_key=True)
+    refresh_date    = Column(DateTime(timezone=True))
