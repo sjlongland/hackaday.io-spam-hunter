@@ -83,7 +83,7 @@ class AvatarHandler(AuthRequestHandler):
             return
 
         if not avatar.avatar_type:
-            yield self._crawler.fetch_avatar(avatar)
+            yield self.application._crawler.fetch_avatar(avatar)
 
         if (width is not None) or (height is not None):
             image_data = yield self.application._resizer.resize(
