@@ -47,9 +47,6 @@ class Crawler(object):
 
         self._io_loop.add_callback(self.refresh_admin_group)
         self._io_loop.add_timeout(
-                self._io_loop.time() + 120,
-                self._background_fetch_old_users)
-        self._io_loop.add_timeout(
                 self._io_loop.time() + 60,
                 self._background_fetch_new_users)
         self._refresh_admin_group_timeout = None
@@ -317,36 +314,6 @@ class Crawler(object):
         self._io_loop.add_timeout(
                 self._io_loop.time() + 300.0,
                 self._background_fetch_new_users)
-
-    @coroutine
-    def _background_fetch_old_users(self):
-        """
-        Try to retrieve users older than our current set.
-        """
-        more = True
-        try:
-            oldest = self._db.query(User).order_by(User.user_id).first()
-            end = oldest.user_id - 1
-            if end <= 0:
-                more = False
-                return
-            start = max([1, end - 50])
-
-            user_data = yield self._api.get_users(ids=slice(start, end),
-                    per_page=50)
-            for this_user_data in user_data['users']:
-                try:
-                    user = yield self.update_user_from_data(
-                            this_user_data, inspect_all=True)
-                except InvalidUser:
-                    continue
-        except:
-            self._log.exception('Failed to retrieve older users')
-
-        if more:
-            self._io_loop.add_timeout(
-                    self._io_loop.time() + 300.0,
-                    self._background_fetch_old_users)
 
     @coroutine
     def fetch_new_users(self, page=1, inspect_all=False):
