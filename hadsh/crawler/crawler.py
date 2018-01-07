@@ -193,7 +193,8 @@ class Crawler(object):
                             l.title = link['title']
 
                         # Ignore the link if it's from twitter or github
-                        match = match or (link['type'] in ('twitter','github'))
+                        match = match or (link['type'] \
+                                not in ('twitter','github'))
                 except:
                     self._log.error('Failed to process link result %r', link_res)
                     raise
