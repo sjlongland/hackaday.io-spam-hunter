@@ -161,7 +161,9 @@ class Crawler(object):
             user = User(user_id=user_data['id'],
                         screen_name=user_data['screen_name'],
                         url=user_data['url'],
-                        avatar_id=avatar.avatar_id)
+                        avatar_id=avatar.avatar_id,
+                        created=datetime.datetime.fromtimestamp(
+                            user_data['created'], tz=pytz.utc)
             self._db.add(user)
         else:
             # Existing user, update the user details
