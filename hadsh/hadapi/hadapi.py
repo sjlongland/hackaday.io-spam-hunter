@@ -262,7 +262,7 @@ class HackadayAPI(object):
                 result = yield self._get_users_workaround(sortby,
                         query.get('page'), query.get('per_page'))
         elif isinstance(ids, slice):
-            query['ids'] = '%d,%d' % (slice.start, slice.stop)
+            query['ids'] = '%d,%d' % (ids.start, ids.stop)
             result = yield self._api_call('/users/range', query=query)
         else:
             ids = set(ids)
