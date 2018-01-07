@@ -34,6 +34,17 @@ class Crawler(object):
         self._api = api
         self._client = client
 
+        # Oldest page refreshed
+        oldest_page = \
+                self._db.query(NewestUserPageRefresh).order_by(\
+                    NewestUserPageRefresh.page_num.desc()).first()
+        if oldest_page is None:
+            # No pages fetched, start at the first page.
+            self._refresh_hist_page = 1
+        else:
+            # Go back 10 pages from that in case things have moved on.
+            self._refresh_hist_page = max([1, oldest_page.page_num - 10])
+
         if io_loop is None:
             io_loop = IOLoop.current()
         self._io_loop = io_loop
@@ -49,6 +60,9 @@ class Crawler(object):
         self._io_loop.add_timeout(
                 self._io_loop.time() + 60,
                 self._background_fetch_new_users)
+        self._io_loop.add_timeout(
+                self._io_loop.time() + 5,
+                self._background_fetch_hist_users)
         self._refresh_admin_group_timeout = None
 
     def _get_or_make_group(self, name):
@@ -308,12 +322,32 @@ class Crawler(object):
                             this_user_data, inspect_all=True)
                 except InvalidUser:
                     continue
+        except InvalidRequestError:
+            # SQL cock up, roll back.
+            self._db.rollback()
+            self._log.exception('Failed to retrieve newer users'\
+                    ': database rolled back')
         except:
             self._log.exception('Failed to retrieve newer users')
 
         self._io_loop.add_timeout(
                 self._io_loop.time() + 300.0,
                 self._background_fetch_new_users)
+
+    @coroutine
+    def _background_fetch_hist_users(self):
+        """
+        Try to retrieve users registered earlier.
+        """
+        try:
+            yield self.fetch_new_users(page=self._refresh_hist_page)
+            self._refresh_hist_page += 1
+        except:
+            self._log.exception('Failed to retrieve older users')
+
+        self._io_loop.add_timeout(
+                self._io_loop.time() + 5,
+                self._background_fetch_hist_users)
 
     @coroutine
     def fetch_new_users(self, page=1, inspect_all=False):
