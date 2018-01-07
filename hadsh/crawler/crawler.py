@@ -30,8 +30,8 @@ class Crawler(object):
         self._admin_group = self._get_or_make_group('admin')
         self._auto_suspect = self._get_or_make_group('auto_suspect')
         self._auto_legit = self._get_or_make_group('auto_legit')
-        self._manual_suspect = self._get_or_make_group('auto_suspect')
-        self._manual_legit = self._get_or_make_group('auto_legit')
+        self._manual_suspect = self._get_or_make_group('suspect')
+        self._manual_legit = self._get_or_make_group('legit')
 
     def _get_or_make_group(self, name):
         group = self._db.query(Group).filter(
@@ -236,7 +236,13 @@ class Crawler(object):
 
             for user_data in new_user_data['users']:
                 user = yield self.update_user_from_data(user_data, inspect_all)
-                if (now - user.last_update).total_seconds() > 300.0:
+
+                # See if the user has been manually classified or not
+                user_groups = set([g.name for g in user.groups])
+                if (self._manual_suspect.name in user_groups) or \
+                        (self._manual_legit.name in user_groups):
+                    self._log.debug('Skipping user %s due to group membership %s',
+                            user.screen_name, user_groups)
                     continue
                 users.append(user)
             page += 1
