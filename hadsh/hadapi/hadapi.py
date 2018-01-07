@@ -10,12 +10,12 @@ from tornado.gen import coroutine, Return, sleep
 from tornado.locks import Semaphore
 from enum import Enum
 
+from ..util import decode_body
+
 try:
     from urllib import parse as urlparse
 except ImportError:
     import urlparse
-
-from cgi import parse_header
 
 
 class UserSortBy(Enum):
@@ -120,12 +120,8 @@ class HackadayAPI(object):
         """
         Decode a given reponse body.
         """
-        # Ideally, encoding should be in the content type
-        (ct, ctopts) = parse_header(response.headers['Content-Type'])
-        encoding = ctopts.get('charset', default_encoding)
-
-        # Return the decoded payload along with the content-type.
-        return (ct, ctopts, response.body.decode(encoding))
+        return decode_body(response.headers['Content-Type'], response.body,
+                default_encoding)
 
     @coroutine
     def _api_call(self, uri, query=None, token=None, api_key=True, **kwargs):
