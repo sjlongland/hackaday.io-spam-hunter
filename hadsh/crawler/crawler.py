@@ -176,7 +176,7 @@ class Crawler(object):
         raise Return(user)
 
     @coroutine
-    def fetch_new_users(self, page=1, inspect_all=True):
+    def fetch_new_users(self, page=1, inspect_all=False):
         """
         Retrieve new users from the Hackaday.io API and inspect the new arrivals.
         Returns the list of users on the given page and the total number of pages.
