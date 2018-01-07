@@ -4,6 +4,8 @@ var page = 1;
 var textbox = null;
 var busy = false;
 
+var auto_mark = {};
+
 var getNextPage = function() {
 	var rq = new XMLHttpRequest();
 	busy = true;
@@ -11,6 +13,10 @@ var getNextPage = function() {
 	var spinner = '-';
 	var dots = '';
 	textbox.appendChild(loading_msg);
+
+	Object.keys(auto_mark).forEach(function (user_id) {
+		auto_mark[user_id]();
+	});
 
 	var nextSpinner = function() {
 		if (busy) {
@@ -67,15 +73,35 @@ var getNextPage = function() {
 						group_set[group] = true;
 					});
 
+					var rm_auto = function() {
+						if (auto_mark[user.id] !== undefined) {
+							delete auto_mark[user.id];
+						}
+					};
+
 					if (!group_set.legit) {
 						var classify_legit = document.createElement('button');
 						classify_legit.innerHTML = 'Legit';
-						classify_legit.onclick = function() {
+						var do_classify = function() {
 							var rq = new XMLHttpRequest();
+							rm_auto();
 							rq.open('POST', '/classify/' + user.id);
 							rq.setRequestHeader("Content-type", 'application/json');
 							rq.send(JSON.stringify("legit"));
+							rq.onreadystatechange = function() {
+								if ((this.readyState === 4) && (this.status === 200)) {
+									setTimeout(function () {
+										textbox.removeChild(userBox);
+									}, 10000);
+								}
+							};
+							profile_groups.removeChild(classify_legit);
 						};
+						if (group_set.auto_legit) {
+							auto_mark[user.id] = do_classify;
+						}
+
+						classify_legit.onclick = do_classify;
 						profile_groups.appendChild(classify_legit);
 					}
 					if (!group_set.suspect) {
@@ -83,9 +109,18 @@ var getNextPage = function() {
 						classify_suspect.innerHTML = 'Suspect';
 						classify_suspect.onclick = function() {
 							var rq = new XMLHttpRequest();
+							rm_auto();
 							rq.open('POST', '/classify/' + user.id);
 							rq.setRequestHeader("Content-type", 'application/json');
 							rq.send(JSON.stringify("suspect"));
+							rq.onreadystatechange = function() {
+								if ((this.readyState === 4) && (this.status === 200)) {
+									setTimeout(function () {
+										textbox.removeChild(userBox);
+									}, 10000);
+								}
+							};
+							profile_groups.removeChild(classify_suspect);
 						};
 						profile_groups.appendChild(classify_suspect);
 					}
@@ -129,7 +164,6 @@ var getNextPage = function() {
 					userBox.appendChild(links);
 					textbox.appendChild(userBox);
 				});
-				textbox.appendChild(document.createElement('hr'));
 				page = data.page + 1;
 			}
 			busy = false;
