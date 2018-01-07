@@ -185,10 +185,13 @@ class Crawler(object):
                 page=page, per_page=50)
         users = []
         now = datetime.datetime.now(tz=pytz.utc)
-        for user_data in new_user_data['users']:
-            user = yield self.update_user_from_data(user_data, inspect_all)
-            if (now - user.last_update).total_seconds() > 300.0:
-                continue
-            users.append(user)
 
-        raise Return((users, new_user_data.get('last_page')))
+        while len(users) < 10:
+            for user_data in new_user_data['users']:
+                user = yield self.update_user_from_data(user_data, inspect_all)
+                if (now - user.last_update).total_seconds() > 300.0:
+                    continue
+                users.append(user)
+            page += 1
+
+        raise Return((users, page, new_user_data.get('last_page')))
