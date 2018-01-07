@@ -5,6 +5,7 @@ import pytz
 import re
 
 from tornado.gen import coroutine, Return
+from tornado.ioloop import IOLoop
 
 from ..hadapi.hadapi import UserSortBy
 from ..db.model import User, Group, Session, UserDetail, \
@@ -20,19 +21,25 @@ CHECK_PATTERNS = (
 )
 
 class Crawler(object):
-    def __init__(self, project_id, db, api, client, log):
+    def __init__(self, project_id, db, api, client, log, io_loop=None):
         self._project_id = project_id
         self._log = log
         self._db = db
         self._api = api
         self._client = client
 
+        if io_loop is None:
+            io_loop = IOLoop.current()
+        self._io_loop = io_loop
+
         # Some standard groups
-        self._admin_group = self._get_or_make_group('admin')
+        self._admin = self._get_or_make_group('admin')
         self._auto_suspect = self._get_or_make_group('auto_suspect')
         self._auto_legit = self._get_or_make_group('auto_legit')
         self._manual_suspect = self._get_or_make_group('suspect')
         self._manual_legit = self._get_or_make_group('legit')
+
+        self._io_loop.add_callback(self._refresh_admin_group)
 
     def _get_or_make_group(self, name):
         group = self._db.query(Group).filter(
@@ -43,6 +50,46 @@ class Crawler(object):
             self._db.commit()
 
         return group
+
+    @coroutine
+    def _refresh_admin_group(self):
+        """
+        Refresh the membership of the admin group.
+        """
+        members_data = []
+        page = 1
+        page_cnt = 1
+        while page <= page_cnt:
+            team_data = yield self._api.get_project_team(
+                    self._project_id, sortby=UserSortBy.influence,
+                    page=page, per_page=50)
+            members_data.extend(team_data['team'])
+            page += 1
+            page_cnt = team_data['last_page']
+
+        members = {}
+        for member_data in members_data:
+            member = yield self.update_user_from_data(
+                    member_data['user'],
+                    inspect_all=False)
+            members[member.user_id] = member
+
+        # Current members in database
+        existing = set([m.user_id for m in self._admin.users])
+
+        # Add any new members
+        for user_id in (set(members.keys()) - existing):
+            self._log.debug('Adding user ID %d to admin group', user_id)
+            self._admin.users.append(members[user_id])
+            existing.add(user_id)
+
+        # Remove any old members
+        for user_id in (existing - set(members.keys())):
+            self._log.debug('Removing user ID %d from admin group', user_id)
+            self._admin.users.remove(
+                    self._db.query(User).get(user_id))
+
+        self._db.commit()
 
     def get_avatar(self, avatar_url):
         avatar = self._db.query(Avatar).filter(
