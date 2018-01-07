@@ -20,7 +20,8 @@ CHECK_PATTERNS = (
 )
 
 class Crawler(object):
-    def __init__(self, db, api, client, log):
+    def __init__(self, project_id, db, api, client, log):
+        self._project_id = project_id
         self._log = log
         self._db = db
         self._api = api
