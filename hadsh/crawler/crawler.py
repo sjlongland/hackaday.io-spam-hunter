@@ -7,6 +7,7 @@ import re
 from tornado.httpclient import HTTPError
 from tornado.gen import coroutine, Return
 from tornado.ioloop import IOLoop
+from tornado.locks import Event
 
 from ..hadapi.hadapi import UserSortBy
 from ..db.model import User, Group, Session, UserDetail, \
@@ -64,6 +65,9 @@ class Crawler(object):
                 self._io_loop.time() + 5,
                 self._background_fetch_hist_users)
         self._refresh_admin_group_timeout = None
+
+        # Event to indicate when new users have been added
+        self.new_user_event = Event()
 
     def _get_or_make_group(self, name):
         group = self._db.query(Group).filter(
@@ -287,6 +291,7 @@ class Crawler(object):
                         created=datetime.datetime.fromtimestamp(
                             user_data['created'], tz=pytz.utc))
             self._db.add(user)
+            self.new_user_event.set()
         else:
             # Existing user, update the user details
             user.screen_name = user_data['screen_name']
