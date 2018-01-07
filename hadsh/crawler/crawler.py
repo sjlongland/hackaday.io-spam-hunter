@@ -7,8 +7,8 @@ import re
 from tornado.gen import coroutine, Return
 
 from ..hadapi.hadapi import UserSortBy
-from ..db.model import User, Group, GroupMember, Session, UserDetail, \
-        UserLink, Avatar, Tag, UserTag, NewestUserPageRefresh
+from ..db.model import User, Group, Session, UserDetail, \
+        UserLink, Avatar, Tag, NewestUserPageRefresh
 
 
 # Patterns to look for:
