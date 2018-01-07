@@ -169,6 +169,10 @@ class Crawler(object):
             if user is None:
                 user = self._db.query(User).get(user_data['id'])
 
+            # Has the user been classified?
+            user_groups = set([g.name for g in user.groups])
+            classified = ('legit' in user_groups) or ('suspect' in user_groups)
+
             # Is the link valid?
             try:
                 result = yield self._client.fetch(
@@ -269,8 +273,9 @@ class Crawler(object):
                     detail.location = user_data['location']
 
                 # Auto-Flag the user as "suspect"
-                self._auto_suspect.users.append(user)
-            else:
+                if not classified:
+                    self._auto_suspect.users.append(user)
+            elif not classified:
                 # Auto-Flag the user as "legit"
                 self._auto_legit.users.append(user)
         except:
