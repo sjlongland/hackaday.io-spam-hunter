@@ -17,8 +17,8 @@ from tornado.ioloop import IOLoop
 from .hadapi.hadapi import HackadayAPI
 from .crawler.crawler import Crawler
 from .resizer import ImageResizer
-from .db.db import get_db, User, Group, GroupMember, Session, UserDetail, \
-        UserLink, Avatar, Tag, UserTag
+from .db.db import get_db, User, Group, Session, UserDetail, \
+        UserLink, Avatar, Tag
 
 
 class AuthRequestHandler(RequestHandler):
