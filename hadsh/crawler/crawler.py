@@ -39,7 +39,8 @@ class Crawler(object):
         self._manual_suspect = self._get_or_make_group('suspect')
         self._manual_legit = self._get_or_make_group('legit')
 
-        self._io_loop.add_callback(self._refresh_admin_group)
+        self._io_loop.add_callback(self.refresh_admin_group)
+        self._refresh_admin_group_timeout = None
 
     def _get_or_make_group(self, name):
         group = self._db.query(Group).filter(
@@ -52,10 +53,13 @@ class Crawler(object):
         return group
 
     @coroutine
-    def _refresh_admin_group(self):
+    def refresh_admin_group(self):
         """
         Refresh the membership of the admin group.
         """
+        if self._refresh_admin_group_timeout is not None:
+            self._io_loop.remove_timeout(self._refresh_admin_group_timeout)
+
         members_data = []
         page = 1
         page_cnt = 1
@@ -90,6 +94,11 @@ class Crawler(object):
                     self._db.query(User).get(user_id))
 
         self._db.commit()
+
+        # Schedule this to run again tomorrow.
+        self._refresh_admin_group_timeout = self._io_loop.add_timeout(
+                self._io_loop.time() + 86400.0,
+                self.refresh_admin_group)
 
     def get_avatar(self, avatar_url):
         avatar = self._db.query(Avatar).filter(
