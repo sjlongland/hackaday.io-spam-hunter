@@ -115,12 +115,42 @@ class NewcomerDataHandler(AuthRequestHandler):
             return
 
         try:
-            page = int(self.get_query_argument('page', strip=False))
+            before_user_id = int(self.get_query_argument('before_user_id'))
         except MissingArgumentError:
-            page = 1
+            before_user_id = None
 
-        (new_users, page, last_page) = \
-                yield self.application._crawler.fetch_new_users(page=page)
+        try:
+            after_user_id = int(self.get_query_argument('after_user_id'))
+        except MissingArgumentError:
+            after_user_id = None
+
+        log = self.application._log.getChild(\
+                'newcomer_data[%s < user_id < %s]' \
+                % (before_user_id, after_user_id))
+
+        new_users = []
+        while len(new_users) == 0:
+            # Retrieve users from the database
+            query = self.application._db.query(User)
+            if before_user_id is not None:
+                query = query.filter(User.user_id < before_user_id)
+            if after_user_id is not None:
+                query = query.filter(User.user_id > after_user_id)
+            new_users = query.order_by(User.created.desc()).limit(50).all()
+
+            # Filter out users we've classified.
+            def _is_classified(user):
+                groups = set([g.name for g in user.groups])
+                log.debug('User %s [#%d] is in groups %s',
+                        user.screen_name, user.user_id, groups)
+                return ('legit' not in groups) and ('suspect' not in groups)
+            new_users = list(filter(_is_classified, new_users))
+
+            if len(new_users) == 0:
+                # There are no more new users, wait for crawl to happen
+                log.debug('No users found, waiting for more from crawler')
+                self._crawler.new_user_event.clear()
+                yield self._crawler.new_user_event.wait()
 
         # Return JSON data
         def _dump_link(link):
@@ -135,7 +165,7 @@ class NewcomerDataHandler(AuthRequestHandler):
                     'screen_name':  user.screen_name,
                     'url':          user.url,
                     'avatar_id':    user.avatar_id,
-                    'created':      user.created.isoformat(),
+                    'created':      (user.created or user.last_update).isoformat(),
                     'last_update':  user.last_update.isoformat(),
                     'links':        list(map(_dump_link, user.links)),
                     'groups':       [
@@ -157,8 +187,8 @@ class NewcomerDataHandler(AuthRequestHandler):
         self.set_status(200)
         self.set_header('Content-Type', 'application/json')
         self.write(json.dumps({
-                'page': page,
-                'last_page': last_page,
+                'page': 1,
+                'last_page': 1000,
                 'users': list(map(_dump_user, new_users))
         }))
 
