@@ -83,6 +83,7 @@ class UserDetail(Base):
                         primary_key=True)
     about_me        = Column(Text)
     who_am_i        = Column(Text)
+    what_i_would_like_to_do = Column(Text)
     location        = Column(String)
 
     user            = relationship("User", back_populates="detail")
