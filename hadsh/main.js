@@ -35,6 +35,7 @@ var getNextPage = function() {
 			});
 			textbox.removeChild(mass_mark_btn);
 			mass_mark_btn = null;
+			window.scrollTo(0,0);
 		};
 		textbox.appendChild(mass_mark_btn);
 	}
