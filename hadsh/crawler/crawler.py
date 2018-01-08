@@ -339,9 +339,9 @@ class Crawler(object):
 
             # Fetch the user data for these users
             ids = [u.user_id for u in to_update[:50]]
-            all_user_data = yield self._api.get_users(ids=ids)
+            response_data = yield self._api.get_users(ids=ids)
 
-            for user_data in all_user_data:
+            for user_data in response_data['users']:
                 yield self._inspect_user(user_data)
         except:
             self._log.exception('Failed to update existing users')
