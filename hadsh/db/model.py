@@ -32,9 +32,12 @@ class User(Base):
     created         = Column(DateTime(timezone=True))
     last_update     = Column(DateTime(timezone=True))
 
-    sessions = relationship("Session", back_populates="user")
-    links = relationship("UserLink", back_populates="user")
-    detail = relationship("UserDetail", uselist=False, back_populates="user") 
+    sessions = relationship("Session", back_populates="user",
+            cascade="all, delete-orphan")
+    links = relationship("UserLink", back_populates="user",
+            cascade="all, delete-orphan")
+    detail = relationship("UserDetail", uselist=False, back_populates="user",
+            cascade="all, delete-orphan")
     groups = relationship("Group", secondary=user_group_assoc,
             back_populates="users")
     tags = relationship("Tag", secondary=user_tag_assoc,
