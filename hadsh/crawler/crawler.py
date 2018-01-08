@@ -343,6 +343,11 @@ class Crawler(object):
 
             for user_data in response_data['users']:
                 yield self._inspect_user(user_data)
+        except InvalidRequestError:
+            # SQL cock up, roll back.
+            self._db.rollback()
+            self._log.exception('Failed to update existing users'\
+                    ': database rolled back')
         except:
             self._log.exception('Failed to update existing users')
 
