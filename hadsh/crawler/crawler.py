@@ -207,7 +207,8 @@ class Crawler(object):
             for pattern in CHECK_PATTERNS:
                 if match:
                     break
-                for field in ('about_me', 'who_am_i', 'location'):
+                for field in ('about_me', 'who_am_i', 'location',
+                        'what_i_would_like_to_do'):
                     pmatch = pattern.match(user_data[field])
                     if pmatch:
                         self._log.info('Found match for %s (%r) in '\
@@ -267,12 +268,16 @@ class Crawler(object):
                             user_id=user_data['id'],
                             about_me=user_data['about_me'],
                             who_am_i=user_data['who_am_i'],
-                            location=user_data['location'])
+                            location=user_data['location'],
+                            what_i_would_like_to_do=\
+                                    user_data['what_i_would_like_to_do'])
                     self._db.add(detail)
                 else:
                     detail.about_me = user_data['about_me']
                     detail.who_am_i = user_data['who_am_i']
                     detail.location = user_data['location']
+                    detail.what_i_would_like_to_do = \
+                            user_data['what_i_would_like_to_do']
 
                 # Auto-Flag the user as "suspect"
                 if not classified:
