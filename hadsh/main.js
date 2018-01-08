@@ -90,6 +90,9 @@ var getNextPage = function() {
 					profile_link.appendChild(profile_name);
 					userBox.appendChild(profile_link);
 
+					var profile_uid = document.createTextNode(' ' + user.id);
+					userBox.appendChild(profile_uid);
+
 					var profile_created = document.createElement('div');
 					profile_created.innerHTML = user.created;
 					userBox.appendChild(profile_created);
