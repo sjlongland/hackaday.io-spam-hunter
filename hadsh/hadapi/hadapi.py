@@ -90,30 +90,37 @@ class HackadayAPI(object):
         # Semaphore to limit concurrent access
         self._rq_sem = Semaphore(rqlim_concurrent)
 
+        # Flag to indicate the last request failed with "forbidden"
+        self._last_forbidden = False
+
     @coroutine
     def _ratelimit_sleep(self):
         """
         Ensure we don't exceed the rate limit by tracking the request
         timestamps and adding a sleep if required.
         """
-        now = self._io_loop.time()
+        if self._last_forbidden:
+            # Wait an hour
+            delay = 3600.0
+        else:
+            now = self._io_loop.time()
 
-        # Push the current request expiry time to the end.
-        self._last_rq.append(now + self._rqlim_time)
+            # Push the current request expiry time to the end.
+            self._last_rq.append(now + self._rqlim_time)
 
-        # Drop any that are more than rqlim_time seconds ago.
-        self._last_rq = list(filter(lambda t : t < now, self._last_rq))
+            # Drop any that are more than rqlim_time seconds ago.
+            self._last_rq = list(filter(lambda t : t < now, self._last_rq))
 
-        # Are there rqlim_num or more requests?
-        if len(self._last_rq) < self._rqlim_num:
-            # There aren't, we can go.
-            return
+            # Are there rqlim_num or more requests?
+            if len(self._last_rq) < self._rqlim_num:
+                # There aren't, we can go.
+                return
 
-        # When does the next one expire?
-        expiry = self._last_rq[0]
+            # When does the next one expire?
+            expiry = self._last_rq[0]
 
-        # Wait until then
-        delay = expiry - now
+            # Wait until then
+            delay = expiry - now
         self._log.debug('Waiting %f sec for rate limit', delay)
         yield sleep(delay)
         self._log.debug('Resuming operations')
@@ -164,10 +171,16 @@ class HackadayAPI(object):
                 except gaierror as e:
                     if e.errno != EAGAIN:
                         raise
-            response.rethrow()
+                except HTTPError as e:
+                    if e.code == 403:
+                        # Back-end is rate limiting us.  Back off.
+                        self._last_forbidden = True
+                    raise
         finally:
             self._rq_sem.release()
 
+        # If we get here, then our service is back.
+        self._last_forbidden = False
         (ct, ctopts, body) = self._decode(response)
         if ct.lower() != 'application/json':
             raise ValueError('Server returned unrecognised type %s' % ct)
