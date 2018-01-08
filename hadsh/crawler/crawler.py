@@ -172,6 +172,8 @@ class Crawler(object):
             # Has the user been classified?
             user_groups = set([g.name for g in user.groups])
             classified = ('legit' in user_groups) or ('suspect' in user_groups)
+            self._log.debug('User %s [#%d] is in groups %s (classified %s)',
+                    user.screen_name, user.user_id, user_groups, classified)
 
             # Is the link valid?
             try:
@@ -274,9 +276,13 @@ class Crawler(object):
 
                 # Auto-Flag the user as "suspect"
                 if not classified:
+                    self._log.debug('Auto-classifying %s [#%d] as suspect',
+                            user.screen_name, user.user_id)
                     self._auto_suspect.users.append(user)
             elif not classified:
                 # Auto-Flag the user as "legit"
+                self._log.debug('Auto-classifying %s [#%d] as legitmate',
+                        user.screen_name, user.user_id)
                 self._auto_legit.users.append(user)
         except:
             self._log.error('Failed to process user data %r', user_data)
