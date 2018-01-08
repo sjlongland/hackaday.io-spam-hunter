@@ -5,6 +5,8 @@ var textbox = null;
 var busy = false;
 
 var auto_mark = {};
+var mass_mark_legit = [];
+var mass_mark_btn = null;
 
 var getNextPage = function() {
 	var rq = new XMLHttpRequest();
@@ -13,13 +15,26 @@ var getNextPage = function() {
 	var spinner = '-';
 	var dots = '';
 	textbox.appendChild(loading_msg);
+	mass_mark_legit = Object.keys(auto_mark);
 
-	var mark_list = Object.keys(auto_mark);
-	window.setTimeout(function () {
-		mark_list.forEach(function (user_id) {
-			auto_mark[user_id]();
-		});
-	}, 30000);
+	if (mass_mark_btn !== null) {
+		textbox.removeChild(mass_mark_btn);
+	}
+
+	if (mass_mark_legit.length > 0) {
+		mass_mark_btn = document.createElement('button');
+		mass_mark_btn.innerHTML = ('Mark above '
+			+ mass_mark_legit.length
+			+ ' auto_legit accounts as legit');
+		mass_mark_btn.onclick = function() {
+			mass_mark_legit.forEach(function (uid) {
+				auto_mark[uid](true);
+			});
+			textbox.removeChild(mass_mark_btn);
+			mass_mark_btn = null;
+		};
+		textbox.appendChild(mass_mark_btn);
+	}
 
 	var nextSpinner = function() {
 		if (busy) {
@@ -85,7 +100,7 @@ var getNextPage = function() {
 					if (!group_set.legit) {
 						var classify_legit = document.createElement('button');
 						classify_legit.innerHTML = 'Legit';
-						var do_classify = function() {
+						var do_classify = function(mass_update) {
 							var rq = new XMLHttpRequest();
 							rm_auto();
 							rq.open('POST', '/classify/' + user.id);
@@ -95,7 +110,7 @@ var getNextPage = function() {
 								if ((this.readyState === 4) && (this.status === 200)) {
 									setTimeout(function () {
 										textbox.removeChild(userBox);
-									}, 10000);
+									}, ((mass_update === true) ? 500 : 10000));
 								}
 							};
 							profile_groups.removeChild(classify_legit);
@@ -171,7 +186,7 @@ var getNextPage = function() {
 			}
 			busy = false;
 		}
-		};
+	};
 	rq.open("GET", "/data/newcomers.json?page=" + page, true);
 	rq.send();
 };
