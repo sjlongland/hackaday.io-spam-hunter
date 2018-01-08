@@ -67,7 +67,6 @@ class Session(Base):
 
     session_id      = Column(UUID(as_uuid=True), primary_key=True)
     user_id         = Column(BigInteger, ForeignKey('user.user_id'))
-    token           = Column(String)
 
     user            = relationship("User", back_populates="sessions")
 
