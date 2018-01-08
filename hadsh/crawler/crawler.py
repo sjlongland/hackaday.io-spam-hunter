@@ -389,6 +389,11 @@ class Crawler(object):
         try:
             yield self.fetch_new_users(page=self._refresh_hist_page)
             self._refresh_hist_page += 1
+        except InvalidRequestError:
+            # SQL cock up, roll back.
+            self._db.rollback()
+            self._log.exception('Failed to retrieve older users'\
+                    ': database rolled back')
         except:
             self._log.exception('Failed to retrieve older users')
 
