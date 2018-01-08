@@ -314,8 +314,7 @@ class CallbackHandler(RequestHandler):
         # We have the user account, create the session
         session = Session(
                 session_id=uuid.uuid4(),
-                user_id=user.user_id,
-                token=token)
+                user_id=user.user_id)
         self.application._db.add(session)
         self.application._db.commit()
 
