@@ -8,6 +8,9 @@ var auto_mark = {};
 var mass_mark_legit = [];
 var mass_mark_btn = null;
 
+var newest_uid = null;
+var oldest_uid = null;
+
 var getNextPage = function() {
 	var rq = new XMLHttpRequest();
 	busy = true;
@@ -64,6 +67,14 @@ var getNextPage = function() {
 			if (this.status === 200) {
 				var data = JSON.parse(rq.responseText);
 				data.users.forEach(function (user) {
+					if ((newest_uid === null)
+							|| (newest_uid < user.id))
+						newest_uid = user.id;
+
+					if ((oldest_uid === null)
+							|| (oldest_uid > user.id))
+						oldest_uid = user.id;
+
 					var userBox = document.createElement('div');
 					var avatar = document.createElement('img');
 					avatar.src = '/avatar/' + user.avatar_id
@@ -187,7 +198,12 @@ var getNextPage = function() {
 			busy = false;
 		}
 	};
-	rq.open("GET", "/data/newcomers.json?page=" + page, true);
+
+	var uri = "/data/newcomers.json";
+	if (oldest_uid !== null)
+		uri += "?before_user_id=" + oldest_uid;
+
+	rq.open("GET", uri, true);
 	rq.send();
 };
 
