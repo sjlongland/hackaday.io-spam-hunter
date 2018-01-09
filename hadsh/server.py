@@ -11,7 +11,7 @@ from tornado.web import Application, RequestHandler, \
         RedirectHandler, MissingArgumentError
 from tornado.httpclient import AsyncHTTPClient
 from tornado.httpserver import HTTPServer
-from tornado.gen import coroutine
+from tornado.gen import coroutine, TimeoutError
 from tornado.ioloop import IOLoop
 
 from .hadapi.hadapi import HackadayAPI
@@ -149,7 +149,11 @@ class NewcomerDataHandler(AuthRequestHandler):
                 # There are no more new users, wait for crawl to happen
                 log.debug('No users found, waiting for more from crawler')
                 self.application._crawler.new_user_event.clear()
-                yield self.application._crawler.new_user_event.wait()
+                try:
+                    yield self.application._crawler.new_user_event.wait(
+                            timeout=60.0)
+                except TimeoutError:
+                    break
 
         # Return JSON data
         def _dump_link(link):
