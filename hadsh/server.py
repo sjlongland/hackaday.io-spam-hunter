@@ -315,7 +315,7 @@ class CallbackHandler(RequestHandler):
         except HTTPError as e:
             if e.code == 403:
                 # We've been blocked.
-                self.set_header('Content-Type', e.response.header['Content-Type'])
+                self.set_header('Content-Type', e.response.headers['Content-Type'])
                 self.write(e.response.body)
                 return
             raise
