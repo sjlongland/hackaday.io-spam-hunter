@@ -94,12 +94,12 @@ class HackadayAPI(object):
         self._last_forbidden = False
 
     @coroutine
-    def _ratelimit_sleep(self):
+    def _ratelimit_sleep(self, forbidden_wait=True):
         """
         Ensure we don't exceed the rate limit by tracking the request
         timestamps and adding a sleep if required.
         """
-        if self._last_forbidden:
+        if self._last_forbidden and forbidden_wait:
             # Wait an hour
             delay = 3600.0
         else:
@@ -133,7 +133,8 @@ class HackadayAPI(object):
                 default_encoding)
 
     @coroutine
-    def _api_call(self, uri, query=None, token=None, api_key=True, **kwargs):
+    def _api_call(self, uri, query=None, token=None, api_key=True,
+            forbidden_wait=True, **kwargs):
         headers = kwargs.setdefault('headers', {})
         headers.setdefault('Accept', 'application/json')
         if token is not None:
@@ -162,7 +163,7 @@ class HackadayAPI(object):
 
         try:
             yield self._rq_sem.acquire()
-            yield self._ratelimit_sleep()
+            yield self._ratelimit_sleep(forbidden_wait=forbidden_wait)
             self._log.debug('%s %r', kwargs.get('method','GET'), uri)
             while True:
                 try:
@@ -208,7 +209,8 @@ class HackadayAPI(object):
         )
 
         return self._api_call(
-            post_uri, method='POST', body=b'', api_key=False)
+            post_uri, method='POST', body=b'', api_key=False,
+            forbidden_wait=False)
 
     # Pagination options
 
@@ -227,7 +229,8 @@ class HackadayAPI(object):
         """
         Fetch the current user's profile information.
         """
-        return self._api_call('/me', token=token)
+        return self._api_call('/me', token=token,
+                forbidden_wait=False)
 
     def _user_query_opts(self, sortby, page, per_page):
         query = self._page_query_opts(page, per_page)
