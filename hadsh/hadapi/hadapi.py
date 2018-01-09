@@ -162,8 +162,8 @@ class HackadayAPI(object):
             uri = self._api_uri + uri
 
         try:
-            yield self._rq_sem.acquire()
             yield self._ratelimit_sleep(forbidden_wait=forbidden_wait)
+            yield self._rq_sem.acquire()
             self._log.debug('%s %r', kwargs.get('method','GET'), uri)
             while True:
                 try:
