@@ -310,7 +310,16 @@ class CallbackHandler(RequestHandler):
             log.debug('Code is %s, retrieving token', code)
             oauth_data = yield self.application._api.get_token(code)
             log.debug('OAuth response %s', oauth_data)
-            token = oauth_data['access_token']
+
+            try:
+                token = oauth_data['access_token']
+            except KeyError:
+                # Not a successful response.
+                self.set_status(403)
+                self.set_header('Content-Type', 'application/json')
+                self.write(json.dumps(oauth_data))
+                return
+
             user_data = yield self.application._api.get_current_user(token)
         except HTTPError as e:
             if e.code == 403:
