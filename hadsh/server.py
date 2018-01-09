@@ -9,7 +9,7 @@ import json
 
 from tornado.web import Application, RequestHandler, \
         RedirectHandler, MissingArgumentError
-from tornado.httpclient import AsyncHTTPClient
+from tornado.httpclient import AsyncHTTPClient, HTTPError
 from tornado.httpserver import HTTPServer
 from tornado.gen import coroutine, TimeoutError
 from tornado.ioloop import IOLoop
@@ -305,12 +305,20 @@ class CallbackHandler(RequestHandler):
         log = self.application._log.getChild('callback')
 
         # Retrieve the code
-        code = self.get_query_argument('code', strip=False)
-        log.debug('Code is %s, retrieving token', code)
-        oauth_data = yield self.application._api.get_token(code)
-        log.debug('OAuth response %s', oauth_data)
-        token = oauth_data['access_token']
-        user_data = yield self.application._api.get_current_user(token)
+        try:
+            code = self.get_query_argument('code', strip=False)
+            log.debug('Code is %s, retrieving token', code)
+            oauth_data = yield self.application._api.get_token(code)
+            log.debug('OAuth response %s', oauth_data)
+            token = oauth_data['access_token']
+            user_data = yield self.application._api.get_current_user(token)
+        except HTTPError as e:
+            if e.code == 403:
+                # We've been blocked.
+                self.set_header('Content-Type', e.response.header['Content-Type'])
+                self.write(e.response.body)
+                return
+            raise
 
         # Retrieve and update the user from the website data.
         user = yield self.application._crawler.update_user_from_data(
