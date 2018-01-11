@@ -209,7 +209,7 @@ class Crawler(object):
                     break
                 for field in ('about_me', 'who_am_i', 'location',
                         'what_i_would_like_to_do'):
-                    pmatch = pattern.match(user_data[field])
+                    pmatch = pattern.search(user_data[field])
                     if pmatch:
                         self._log.info('Found match for %s (%r) in '\
                                 '%s of %s [#%d]',
