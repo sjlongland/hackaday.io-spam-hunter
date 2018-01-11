@@ -334,27 +334,28 @@ class Crawler(object):
         """
         Fetch some users from the database and update them if not yet classified.
         """
-        try:
-            update_time = datetime.datetime.now(tz=pytz.utc) \
-                        - datetime.timedelta(days=1)
-            to_update = self._db.query(User).filter(or_(\
-                    User.created == None,
-                    User.last_update < update_time)).order_by(\
-                            User.last_update).all()
+        if not self._api.is_forbidden:
+            try:
+                update_time = datetime.datetime.now(tz=pytz.utc) \
+                            - datetime.timedelta(days=1)
+                to_update = self._db.query(User).filter(or_(\
+                        User.created == None,
+                        User.last_update < update_time)).order_by(\
+                                User.last_update).all()
 
-            # Fetch the user data for these users
-            ids = [u.user_id for u in to_update[:50]]
-            response_data = yield self._api.get_users(ids=ids)
+                # Fetch the user data for these users
+                ids = [u.user_id for u in to_update[:50]]
+                response_data = yield self._api.get_users(ids=ids)
 
-            for user_data in response_data['users']:
-                yield self._inspect_user(user_data)
-        except InvalidRequestError:
-            # SQL cock up, roll back.
-            self._db.rollback()
-            self._log.exception('Failed to update existing users'\
-                    ': database rolled back')
-        except:
-            self._log.exception('Failed to update existing users')
+                for user_data in response_data['users']:
+                    yield self._inspect_user(user_data)
+            except InvalidRequestError:
+                # SQL cock up, roll back.
+                self._db.rollback()
+                self._log.exception('Failed to update existing users'\
+                        ': database rolled back')
+            except:
+                self._log.exception('Failed to update existing users')
 
         self._io_loop.add_timeout(
                 self._io_loop.time() + 300.0,
@@ -365,30 +366,31 @@ class Crawler(object):
         """
         Try to retrieve users newer than our current set.
         """
-        try:
-            newest = self._db.query(User).order_by(User.user_id.desc()).first()
-            start = newest.user_id + 1
-            end = start + 50
+        if not self._api.is_forbidden:
+            try:
+                newest = self._db.query(User).order_by(User.user_id.desc()).first()
+                start = newest.user_id + 1
+                end = start + 50
 
-            user_data = yield self._api.get_users(ids=slice(start, end),
-                    per_page=50)
-            if isinstance(user_data['users'], list):
-                for this_user_data in user_data['users']:
-                    try:
-                        user = yield self.update_user_from_data(
-                                this_user_data, inspect_all=True)
-                    except InvalidUser:
-                        continue
-        except InvalidRequestError:
-            # SQL cock up, roll back.
-            self._db.rollback()
-            self._log.exception('Failed to retrieve newer users'\
-                    ': database rolled back')
-        except:
-            self._log.exception('Failed to retrieve newer users')
+                user_data = yield self._api.get_users(ids=slice(start, end),
+                        per_page=50)
+                if isinstance(user_data['users'], list):
+                    for this_user_data in user_data['users']:
+                        try:
+                            user = yield self.update_user_from_data(
+                                    this_user_data, inspect_all=True)
+                        except InvalidUser:
+                            continue
+            except InvalidRequestError:
+                # SQL cock up, roll back.
+                self._db.rollback()
+                self._log.exception('Failed to retrieve newer users'\
+                        ': database rolled back')
+            except:
+                self._log.exception('Failed to retrieve newer users')
 
         self._io_loop.add_timeout(
-                self._io_loop.time() + 3600.0,
+                self._io_loop.time() + 300.0,
                 self._background_fetch_new_users)
 
     @coroutine
@@ -396,16 +398,17 @@ class Crawler(object):
         """
         Try to retrieve users registered earlier.
         """
-        try:
-            yield self.fetch_new_users(page=self._refresh_hist_page)
-            self._refresh_hist_page += 1
-        except InvalidRequestError:
-            # SQL cock up, roll back.
-            self._db.rollback()
-            self._log.exception('Failed to retrieve older users'\
-                    ': database rolled back')
-        except:
-            self._log.exception('Failed to retrieve older users')
+        if not self._api.is_forbidden:
+            try:
+                yield self.fetch_new_users(page=self._refresh_hist_page)
+                self._refresh_hist_page += 1
+            except InvalidRequestError:
+                # SQL cock up, roll back.
+                self._db.rollback()
+                self._log.exception('Failed to retrieve older users'\
+                        ': database rolled back')
+            except:
+                self._log.exception('Failed to retrieve older users')
 
         self._io_loop.add_timeout(
                 self._io_loop.time() + 5,
