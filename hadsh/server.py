@@ -20,6 +20,7 @@ from .resizer import ImageResizer
 from .db.db import get_db, User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag
 from .util import decode_body
+from sqlalchemy import or_
 
 
 class AuthRequestHandler(RequestHandler):
@@ -136,8 +137,10 @@ class NewcomerDataHandler(AuthRequestHandler):
         new_users = []
         while len(new_users) == 0:
             # Retrieve users from the database
-            query = self.application._db.query(User).join(User.groups).filter(\
-                    Group.name != 'suspect', Group.name != 'legit')
+            query = self.application._db.query(User).join(\
+                    User.groups).filter(or_(\
+                    Group.name == 'auto_suspect',
+                    Group.name == 'auto_legit'))
             if before_user_id is not None:
                 query = query.filter(User.user_id < before_user_id)
             if after_user_id is not None:
