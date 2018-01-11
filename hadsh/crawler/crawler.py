@@ -18,10 +18,14 @@ from sqlalchemy import or_
 
 # Patterns to look for:
 CHECK_PATTERNS = (
-        re.compile(r'<a .*href=".*">'),     # Hyperlink
-        re.compile(r'\([0-9]+\)[ 0-9\-]+'), # US-style telephone number
-        re.compile(r'\+[0-9]+[ 0-9\-]+'),   # International telephone number
-        re.compile(r'\+[0-9]+ *\([0-9]+\)[ 0-9\-]+'),  # Hybrid telephone
+        # Hyperlink
+        re.compile(r'<a .*href=".*">.*</a>'),
+        # US-style telephone number
+        re.compile(r'\([0-9]+\)[ 0-9\-]+'),
+        # International telephone number
+        re.compile(r'\+[0-9]+[ 0-9\-]+'),
+        # Hybrid telephone (US/International)
+        re.compile(r'\+[0-9]+ *\([0-9]+\)[ 0-9\-]+'),
 )
 
 class InvalidUser(ValueError):
