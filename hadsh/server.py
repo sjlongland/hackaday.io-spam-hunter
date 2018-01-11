@@ -410,7 +410,9 @@ def main(*args, **kwargs):
     args = parser.parse_args(*args, **kwargs)
 
     # Start logging
-    logging.basicConfig(level=args.log_level)
+    logging.basicConfig(level=args.log_level,
+            format='%(asctime)s %(levelname)10s '\
+                    '%(name)16s %(process)d/%(threadName)s: %(message)s')
 
     # Validate arguments
     if (args.client_id is None) or \
