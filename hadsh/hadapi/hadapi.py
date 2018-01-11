@@ -90,37 +90,46 @@ class HackadayAPI(object):
         # Semaphore to limit concurrent access
         self._rq_sem = Semaphore(rqlim_concurrent)
 
-        # Flag to indicate the last request failed with "forbidden"
-        self._last_forbidden = False
+        # If None, then no "forbidden" status is current.
+        # Otherwise, this stores when the "forbidden" flag expires.
+        self._forbidden_expiry = None
+
+    @property
+    def is_forbidden(self):
+        """
+        Return true if the last request returned a "forbidden" response
+        code and was made within the last hour.
+        """
+        if self._forbidden_expiry is None:
+            return False
+
+        return self._forbidden_expiry > self._io_loop.time()
 
     @coroutine
-    def _ratelimit_sleep(self, forbidden_wait=True):
+    def _ratelimit_sleep(self):
         """
         Ensure we don't exceed the rate limit by tracking the request
         timestamps and adding a sleep if required.
         """
-        if self._last_forbidden and forbidden_wait:
-            # Wait an hour
-            delay = 3600.0
-        else:
-            now = self._io_loop.time()
+        now = self._io_loop.time()
 
-            # Push the current request expiry time to the end.
-            self._last_rq.append(now + self._rqlim_time)
+        # Push the current request expiry time to the end.
+        self._last_rq.append(now + self._rqlim_time)
 
-            # Drop any that are more than rqlim_time seconds ago.
-            self._last_rq = list(filter(lambda t : t < now, self._last_rq))
+        # Drop any that are more than rqlim_time seconds ago.
+        self._last_rq = list(filter(lambda t : t < now, self._last_rq))
 
-            # Are there rqlim_num or more requests?
-            if len(self._last_rq) < self._rqlim_num:
-                # There aren't, we can go.
-                return
+        # Are there rqlim_num or more requests?
+        if len(self._last_rq) < self._rqlim_num:
+            # There aren't, we can go.
+            return
 
-            # When does the next one expire?
-            expiry = self._last_rq[0]
+        # When does the next one expire?
+        expiry = self._last_rq[0]
 
-            # Wait until then
-            delay = expiry - now
+        # Wait until then
+        delay = expiry - now
+
         self._log.debug('Waiting %f sec for rate limit', delay)
         yield sleep(delay)
         self._log.debug('Resuming operations')
@@ -133,8 +142,7 @@ class HackadayAPI(object):
                 default_encoding)
 
     @coroutine
-    def _api_call(self, uri, query=None, token=None, api_key=True,
-            forbidden_wait=True, **kwargs):
+    def _api_call(self, uri, query=None, token=None, api_key=True, **kwargs):
         headers = kwargs.setdefault('headers', {})
         headers.setdefault('Accept', 'application/json')
         if token is not None:
@@ -162,8 +170,8 @@ class HackadayAPI(object):
             uri = self._api_uri + uri
 
         try:
-            yield self._ratelimit_sleep(forbidden_wait=forbidden_wait)
             yield self._rq_sem.acquire()
+            yield self._ratelimit_sleep()
             self._log.debug('%s %r', kwargs.get('method','GET'), uri)
             while True:
                 try:
@@ -174,14 +182,15 @@ class HackadayAPI(object):
                         raise
                 except HTTPError as e:
                     if e.code == 403:
-                        # Back-end is rate limiting us.  Back off.
-                        self._last_forbidden = True
+                        # Back-end is rate limiting us.  Back off an hour.
+                        self._forbidden_expiry = self._io_loop.time() \
+                                + 3600.0
                     raise
         finally:
             self._rq_sem.release()
 
         # If we get here, then our service is back.
-        self._last_forbidden = False
+        self._forbidden_expiry = None
         (ct, ctopts, body) = self._decode(response)
         if ct.lower() != 'application/json':
             raise ValueError('Server returned unrecognised type %s' % ct)
@@ -209,8 +218,7 @@ class HackadayAPI(object):
         )
 
         return self._api_call(
-            post_uri, method='POST', body=b'', api_key=False,
-            forbidden_wait=False)
+            post_uri, method='POST', body=b'', api_key=False)
 
     # Pagination options
 
@@ -229,8 +237,7 @@ class HackadayAPI(object):
         """
         Fetch the current user's profile information.
         """
-        return self._api_call('/me', token=token,
-                forbidden_wait=False)
+        return self._api_call('/me', token=token)
 
     def _user_query_opts(self, sortby, page, per_page):
         query = self._page_query_opts(page, per_page)
