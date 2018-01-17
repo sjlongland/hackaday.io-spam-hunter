@@ -338,9 +338,12 @@ class CallbackHandler(RequestHandler):
                 user_data)
 
         # We have the user account, create the session
+        expiry = datetime.datetime.now(tz=pytz.utc)
+                + datetime.timedelta(days=7)
         session = Session(
                 session_id=uuid.uuid4(),
-                user_id=user.user_id)
+                user_id=user.user_id,
+                expiry_date=expiry)
         self.application._db.add(session)
         self.application._db.commit()
 
