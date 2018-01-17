@@ -39,6 +39,24 @@ class AuthRequestHandler(RequestHandler):
             self.redirect('/authorize')
             return
 
+        # Is the session within a day of expiry?
+        now = datetime.datetime.now(tz=pytz.utc)
+        expiry_secs = (session.expiry_date - now).total_seconds()
+        if expiry_secs < 0:
+            # Session is defunct.
+            self.redirect('/authorize')
+            return
+
+        if expiry_secs < 86400:
+            # Extend the session another week.
+            session.expiry_date = now + datetime.timedelta(days=7)
+            self.application._db.commit()
+            self.set_cookie(name='hadsh',
+                    value=str(session.session_id),
+                    domain=self.application._domain,
+                    secure=self.application._secure,
+                    expires_days=7)
+
         return session
 
 
@@ -338,7 +356,7 @@ class CallbackHandler(RequestHandler):
                 user_data)
 
         # We have the user account, create the session
-        expiry = datetime.datetime.now(tz=pytz.utc)
+        expiry = datetime.datetime.now(tz=pytz.utc) \
                 + datetime.timedelta(days=7)
         session = Session(
                 session_id=uuid.uuid4(),
