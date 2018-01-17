@@ -69,6 +69,7 @@ class Session(Base):
     user_id         = Column(BigInteger, ForeignKey('user.user_id'))
 
     user            = relationship("User", back_populates="sessions")
+    expiry_date     = Column(DateTime(timezone=True))
 
 
 class UserDetail(Base):
