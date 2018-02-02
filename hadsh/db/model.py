@@ -138,3 +138,29 @@ class NewestUserPageRefresh(Base):
 
     page_num        = Column(BigInteger, primary_key=True)
     refresh_date    = Column(DateTime(timezone=True))
+
+
+class Word(Base):
+    """
+    A single word in the vocabulary of the Hackaday.io community.
+    """
+    __tablename__   = 'word'
+
+    word_id         = Column(BigInteger, primary_key=True)
+    word            = Column(String, unique=True, index=True)
+    score           = Column(BigInteger)
+    count           = Column(BigInteger)
+
+
+class WordAdjacent(Base):
+    """
+    How often two words appear next to each other.
+    """
+    __tablename__   = 'word_adjacent'
+
+    proceeding_id   = Column(BigInteger, ForeignKey('word.word_id'),
+                        primary_key=True, index=True)
+    following_id    = Column(BigInteger, ForeignKey('word.word_id'),
+                        primary_key=True, index=True)
+    score           = Column(BigInteger)
+    count           = Column(BigInteger)
