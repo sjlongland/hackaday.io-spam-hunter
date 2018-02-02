@@ -1,5 +1,5 @@
 from .model import Base, User, Group, Session, UserDetail, \
-        UserLink, Avatar, Tag, Word, WordAdjacent
+        UserLink, Avatar, Tag, Word, WordAdjacent, UserWord, UserWordAdjacent
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 

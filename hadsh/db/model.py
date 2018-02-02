@@ -36,6 +36,10 @@ class User(Base):
             cascade="all, delete-orphan")
     links = relationship("UserLink", back_populates="user",
             cascade="all, delete-orphan")
+    words = relationship("UserWord", back_populates="user",
+            cascade="all, delete-orphan")
+    adj_words = relationship("UserWordAdjacent", back_populates="user",
+            cascade="all, delete-orphan")
     detail = relationship("UserDetail", uselist=False, back_populates="user",
             cascade="all, delete-orphan")
     groups = relationship("Group", secondary=user_group_assoc,
@@ -164,3 +168,35 @@ class WordAdjacent(Base):
                         primary_key=True, index=True)
     score           = Column(BigInteger)
     count           = Column(BigInteger)
+
+
+class UserWord(Base):
+    """
+    Words used by a given user
+    """
+    __tablename__   = 'user_word'
+
+    user_id         = Column(BigInteger, ForeignKey('user.user_id'),
+                        primary_key=True, index=True)
+    word_id         = Column(BigInteger, ForeignKey('word.word_id'),
+                        primary_key=True)
+    count           = Column(BigInteger)
+
+    user            = relationship("User", back_populates="words")
+
+
+class UserWordAdjacent(Base):
+    """
+    Adjacent words used by a given user
+    """
+    __tablename__   = 'user_word_adjacent'
+
+    user_id         = Column(BigInteger, ForeignKey('user.user_id'),
+                        primary_key=True, index=True)
+    proceeding_id   = Column(BigInteger, ForeignKey('word.word_id'),
+                        primary_key=True)
+    following_id    = Column(BigInteger, ForeignKey('word.word_id'),
+                        primary_key=True)
+    count           = Column(BigInteger)
+
+    user            = relationship("User", back_populates="adj_words")
