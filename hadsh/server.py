@@ -339,7 +339,8 @@ class ClassifyHandler(AuthAdminRequestHandler):
 
         # Update the database.
         for word, word_freq in user_freq.items():
-            w = self.application._db.query(Word).get(word)
+            w = self.application._db.query(Word).filter(
+                    Word.word==word).one_or_none()
             if w is None:
                 log.debug('New word: %s', word)
                 w = Word(word=word, score=0, count=0)
@@ -349,8 +350,10 @@ class ClassifyHandler(AuthAdminRequestHandler):
             w.score += (word_freq * score_inc)
 
         for (proc_word, follow_word), word_freq in user_adj_freq.items():
-            proc_w = self.application._db.query(Word).get(proc_word)
-            follow_w = self.application._db.query(Word).get(follow_word)
+            proc_w = self.application._db.query(Word).filter(
+                    Word.word==proc_word).one_or_none()
+            follow_w = self.application._db.query(Word).filter(
+                    Word.word==follow_word).one_or_none()
 
             if (proc_w is None) or (follow_w is None):
                 # Should not get here
