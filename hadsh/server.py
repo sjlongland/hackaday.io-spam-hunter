@@ -17,8 +17,9 @@ from tornado.ioloop import IOLoop
 from .hadapi.hadapi import HackadayAPI
 from .crawler.crawler import Crawler
 from .resizer import ImageResizer
+from .wordstat import tokenise, frequency, adjacency
 from .db.db import get_db, User, Group, Session, UserDetail, \
-        UserLink, Avatar, Tag
+        UserLink, Avatar, Tag, Word, WordAdjacent
 from .util import decode_body
 from sqlalchemy import or_
 
@@ -288,6 +289,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
                 pass
 
             user.groups.append(groups['legit'])
+            score_inc = 1
         elif classification == 'suspect':
             try:
                 user.groups.remove(groups['auto_suspect'])
@@ -305,6 +307,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
                 pass
 
             user.groups.append(groups['suspect'])
+            score_inc = -1
         else:
             self.set_status(400)
             self.write(json.dumps({
@@ -312,6 +315,57 @@ class ClassifyHandler(AuthAdminRequestHandler):
                 'classification': classification
             }))
             return
+
+        # Tokenise the users' content.
+        user_freq = {}
+        user_adj_freq = {}
+        def tally(field):
+            wordlist = tokenise(field)
+            frequency(wordlist, user_freq)
+            if len(wordlist) > 2:
+                adjacency(wordlist, user_adj_freq)
+
+        if user.detail:
+            detail = user.detail
+
+            # Free-form fields that the user can enter text into
+            tally(detail.about_me)
+            tally(detail.who_am_i)
+            tally(detail.what_i_would_like_to_do)
+            tally(detail.location)
+
+        for link in user.links:
+            tally(link.title)
+
+        # Update the database.
+        for word, word_freq in user_freq.items():
+            w = self.application._db.Query(Word).get(word)
+            if w is None:
+                log.debug('New word: %s', word)
+                w = Word(word=word, score=0, count=0)
+                self.application._db.add(w)
+                self.application._db.commit()
+            w.count += word_freq
+            w.score += (word_freq * score_inc)
+
+        for (proc_word, follow_word), word_freq in user_adj_freq.items():
+            proc_w = self.application._db.Query(Word).get(proc_word)
+            follow_w = self.application._db.Query(Word).get(follow_word)
+
+            if (proc_w is None) or (follow_w is None):
+                # Should not get here
+                continue
+
+            wa = self.application._db.Query(WordAdjacent).get((proc_w, follow_w))
+            if wa is None:
+                log.debug('New word adjacency: %s %s', proc_word, follow_word)
+                wa = WordAdjacent(proceeding_id=proc_w,
+                        following_id=follow_w, score=0, count=0)
+                self.application._db.add(wa)
+                self.application._db.commit()
+
+            wa.count += word_freq
+            wa.score += (word_freq * score_inc)
 
         self.application._db.commit()
         self.set_status(200)
