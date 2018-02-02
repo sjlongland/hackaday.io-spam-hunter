@@ -337,27 +337,33 @@ class ClassifyHandler(AuthAdminRequestHandler):
         for link in user.links:
             tally(link.title)
 
-        # Update the database.
-        for word, word_freq in user_freq.items():
+        # Retrieve all the words
+        words = {}
+        commit = False
+        for word in user_freq.keys():
             w = self.application._db.query(Word).filter(
                     Word.word==word).one_or_none()
             if w is None:
                 log.debug('New word: %s', word)
                 w = Word(word=word, score=0, count=0)
                 self.application._db.add(w)
-                self.application._db.commit()
+                commit = True
+            words[word] = w
+
+        if commit:
+            self.application._db.commit()
+            commit = False
+
+        # Update the database.
+        for word, word_freq in user_freq.items():
+            w = words[word]
             w.count += word_freq
             w.score += (word_freq * score_inc)
 
+        word_adj = {}
         for (proc_word, follow_word), word_freq in user_adj_freq.items():
-            proc_w = self.application._db.query(Word).filter(
-                    Word.word==proc_word).one_or_none()
-            follow_w = self.application._db.query(Word).filter(
-                    Word.word==follow_word).one_or_none()
-
-            if (proc_w is None) or (follow_w is None):
-                # Should not get here
-                continue
+            proc_w = words[proc_word]
+            follow_w = words[follow_word]
 
             wa = self.application._db.query(WordAdjacent).get((
                 proc_w.word_id, follow_w.word_id
@@ -367,8 +373,14 @@ class ClassifyHandler(AuthAdminRequestHandler):
                 wa = WordAdjacent(proceeding_id=proc_w.word_id,
                         following_id=follow_w.word_id, score=0, count=0)
                 self.application._db.add(wa)
-                self.application._db.commit()
+                commit = True
+            word_adj[(proc_word, follow_word)] = wa
 
+        if commit:
+            self.application._db.commit()
+
+        for (proc_word, follow_word), word_freq in user_adj_freq.items():
+            wa = word_adj[(proc_word, follow_word)]
             wa.count += word_freq
             wa.score += (word_freq * score_inc)
 
