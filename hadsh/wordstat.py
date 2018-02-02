@@ -8,7 +8,11 @@ def tokenise(html_text):
     """
     Return a list of words that appear in the text.
     """
-    return list(Text(html_to_text(html_text)).lower().words)
+    try:
+        return list(Text(html_to_text(html_text)).lower().words)
+    except ValueError:
+        # Empty sequence?
+        return []
 
 
 def frequency(wordlist, freq=None):
