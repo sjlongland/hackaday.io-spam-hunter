@@ -264,25 +264,25 @@ class Crawler(object):
                 # Next page
                 pg_idx = link_res['page'] + 1
 
-            if match:
-                # Record the user information
-                detail = self._db.query(UserDetail).get(user_data['id'])
-                if detail is None:
-                    detail = UserDetail(
-                            user_id=user_data['id'],
-                            about_me=user_data['about_me'],
-                            who_am_i=user_data['who_am_i'],
-                            location=user_data['location'],
-                            what_i_would_like_to_do=\
-                                    user_data['what_i_would_like_to_do'])
-                    self._db.add(detail)
-                else:
-                    detail.about_me = user_data['about_me']
-                    detail.who_am_i = user_data['who_am_i']
-                    detail.location = user_data['location']
-                    detail.what_i_would_like_to_do = \
-                            user_data['what_i_would_like_to_do']
+            # Record the user information
+            detail = self._db.query(UserDetail).get(user_data['id'])
+            if detail is None:
+                detail = UserDetail(
+                        user_id=user_data['id'],
+                        about_me=user_data['about_me'],
+                        who_am_i=user_data['who_am_i'],
+                        location=user_data['location'],
+                        what_i_would_like_to_do=\
+                                user_data['what_i_would_like_to_do'])
+                self._db.add(detail)
+            else:
+                detail.about_me = user_data['about_me']
+                detail.who_am_i = user_data['who_am_i']
+                detail.location = user_data['location']
+                detail.what_i_would_like_to_do = \
+                        user_data['what_i_would_like_to_do']
 
+            if match:
                 # Auto-Flag the user as "suspect"
                 if not classified:
                     self._log.debug('Auto-classifying %s [#%d] as suspect',
