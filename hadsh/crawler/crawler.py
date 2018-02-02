@@ -264,6 +264,14 @@ class Crawler(object):
                 # Next page
                 pg_idx = link_res['page'] + 1
 
+            # Does the user have a lot of projects in a short time?
+            age = (datetime.datetime.now(tz=pytz.utc) - user.created).total_seconds()
+            if (age > 300.0) and ((user_data['projects'] / 60.0) > 5):
+                # More than 5 projects a minute on average.
+                self._log.debug('User %s [#%d] has %d projects in %d seconds',
+                        user.screen_name, user.user_id, user_data['projects'], age)
+                match = True
+
             # Record the user information
             detail = self._db.query(UserDetail).get(user_data['id'])
             if detail is None:
