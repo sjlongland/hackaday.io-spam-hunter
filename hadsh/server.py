@@ -356,11 +356,13 @@ class ClassifyHandler(AuthAdminRequestHandler):
                 # Should not get here
                 continue
 
-            wa = self.application._db.query(WordAdjacent).get((proc_w, follow_w))
+            wa = self.application._db.query(WordAdjacent).get((
+                proc_w.word_id, follow_w.word_id
+            ))
             if wa is None:
                 log.debug('New word adjacency: %s %s', proc_word, follow_word)
-                wa = WordAdjacent(proceeding_id=proc_w,
-                        following_id=follow_w, score=0, count=0)
+                wa = WordAdjacent(proceeding_id=proc_w.word_id,
+                        following_id=follow_w.word_id, score=0, count=0)
                 self.application._db.add(wa)
                 self.application._db.commit()
 
