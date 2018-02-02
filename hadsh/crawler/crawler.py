@@ -312,6 +312,7 @@ class Crawler(object):
                         screen_name=user_data['screen_name'],
                         url=user_data['url'],
                         avatar_id=avatar.avatar_id,
+                        projects=user_data['projects'],
                         created=datetime.datetime.fromtimestamp(
                             user_data['created'], tz=pytz.utc))
             self._db.add(user)
@@ -321,6 +322,7 @@ class Crawler(object):
             user.screen_name = user_data['screen_name']
             user.avatar_id=avatar.avatar_id
             user.url = user_data['url']
+            user.projects = user_data['projects']
             if user.created is None:
                 user.created = datetime.datetime.fromtimestamp(
                         user_data['created'], tz=pytz.utc)
