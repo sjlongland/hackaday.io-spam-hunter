@@ -339,7 +339,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
 
         # Update the database.
         for word, word_freq in user_freq.items():
-            w = self.application._db.Query(Word).get(word)
+            w = self.application._db.query(Word).get(word)
             if w is None:
                 log.debug('New word: %s', word)
                 w = Word(word=word, score=0, count=0)
@@ -349,14 +349,14 @@ class ClassifyHandler(AuthAdminRequestHandler):
             w.score += (word_freq * score_inc)
 
         for (proc_word, follow_word), word_freq in user_adj_freq.items():
-            proc_w = self.application._db.Query(Word).get(proc_word)
-            follow_w = self.application._db.Query(Word).get(follow_word)
+            proc_w = self.application._db.query(Word).get(proc_word)
+            follow_w = self.application._db.query(Word).get(follow_word)
 
             if (proc_w is None) or (follow_w is None):
                 # Should not get here
                 continue
 
-            wa = self.application._db.Query(WordAdjacent).get((proc_w, follow_w))
+            wa = self.application._db.query(WordAdjacent).get((proc_w, follow_w))
             if wa is None:
                 log.debug('New word adjacency: %s %s', proc_word, follow_word)
                 wa = WordAdjacent(proceeding_id=proc_w,
