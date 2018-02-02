@@ -1,7 +1,7 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, BigInteger, String, ForeignKey, \
-        Boolean, LargeBinary, Text, DateTime, Table
+        Boolean, LargeBinary, Text, DateTime, Table, Integer
 from sqlalchemy.dialects.postgresql import UUID
 
 Base = declarative_base()
@@ -86,6 +86,7 @@ class UserDetail(Base):
     who_am_i        = Column(Text)
     what_i_would_like_to_do = Column(Text)
     location        = Column(String)
+    projects        = Column(Integer)
 
     user            = relationship("User", back_populates="detail")
 
