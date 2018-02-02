@@ -272,12 +272,14 @@ class Crawler(object):
                         about_me=user_data['about_me'],
                         who_am_i=user_data['who_am_i'],
                         location=user_data['location'],
+                        projects=user_data['projects'],
                         what_i_would_like_to_do=\
                                 user_data['what_i_would_like_to_do'])
                 self._db.add(detail)
             else:
                 detail.about_me = user_data['about_me']
                 detail.who_am_i = user_data['who_am_i']
+                detail.projects = user_data['projects']
                 detail.location = user_data['location']
                 detail.what_i_would_like_to_do = \
                         user_data['what_i_would_like_to_do']
@@ -312,7 +314,6 @@ class Crawler(object):
                         screen_name=user_data['screen_name'],
                         url=user_data['url'],
                         avatar_id=avatar.avatar_id,
-                        projects=user_data['projects'],
                         created=datetime.datetime.fromtimestamp(
                             user_data['created'], tz=pytz.utc))
             self._db.add(user)
@@ -322,7 +323,6 @@ class Crawler(object):
             user.screen_name = user_data['screen_name']
             user.avatar_id=avatar.avatar_id
             user.url = user_data['url']
-            user.projects = user_data['projects']
             if user.created is None:
                 user.created = datetime.datetime.fromtimestamp(
                         user_data['created'], tz=pytz.utc)
