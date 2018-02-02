@@ -206,6 +206,7 @@ class NewcomerDataHandler(AuthRequestHandler):
                     'about_me': detail.about_me,
                     'who_am_i': detail.who_am_i,
                     'location': detail.location,
+                    'projects': detail.projects,
                     'what_i_would_like_to_do': detail.what_i_would_like_to_do,
                 })
             return data
