@@ -185,6 +185,12 @@ var getNextPage = function() {
 						userBox.appendChild(profile_who_am_i);
 					}
 
+					if (user.projects) {
+						var profile_projects = document.createElement('div');
+						profile_about_me.innerHTML = user.projects + ' project(s)';
+						userBox.appendChild(profile_projects);
+					}
+
 					if (user.what_i_would_like_to_do) {
 						var profile_what_i_would_like_to_do = document.createElement('div');
 						profile_about_me.innerHTML = user.what_i_would_like_to_do;
