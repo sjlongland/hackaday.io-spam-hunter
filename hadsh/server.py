@@ -495,7 +495,7 @@ class HADSHApp(Application):
         self._api = HackadayAPI(client_id=client_id,
                 client_secret=client_secret, api_key=api_key,
                 client=self._client, log=self._log.getChild('api'))
-        self._crawler = Crawler(project_id, self._db,
+        self._crawler = Crawler(project_id, get_db(db_uri),
                 self._api, self._client,
                 self._log.getChild('crawler'))
         self._resizer = ImageResizer(self._log.getChild('resizer'))
