@@ -92,9 +92,9 @@ var getNextPage = function() {
 						var avatar = document.createElement('img');
 						avatar.src = '/avatar/' + user.avatar_id
 							+ '?width=100&height=100';
-						avatarBox.width = 100;
-						avatarBox.height = 100;
 						avatarBox.appendChild(avatar);
+						avatarBox.style.width = '100px';
+						avatarBox.style.height = '100px';
 						userBox.appendChild(avatarBox);
 
 						var profile_link = document.createElement('a');
@@ -109,6 +109,27 @@ var getNextPage = function() {
 
 						var profile_score = document.createElement('div');
 						userBox.appendChild(profile_score);
+
+						var profile_score_gauge = document.createElement('div');
+						profile_score_gauge.style.display = 'table-row';
+						profile_score_gauge.style.height = '32px';
+						profile_score_gauge.style.width = '320px';
+						profile_score_gauge.style.border = '1px solid black';
+						var profile_score_gauge_left = document.createElement('div');
+						profile_score_gauge_left.style.display = 'table-cell';
+						profile_score_gauge_left.style.height = '32px';
+						profile_score_gauge_left.style.background = '#ccc';
+						profile_score_gauge.appendChild(profile_score_gauge_left);
+						var profile_score_gauge_bar = document.createElement('div');
+						profile_score_gauge_bar.style.display = 'table-cell';
+						profile_score_gauge_bar.style.height = '32px';
+						profile_score_gauge.appendChild(profile_score_gauge_bar);
+						var profile_score_gauge_right = document.createElement('div');
+						profile_score_gauge_right.style.display = 'table-cell';
+						profile_score_gauge_right.style.height = '32px';
+						profile_score_gauge_right.style.background = '#ccc';
+						profile_score_gauge.appendChild(profile_score_gauge_right);
+						userBox.appendChild(profile_score_gauge);
 
 						var profile_created = document.createElement('div');
 						profile_created.innerHTML = user.created;
@@ -314,6 +335,23 @@ var getNextPage = function() {
 							user_score = 0.0;
 						}
 						profile_score.innerHTML = 'Score: ' + user_score;
+
+						if (user_score < 0.0) {
+							profile_score_gauge_left.style.width = (16 * (10.0 + user_score)) + 'px';
+							profile_score_gauge_bar.style.width = (16 * (-user_score)) + 'px';
+							profile_score_gauge_bar.style.background = '#f00';
+							profile_score_gauge_right.style.width = '160px';
+						} else if (user_score > 0.0) {
+							profile_score_gauge_left.style.width = '160px';
+							profile_score_gauge_bar.style.width = (16 * (user_score)) + 'px';
+							profile_score_gauge_bar.style.background = '#0f0';
+							profile_score_gauge_right.style.width = (16 * (10.0 - user_score)) + 'px';
+						} else {
+							profile_score_gauge_left.style.width = '155px';
+							profile_score_gauge_bar.style.width = '10px';
+							profile_score_gauge_bar.style.background = '#ff0';
+							profile_score_gauge_right.style.width = '155px';
+						}
 
 						textbox.appendChild(userBox);
 					});
