@@ -489,9 +489,9 @@ class Crawler(object):
             except:
                 self._log.exception('Failed to retrieve newer users')
 
-        self._log.info('Next user scan in 5 minutes')
+        self._log.info('Next user scan in 1 minute')
         self._io_loop.add_timeout(
-                self._io_loop.time() + 300.0,
+                self._io_loop.time() + 60.0,
                 self._background_fetch_new_users)
 
     @coroutine
