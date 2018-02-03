@@ -402,15 +402,17 @@ class Crawler(object):
         else:
             user_created = datetime.datetime.now(pytz.utc)
 
-        if user is None:
+        new = user is None
+        if new:
             # New user
             user = User(user_id=user_data['id'],
                         screen_name=user_data['screen_name'],
                         url=user_data['url'],
                         avatar_id=avatar.avatar_id,
                         created=user_created)
+            self._log.info('New user: %s [#%d]',
+                    user.screen_name, user.user_id)
             self._db.add(user)
-            self.new_user_event.set()
         else:
             # Existing user, update the user details
             user.screen_name = user_data['screen_name']
@@ -425,6 +427,8 @@ class Crawler(object):
             user.last_update = datetime.datetime.now(tz=pytz.utc)
         self._db.commit()
 
+        if new:
+            self.new_user_event.set()
         raise Return(user)
 
     @coroutine
