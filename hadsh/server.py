@@ -186,6 +186,8 @@ class NewcomerDataHandler(AuthRequestHandler):
             }
 
         def _dump_user(user):
+            user_words = {}
+            user_adj = []
             data = {
                     'id':           user.user_id,
                     'screen_name':  user.screen_name,
@@ -199,8 +201,43 @@ class NewcomerDataHandler(AuthRequestHandler):
                     ],
                     'tags':         [
                         t.tag for t in user.tags
-                    ]
+                    ],
+                    'tokens':       dict([
+                        (t.token, t.count) for t in user.tokens
+                    ]),
+                    'words':        user_words,
+                    'word_adj':     user_adj
             }
+
+            for uw in user.words:
+                w = self.application._db.query(Word).get(uw.word_id)
+                user_words[w.word] = {
+                        'user_count': uw.count,
+                        'site_count': w.count,
+                        'site_score': w.score,
+                }
+
+            for uwa in user.adj_words:
+                pw = self.application._db.query(Word).get(uwa.proceeding_id)
+                fw = self.application._db.query(Word).get(uwa.following_id)
+                wa = self.application._db.query(WordAdjacent).get(
+                        (uwa.proceeding_id, uwa.following_id))
+
+                if wa is not None:
+                    wa_count = wa.count
+                    wa_score = wa.score
+                else:
+                    wa_count = 0
+                    wa_score = 0
+
+                user_adj.append({
+                    'proceeding': pw.word,
+                    'following': fw.word,
+                    'user_count': uwa.count,
+                    'site_count': wa_count,
+                    'site_score': wa_score,
+                })
+
             detail = user.detail
             if detail is not None:
                 data.update({
