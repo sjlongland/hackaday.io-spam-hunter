@@ -11,7 +11,9 @@ from tornado.locks import Event
 
 from ..hadapi.hadapi import UserSortBy
 from ..db.model import User, Group, Session, UserDetail, \
-        UserLink, Avatar, Tag, NewestUserPageRefresh
+        UserLink, Avatar, Tag, NewestUserPageRefresh, \
+        UserWord, UserWordAdjacent, UserToken, Word, WordAdjacent
+from ..wordstat import tokenise, frequency, adjacency
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy import or_
 
@@ -203,24 +205,40 @@ class Crawler(object):
                 if age.total_seconds() < 300:
                     return
 
+            # Tokenise the users' content.
+            user_freq = {}
+            user_adj_freq = {}
+            user_tokens = {}
+            def tally(field):
+                wordlist = tokenise(field)
+                frequency(wordlist, user_freq)
+                if len(wordlist) > 2:
+                    adjacency(wordlist, user_adj_freq)
+
             # Does the user have any hyperlinks or other patterns in their
             # profile?
             self._log.debug('Inspecting user %s [#%d]',
                 user_data['screen_name'], user_data['id'])
             match = False
-            for pattern in CHECK_PATTERNS:
-                if match:
-                    break
-                for field in ('about_me', 'who_am_i', 'location',
-                        'what_i_would_like_to_do'):
+            for field in ('about_me', 'who_am_i', 'location',
+                    'what_i_would_like_to_do'):
+                for pattern in CHECK_PATTERNS:
                     pmatch = pattern.search(user_data[field])
                     if pmatch:
                         self._log.info('Found match for %s (%r) in '\
                                 '%s of %s [#%d]',
                                 pattern.pattern, pmatch.group(0), field,
                                 user_data['screen_name'], user_data['id'])
+                        try:
+                            user_tokens[pmatch.group(0)] += 1
+                        except KeyError:
+                            user_tokens[pmatch.group(0)] = 1
+
                         match = True
                         break
+
+                # Tally up word usage in this field.
+                tally(user_data[field])
 
             # Does the user have any hyperlinks?  Not an indicator that they're
             # a spammer, just one of the traits.
@@ -236,6 +254,9 @@ class Crawler(object):
 
                 try:
                     for link in link_res['links']:
+                        # Count the link title up
+                        tally(link['title'])
+
                         # Do we have the link already?
                         l = self._db.query(UserLink).filter(
                                 UserLink.user_id==user.user_id,
@@ -270,6 +291,61 @@ class Crawler(object):
                 # More than 5 projects a minute on average.
                 self._log.debug('User %s [#%d] has %d projects in %d seconds',
                         user.screen_name, user.user_id, user_data['projects'], age)
+                match = True
+
+            # Stash any tokens
+            for token, count in user_tokens.items():
+                self._db.add(UserToken(
+                    user_id=user.user_id, token=token, count=count))
+
+            # Retrieve all the words
+            words = {}
+            commit = False
+            for word in user_freq.keys():
+                w = self._db.query(Word).filter(
+                        Word.word==word).one_or_none()
+                if w is None:
+                    self._log.debug('New word: %s', word)
+                    w = Word(word=word, score=0, count=0)
+                    self._db.add(w)
+                    commit = True
+                words[word] = w
+
+            if commit:
+                self._db.commit()
+                commit = False
+
+            # Add the user words, compute user's score
+            score = 0.0
+            for word, count in user_freq.items():
+                w = words[word]
+                self._db.add(UserWord(
+                    user_id=user.user_id, word_id=w.word_id,
+                    count=count))
+                if w.count > 0:
+                    score += float(w.score) / float(w.count)
+
+            for (proc_word, follow_word), count in user_adj_freq.items():
+                proc_w = words[proc_word]
+                follow_w = words[follow_word]
+
+                self._db.add(UserWordAdjacent(
+                    user_id=user.user_id,
+                    proceeding_id=proc_w.word_id,
+                    following_id=follow_w.word_id,
+                    count=count))
+
+                wa = self._db.query(WordAdjacent).get((
+                    proc_w.word_id, follow_w.word_id
+                ))
+                if wa is None:
+                    continue
+                if wa.count > 0:
+                    score += float(wa.score) / float(wa.count)
+
+            self._log.debug('User %s [#%d] has score %f',
+                    user.screen_name, user.user_id, score)
+            if score < -0.5:
                 match = True
 
             # Record the user information
