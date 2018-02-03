@@ -465,6 +465,7 @@ class Crawler(object):
         Try to retrieve users newer than our current set.
         """
         if not self._api.is_forbidden:
+            self._log.info('Scanning for new users')
             try:
                 newest = self._db.query(User).order_by(User.user_id.desc()).first()
                 start = newest.user_id + 1
@@ -472,6 +473,7 @@ class Crawler(object):
 
                 user_data = yield self._api.get_users(ids=slice(start, end),
                         per_page=50)
+                self._log.debug('Received: %s', user_data)
                 if isinstance(user_data['users'], list):
                     for this_user_data in user_data['users']:
                         try:
@@ -487,6 +489,7 @@ class Crawler(object):
             except:
                 self._log.exception('Failed to retrieve newer users')
 
+        self._log.info('Next user scan in 5 minutes')
         self._io_loop.add_timeout(
                 self._io_loop.time() + 300.0,
                 self._background_fetch_new_users)
