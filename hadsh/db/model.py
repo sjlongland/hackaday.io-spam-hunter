@@ -40,6 +40,8 @@ class User(Base):
             cascade="all, delete-orphan")
     adj_words = relationship("UserWordAdjacent", back_populates="user",
             cascade="all, delete-orphan")
+    tokens = relationship("UserToken", back_populates="user",
+            cascade="all, delete-orphan")
     detail = relationship("UserDetail", uselist=False, back_populates="user",
             cascade="all, delete-orphan")
     groups = relationship("Group", secondary=user_group_assoc,
@@ -200,3 +202,16 @@ class UserWordAdjacent(Base):
     count           = Column(BigInteger)
 
     user            = relationship("User", back_populates="adj_words")
+
+
+class UserToken(Base):
+    """
+    Suspect tokens found in regular expression search.
+    """
+    __tablename__   = 'user_token'
+    user_id         = Column(BigInteger, ForeignKey('user.user_id'),
+                        primary_key=True, index=True)
+    token           = Column(String, primary_key=True)
+    count           = Column(BigInteger)
+
+    user            = relationship("User", back_populates="tokens")
