@@ -11,6 +11,16 @@ var mass_mark_btn = null;
 var newest_uid = null;
 var oldest_uid = null;
 
+/* Credit: https://stackoverflow.com/a/7124052 */
+var htmlEscape = function(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+};
+
 var getNextPage = function() {
 	var rq = new XMLHttpRequest();
 	busy = true;
@@ -78,11 +88,14 @@ var getNextPage = function() {
 							oldest_uid = user.id;
 
 						var userBox = document.createElement('div');
+						var avatarBox = document.createElement('div');
 						var avatar = document.createElement('img');
 						avatar.src = '/avatar/' + user.avatar_id
 							+ '?width=100&height=100';
-						avatar.class = 'avatar';
-						userBox.appendChild(avatar);
+						avatarBox.width = 100;
+						avatarBox.height = 100;
+						avatarBox.appendChild(avatar);
+						userBox.appendChild(avatarBox);
 
 						var profile_link = document.createElement('a');
 						profile_link.href = user.url;
@@ -93,6 +106,9 @@ var getNextPage = function() {
 
 						var profile_uid = document.createTextNode(' ' + user.id);
 						userBox.appendChild(profile_uid);
+
+						var profile_score = document.createElement('div');
+						userBox.appendChild(profile_score);
 
 						var profile_created = document.createElement('div');
 						profile_created.innerHTML = user.created;
@@ -182,19 +198,88 @@ var getNextPage = function() {
 
 						if (user.who_am_i) {
 							var profile_who_am_i = document.createElement('div');
-							profile_about_me.innerHTML = user.who_am_i;
+							profile_who_am_i.innerHTML = user.who_am_i;
 							userBox.appendChild(profile_who_am_i);
 						}
 
 						if (user.projects) {
 							var profile_projects = document.createElement('div');
-							profile_about_me.innerHTML = user.projects + ' project(s)';
+							profile_projects.innerHTML = user.projects + ' project(s)';
 							userBox.appendChild(profile_projects);
 						}
 
+						if (user.tokens && Object.keys(user.tokens).length) {
+							var profile_tokens = document.createElement('ul');
+							Object.keys(user.tokens).forEach(function (token) {
+								var token_li = document.createElement('li');
+								var token_tt = document.createElement('tt');
+								token_tt.innerHTML = htmlEscape(token);
+								token_li.appendChild(token_tt);
+								token_li.appendChild(document.createTextNode(' ' + user.tokens[token] + ' instances'));
+								profile_tokens.appendChild(token_li);
+							});
+							userBox.appendChild(profile_tokens);
+						}
+
+						/* Compute the user's score */
+						var user_score = 0.0;
+						if (user.words && Object.keys(user.words).length) {
+							var profile_words = document.createElement('div');
+							Object.keys(user.words).forEach(function (word) {
+								var stat = user.words[word];
+								var word_span = document.createElement('span');
+								var word_tt = document.createElement('tt');
+								var score = 0.0;
+								if (stat.site_count > 0) {
+									score = stat.site_score / stat.site_count;
+									user_score += score;
+								}
+
+								word_tt.innerHTML = htmlEscape(word);
+								word_span.appendChild(word_tt);
+								word_span.appendChild(
+									document.createTextNode(
+										' (' + stat.user_count
+										+ ' occurances; score: '
+										+ score
+										+ ')'));
+								profile_words.appendChild(word_span);
+							});
+							userBox.appendChild(profile_words);
+						}
+
+						if (user.word_adj && user.word_adj.length) {
+							var profile_word_adj = document.createElement('div');
+							user.word_adj.forEach(function (word_adj) {
+								var adj_span = document.createElement('span');
+								var adj_tt = document.createElement('tt');
+								var score = 0.0;
+								if (word_adj.site_count > 0) {
+									score = word_adj.site_score / word_adj.site_count;
+									user_score += score;
+								}
+
+								adj_tt.innerHTML = htmlEscape(word_adj.proceeding)
+										+ ' &rarr; '
+										+ htmlEscape(word_adj.following);
+								adj_span.appendChild(adj_tt);
+								adj_span.appendChild(
+									document.createTextNode(
+										' (' + word_adj.user_count
+										+ ' occurances; score: '
+										+ score
+										+ ')'));
+								profile_word_adj.appendChild(adj_span);
+
+							});
+							userBox.appendChild(profile_word_adj);
+						}
+
+						profile_score.innerHTML = 'Score: ' + user_score;
+
 						if (user.what_i_would_like_to_do) {
 							var profile_what_i_would_like_to_do = document.createElement('div');
-							profile_about_me.innerHTML = user.what_i_would_like_to_do;
+							profile_what_i_would_like_to_do.innerHTML = user.what_i_would_like_to_do;
 							userBox.appendChild(profile_what_i_would_like_to_do);
 						}
 
