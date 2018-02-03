@@ -165,7 +165,7 @@ class NewcomerDataHandler(AuthRequestHandler):
             if after_user_id is not None:
                 query = query.filter(User.user_id > after_user_id)
             new_users = query.order_by(\
-                    User.created.desc(),
+                    User.user_id.desc(),
                     User.user_id.desc()).offset(page*50).limit(50).all()
 
             if len(new_users) == 0:
