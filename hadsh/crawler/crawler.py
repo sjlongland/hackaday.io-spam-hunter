@@ -316,14 +316,14 @@ class Crawler(object):
             self._db.commit()
 
             # Add the user words, compute user's score
-            score = 0.0
+            score = []
             for word, count in user_freq.items():
                 w = words[word]
                 self._db.add(UserWord(
                     user_id=user.user_id, word_id=w.word_id,
                     count=count))
                 if w.count > 0:
-                    score += float(w.score) / float(w.count)
+                    score.append(float(w.score) / float(w.count))
 
             for (proc_word, follow_word), count in user_adj_freq.items():
                 proc_w = words[proc_word]
@@ -341,7 +341,11 @@ class Crawler(object):
                 if wa is None:
                     continue
                 if wa.count > 0:
-                    score += float(wa.score) / float(wa.count)
+                    score.append(float(wa.score) / float(wa.count))
+
+            # Compute score
+            score.sort()
+            score = sum(score[:10])
 
             self._log.debug('User %s [#%d] has score %f',
                     user.screen_name, user.user_id, score)

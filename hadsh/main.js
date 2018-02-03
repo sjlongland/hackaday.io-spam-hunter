@@ -244,7 +244,7 @@ var getNextPage = function() {
 						}
 
 						/* Compute the user's score */
-						var user_score = 0.0;
+						var user_score = [];
 						if (user.words && Object.keys(user.words).length) {
 							var profile_words = document.createElement('div');
 							Object.keys(user.words).forEach(function (word) {
@@ -255,7 +255,7 @@ var getNextPage = function() {
 								if (stat.site_count > 0) {
 									score = Math.round((stat.site_score * 100)
 										/ stat.site_count) / 100;
-									user_score += score;
+									user_score.push(score);
 								}
 
 								word_tt.innerHTML = htmlEscape(word);
@@ -280,7 +280,7 @@ var getNextPage = function() {
 								if (word_adj.site_count > 0) {
 									score = Math.round((word_adj.site_score * 100)
 										/ word_adj.site_count) / 100;
-									user_score += score;
+									user_score.push(score);
 								}
 
 								adj_tt.innerHTML = htmlEscape(word_adj.proceeding)
@@ -299,6 +299,20 @@ var getNextPage = function() {
 							userBox.appendChild(profile_word_adj);
 						}
 
+						/* Compute user score */
+						if (user_score.length) {
+							user_score = Math.round(100*user_score.sort(function (a, b) {
+								if (a < b)
+									return -1;
+								else if (a > b)
+									return 1;
+								return 0;
+							}).slice(0, 5).reduce(function (a, b) {
+								return a + b;
+							})) / 100;
+						} else {
+							user_score = 0.0;
+						}
 						profile_score.innerHTML = 'Score: ' + user_score;
 
 						textbox.appendChild(userBox);
