@@ -293,6 +293,9 @@ class Crawler(object):
                         user.screen_name, user.user_id, user_data['projects'], age)
                 match = True
 
+            # Commit here so the user ID is valid.
+            self._db.commit()
+
             # Stash any tokens
             for token, count in user_tokens.items():
                 self._db.add(UserToken(
@@ -300,7 +303,6 @@ class Crawler(object):
 
             # Retrieve all the words
             words = {}
-            commit = False
             for word in user_freq.keys():
                 w = self._db.query(Word).filter(
                         Word.word==word).one_or_none()
@@ -308,12 +310,10 @@ class Crawler(object):
                     self._log.debug('New word: %s', word)
                     w = Word(word=word, score=0, count=0)
                     self._db.add(w)
-                    commit = True
                 words[word] = w
 
-            if commit:
-                self._db.commit()
-                commit = False
+            # Stash the new words, if any
+            self._db.commit()
 
             # Add the user words, compute user's score
             score = 0.0
@@ -379,6 +379,8 @@ class Crawler(object):
                 self._log.debug('Auto-classifying %s [#%d] as legitmate',
                         user.screen_name, user.user_id)
                 self._auto_legit.users.append(user)
+
+            self._db.commit()
         except:
             self._log.error('Failed to process user data %r', user_data)
             raise
