@@ -208,6 +208,28 @@ var getNextPage = function() {
 							userBox.appendChild(profile_projects);
 						}
 
+						if (user.what_i_would_like_to_do) {
+							var profile_what_i_would_like_to_do = document.createElement('div');
+							profile_what_i_would_like_to_do.innerHTML = user.what_i_would_like_to_do;
+							userBox.appendChild(profile_what_i_would_like_to_do);
+						}
+
+						var links = document.createElement('ul');
+						user.links.forEach(function (link) {
+							var link_tag = document.createElement('a');
+							link_tag.href = link.url;
+							link_tag.appendChild(document.createTextNode(link.title + ' '));
+							var link_tt = document.createElement('tt');
+							link_tt.appendChild(document.createTextNode(
+								'<' + htmlEscape(link.url) + '>'));
+							link_tag.appendChild(link_tt);
+
+							var link_item = document.createElement('li');
+							link_item.appendChild(link_tag);
+							links.appendChild(link_item);
+						});
+						userBox.appendChild(links);
+
 						if (user.tokens && Object.keys(user.tokens).length) {
 							var profile_tokens = document.createElement('ul');
 							Object.keys(user.tokens).forEach(function (token) {
@@ -231,7 +253,8 @@ var getNextPage = function() {
 								var word_tt = document.createElement('tt');
 								var score = 0.0;
 								if (stat.site_count > 0) {
-									score = stat.site_score / stat.site_count;
+									score = Math.round((stat.site_score * 100)
+										/ stat.site_count) / 100;
 									user_score += score;
 								}
 
@@ -255,7 +278,8 @@ var getNextPage = function() {
 								var adj_tt = document.createElement('tt');
 								var score = 0.0;
 								if (word_adj.site_count > 0) {
-									score = word_adj.site_score / word_adj.site_count;
+									score = Math.round((word_adj.site_score * 100)
+										/ word_adj.site_count) / 100;
 									user_score += score;
 								}
 
@@ -277,22 +301,6 @@ var getNextPage = function() {
 
 						profile_score.innerHTML = 'Score: ' + user_score;
 
-						if (user.what_i_would_like_to_do) {
-							var profile_what_i_would_like_to_do = document.createElement('div');
-							profile_what_i_would_like_to_do.innerHTML = user.what_i_would_like_to_do;
-							userBox.appendChild(profile_what_i_would_like_to_do);
-						}
-
-						var links = document.createElement('ul');
-						user.links.forEach(function (link) {
-							var link_tag = document.createElement('a');
-							link_tag.href = link.url;
-							link_tag.innerHTML = link.title;
-							var link_item = document.createElement('li');
-							link_item.appendChild(link_tag);
-							links.appendChild(link_item);
-						});
-						userBox.appendChild(links);
 						textbox.appendChild(userBox);
 					});
 					page = data.page + 1;
