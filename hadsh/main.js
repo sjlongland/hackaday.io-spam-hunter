@@ -88,6 +88,9 @@ var getNextPage = function() {
 							oldest_uid = user.id;
 
 						var userBox = document.createElement('div');
+						userBox.style.border = '1px solid black';
+						userBox.style.padding = '2em';
+
 						var avatarBox = document.createElement('div');
 						var avatar = document.createElement('img');
 						avatar.src = '/avatar/' + user.avatar_id
