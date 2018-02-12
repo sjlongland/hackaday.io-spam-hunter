@@ -328,6 +328,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
 
             user.groups.append(groups['legit'])
             score_inc = 1
+            keep_detail = False
         elif classification == 'suspect':
             try:
                 user.groups.remove(groups['auto_suspect'])
@@ -346,6 +347,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
 
             user.groups.append(groups['suspect'])
             score_inc = -1
+            keep_detail = True
         else:
             self.set_status(400)
             self.write(json.dumps({
@@ -421,6 +423,12 @@ class ClassifyHandler(AuthAdminRequestHandler):
             wa = word_adj[(proc_word, follow_word)]
             wa.count += word_freq
             wa.score += (word_freq * score_inc)
+
+        # Drop the user detail unless we're keeping it
+        if not keep_detail:
+            self.application._db.delete(user.detail)
+            for link in user.links:
+                self.application._db.delete(link)
 
         self.application._db.commit()
         self.set_status(200)
