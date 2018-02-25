@@ -286,7 +286,65 @@ class Crawler(object):
                 pg_idx = link_res['page'] + 1
 
             # Does the user have a lot of projects in a short time?
-            age = (datetime.datetime.now(tz=pytz.utc) - user.created).total_seconds()
+            age = (datetime.datetime.now(tz=pytz.utc) - \
+                    user.created).total_seconds()
+
+            # How about the content of those projects?
+            try:
+                pg_idx = 1
+                pg_cnt = 1  # Don't know how many right now, but let's start here
+                while pg_idx <= pg_cnt:
+                    prj_res = yield self._api.get_user_projects(user.user_id,
+                            page=pg_idx, per_page=50)
+                    self._log.debug('Projects for %s: %s',
+                            user, prj_res)
+
+                    raw_projects = prj_res.get('projects')
+                    if isinstance(raw_projects, list):
+                        for raw_prj in raw_projects:
+                            # Tokenise the name, summary and description
+                            for field in ('name', 'summary', 'description'):
+                                if field not in raw_prj:
+                                    continue
+                                tally(raw_prj[field])
+
+                    pg_cnt = prj_res['last_page']
+
+                    # Next page
+                    pg_idx = prj_res['page'] + 1
+            except:
+                self._log.error('Failed to process user %s projects',
+                        user, exc_info=1)
+                # Carry on!
+
+            # How about the user's pages?
+            try:
+                pg_idx = 1
+                pg_cnt = 1  # Don't know how many right now, but let's start here
+                while pg_idx <= pg_cnt:
+                    page_res = yield self._api.get_user_pages(user.user_id,
+                            page=pg_idx, per_page=50)
+                    self._log.debug('Pages for %s: %s',
+                            user, page_res)
+
+                    raw_pages = page_res.get('pages')
+                    if isinstance(raw_pages, list):
+                        for raw_page in raw_pages:
+                            # Tokenise the name, summary and description
+                            for field in ('title', 'body'):
+                                if field not in raw_page:
+                                    continue
+                                tally(raw_page[field])
+
+                    pg_cnt = page_res['last_page']
+
+                    # Next page
+                    pg_idx = page_res['page'] + 1
+            except:
+                self._log.error('Failed to process user %s pages',
+                        user, exc_info=1)
+                # Carry on!
+
             if (age > 300.0) and ((user_data['projects'] / 60.0) > 5):
                 # More than 5 projects a minute on average.
                 self._log.debug('User %s [#%d] has %d projects in %d seconds',
