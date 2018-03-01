@@ -384,9 +384,17 @@ class Crawler(object):
                 score = []
                 for word, count in user_freq.items():
                     w = words[word]
-                    self._db.add(UserWord(
-                        user_id=user.user_id, word_id=w.word_id,
-                        count=count))
+                    uw = self._db.query(UserWord).get((user.user_id,
+                            w.word_id))
+
+                    if uw is None:
+                        uw = UserWord(
+                            user_id=user.user_id, word_id=w.word_id,
+                            count=count)
+                        self._db.add(uw)
+                    else:
+                        uw.count = count
+
                     if w.count > 0:
                         score.append(float(w.score) / float(w.count))
 
@@ -394,11 +402,17 @@ class Crawler(object):
                     proc_w = words[proc_word]
                     follow_w = words[follow_word]
 
-                    self._db.add(UserWordAdjacent(
-                        user_id=user.user_id,
-                        proceeding_id=proc_w.word_id,
-                        following_id=follow_w.word_id,
-                        count=count))
+                    uwa = self._db.query(UserWordAdjacent).get((
+                        user.user_id, proc_w.word_id, follow_w.word_id))
+                    if uwa is None:
+                        uwa = UserWordAdjacent(
+                            user_id=user.user_id,
+                            proceeding_id=proc_w.word_id,
+                            following_id=follow_w.word_id,
+                            count=count)
+                        self._db.add(uwa)
+                    else:
+                        uwa.count = count
 
                     wa = self._db.query(WordAdjacent).get((
                         proc_w.word_id, follow_w.word_id
