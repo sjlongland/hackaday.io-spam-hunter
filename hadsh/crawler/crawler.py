@@ -309,10 +309,10 @@ class Crawler(object):
                                         continue
                                     tally(raw_prj[field])
 
-                        pg_cnt = prj_res['last_page']
+                        pg_cnt = prj_res.get('last_page',1)
 
                         # Next page
-                        pg_idx = prj_res['page'] + 1
+                        pg_idx = prj_res.get('page',1) + 1
                 except:
                     self._log.error('Failed to process user %s projects',
                             user, exc_info=1)
@@ -338,10 +338,10 @@ class Crawler(object):
                                         continue
                                     tally(raw_page[field])
 
-                        pg_cnt = page_res['last_page']
+                        pg_cnt = page_res.get('last_page',1)
 
                         # Next page
-                        pg_idx = page_res['page'] + 1
+                        pg_idx = page_res.get('page',1) + 1
                 except:
                     self._log.error('Failed to process user %s pages',
                             user, exc_info=1)
