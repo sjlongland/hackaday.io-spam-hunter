@@ -22,6 +22,7 @@ from .db.db import get_db, User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag, Word, WordAdjacent
 from .util import decode_body
 from sqlalchemy import or_
+from sqlalchemy.exc import InvalidRequestError
 
 
 class AuthRequestHandler(RequestHandler):
@@ -366,19 +367,25 @@ class ClassifyHandler(AuthAdminRequestHandler):
                 w.count += uw.count
 
             for uwa in user.adj_words:
-                wa = self.application._db.query(WordAdjacent).get((
-                    uwa.proceeding_id, uwa.following_id))
-                if wa is None:
-                    proc_word = self.application._db.query(Word).get(
-                            uwa.proceeding_id)
-                    follow_word = self.application._db.query(Word).get(
-                            uwa.proceeding_id)
+                while True:
+                    try:
+                        wa = self.application._db.query(WordAdjacent).get((
+                            uwa.proceeding_id, uwa.following_id))
+                        if wa is None:
+                            proc_word = self.application._db.query(Word).get(
+                                    uwa.proceeding_id)
+                            follow_word = self.application._db.query(Word).get(
+                                    uwa.proceeding_id)
 
-                    log.debug('New word adjacency: %s %s', proc_word, follow_word)
-                    wa = WordAdjacent(proceeding_id=proc_word.word_id,
-                            following_id=follow_word.word_id, score=0, count=0)
-                    self.application._db.add(wa)
-                    self.application._db.commit()
+                            log.debug('New word adjacency: %s %s', proc_word, follow_word)
+                            wa = WordAdjacent(proceeding_id=proc_word.word_id,
+                                    following_id=follow_word.word_id,
+                                    score=0, count=0)
+                            self.application._db.add(wa)
+                            self.application._db.commit()
+                        break
+                    except InvalidRequestError:
+                        self.application._db.rollback()
                 wa.score += uwa.count * score_inc
                 wa.count += uwa.count
 
