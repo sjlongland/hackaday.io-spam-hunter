@@ -205,234 +205,237 @@ class Crawler(object):
                 if age.total_seconds() < 300:
                     return
 
-            # Tokenise the users' content.
-            user_freq = {}
-            user_adj_freq = {}
-            user_tokens = {}
-            def tally(field):
-                wordlist = tokenise(field)
-                frequency(wordlist, user_freq)
-                if len(wordlist) > 2:
-                    adjacency(wordlist, user_adj_freq)
+            if classified:
+                match = False
+            else:
+                # Tokenise the users' content.
+                user_freq = {}
+                user_adj_freq = {}
+                user_tokens = {}
+                def tally(field):
+                    wordlist = tokenise(field)
+                    frequency(wordlist, user_freq)
+                    if len(wordlist) > 2:
+                        adjacency(wordlist, user_adj_freq)
 
-            # Does the user have any hyperlinks or other patterns in their
-            # profile?
-            self._log.debug('Inspecting user %s [#%d]',
-                user_data['screen_name'], user_data['id'])
-            match = False
-            for field in ('about_me', 'who_am_i', 'location',
-                    'what_i_would_like_to_do'):
-                for pattern in CHECK_PATTERNS:
-                    pmatch = pattern.search(user_data[field])
-                    if pmatch:
-                        self._log.info('Found match for %s (%r) in '\
-                                '%s of %s [#%d]',
-                                pattern.pattern, pmatch.group(0), field,
-                                user_data['screen_name'], user_data['id'])
-                        try:
-                            user_tokens[pmatch.group(0)] += 1
-                        except KeyError:
-                            user_tokens[pmatch.group(0)] = 1
+                # Does the user have any hyperlinks or other patterns in their
+                # profile?
+                self._log.debug('Inspecting user %s [#%d]',
+                    user_data['screen_name'], user_data['id'])
+                match = False
+                for field in ('about_me', 'who_am_i', 'location',
+                        'what_i_would_like_to_do'):
+                    for pattern in CHECK_PATTERNS:
+                        pmatch = pattern.search(user_data[field])
+                        if pmatch:
+                            self._log.info('Found match for %s (%r) in '\
+                                    '%s of %s [#%d]',
+                                    pattern.pattern, pmatch.group(0), field,
+                                    user_data['screen_name'], user_data['id'])
+                            try:
+                                user_tokens[pmatch.group(0)] += 1
+                            except KeyError:
+                                user_tokens[pmatch.group(0)] = 1
 
-                        match = True
+                            match = True
+                            break
+
+                    # Tally up word usage in this field.
+                    tally(user_data[field])
+
+                # Does the user have any hyperlinks?  Not an indicator that they're
+                # a spammer, just one of the traits.
+                pg_idx = 1
+                pg_cnt = 1  # Don't know how many right now, but let's start here
+                while pg_idx <= pg_cnt:
+                    link_res = yield self._api.get_user_links(user.user_id,
+                            page=pg_idx, per_page=50)
+
+                    if link_res['links'] == 0:
+                        # No links, yes sometimes it's an integer.
                         break
 
-                # Tally up word usage in this field.
-                tally(user_data[field])
+                    try:
+                        for link in link_res['links']:
+                            # Count the link title up
+                            tally(link['title'])
 
-            # Does the user have any hyperlinks?  Not an indicator that they're
-            # a spammer, just one of the traits.
-            pg_idx = 1
-            pg_cnt = 1  # Don't know how many right now, but let's start here
-            while pg_idx <= pg_cnt:
-                link_res = yield self._api.get_user_links(user.user_id,
-                        page=pg_idx, per_page=50)
+                            # Do we have the link already?
+                            l = self._db.query(UserLink).filter(
+                                    UserLink.user_id==user.user_id,
+                                    UserLink.url==link['url']).first()
+                            if l is None:
+                                # Record the link
+                                self._log.info('User %s [#%d] has link to %s <%s>',
+                                        user_data['screen_name'], user_data['id'],
+                                        link['title'], link['url'])
 
-                if link_res['links'] == 0:
-                    # No links, yes sometimes it's an integer.
-                    break
+                                l = UserLink(user_id=user.user_id,
+                                            title=link['title'],
+                                            url=link['url'])
+                                self._db.add(l)
+                            else:
+                                l.title = link['title']
 
-                try:
-                    for link in link_res['links']:
-                        # Count the link title up
-                        tally(link['title'])
+                            # Ignore the link if it's from twitter, Google+ or github
+                            match = match or (link['type'] \
+                                    not in ('twitter','github','google'))
+                    except:
+                        self._log.error('Failed to process link result %r', link_res)
+                        raise
+                    pg_cnt = link_res['last_page']
 
-                        # Do we have the link already?
-                        l = self._db.query(UserLink).filter(
-                                UserLink.user_id==user.user_id,
-                                UserLink.url==link['url']).first()
-                        if l is None:
-                            # Record the link
-                            self._log.info('User %s [#%d] has link to %s <%s>',
-                                    user_data['screen_name'], user_data['id'],
-                                    link['title'], link['url'])
+                    # Next page
+                    pg_idx = link_res['page'] + 1
 
-                            l = UserLink(user_id=user.user_id,
-                                        title=link['title'],
-                                        url=link['url'])
-                            self._db.add(l)
-                        else:
-                            l.title = link['title']
+                # Does the user have a lot of projects in a short time?
+                age = (datetime.datetime.now(tz=pytz.utc) - \
+                        user.created).total_seconds()
 
-                        # Ignore the link if it's from twitter, Google+ or github
-                        match = match or (link['type'] \
-                                not in ('twitter','github','google'))
-                except:
-                    self._log.error('Failed to process link result %r', link_res)
-                    raise
-                pg_cnt = link_res['last_page']
+                # How about the content of those projects?
+                if user_data.get('projects'):
+                    try:
+                        pg_idx = 1
+                        pg_cnt = 1
+                        while pg_idx <= pg_cnt:
+                            prj_res = yield self._api.get_user_projects(user.user_id,
+                                    page=pg_idx, per_page=50)
+                            self._log.debug('Projects for %s: %s',
+                                    user, prj_res)
 
-                # Next page
-                pg_idx = link_res['page'] + 1
+                            raw_projects = prj_res.get('projects')
+                            if isinstance(raw_projects, list):
+                                for raw_prj in raw_projects:
+                                    # Tokenise the name, summary and description
+                                    for field in ('name', 'summary', 'description'):
+                                        if field not in raw_prj:
+                                            continue
+                                        tally(raw_prj[field])
+                                    self._db.commit()
 
-            # Does the user have a lot of projects in a short time?
-            age = (datetime.datetime.now(tz=pytz.utc) - \
-                    user.created).total_seconds()
+                            pg_cnt = prj_res.get('last_page',1)
 
-            # How about the content of those projects?
-            if user_data.get('projects'):
-                try:
-                    pg_idx = 1
-                    pg_cnt = 1
-                    while pg_idx <= pg_cnt:
-                        prj_res = yield self._api.get_user_projects(user.user_id,
-                                page=pg_idx, per_page=50)
-                        self._log.debug('Projects for %s: %s',
-                                user, prj_res)
+                            # Next page
+                            pg_idx = prj_res.get('page',1) + 1
+                    except:
+                        self._log.error('Failed to process user %s projects',
+                                user, exc_info=1)
+                        # Carry on!
 
-                        raw_projects = prj_res.get('projects')
-                        if isinstance(raw_projects, list):
-                            for raw_prj in raw_projects:
-                                # Tokenise the name, summary and description
-                                for field in ('name', 'summary', 'description'):
-                                    if field not in raw_prj:
-                                        continue
-                                    tally(raw_prj[field])
-                                self._db.commit()
+                # How about the user's pages?
+                if user_data.get('pages'):
+                    try:
+                        pg_idx = 1
+                        pg_cnt = 1
+                        while pg_idx <= pg_cnt:
+                            page_res = yield self._api.get_user_pages(user.user_id,
+                                    page=pg_idx, per_page=50)
+                            self._log.debug('Pages for %s: %s',
+                                    user, page_res)
 
-                        pg_cnt = prj_res.get('last_page',1)
+                            raw_pages = page_res.get('pages')
+                            if isinstance(raw_pages, list):
+                                for raw_page in raw_pages:
+                                    # Tokenise the name, summary and description
+                                    for field in ('title', 'body'):
+                                        if field not in raw_page:
+                                            continue
+                                        tally(raw_page[field])
+                                    self._db.commit()
 
-                        # Next page
-                        pg_idx = prj_res.get('page',1) + 1
-                except:
-                    self._log.error('Failed to process user %s projects',
-                            user, exc_info=1)
-                    # Carry on!
+                            pg_cnt = page_res.get('last_page',1)
 
-            # How about the user's pages?
-            if user_data.get('pages'):
-                try:
-                    pg_idx = 1
-                    pg_cnt = 1
-                    while pg_idx <= pg_cnt:
-                        page_res = yield self._api.get_user_pages(user.user_id,
-                                page=pg_idx, per_page=50)
-                        self._log.debug('Pages for %s: %s',
-                                user, page_res)
+                            # Next page
+                            pg_idx = page_res.get('page',1) + 1
+                    except:
+                        self._log.error('Failed to process user %s pages',
+                                user, exc_info=1)
+                        # Carry on!
 
-                        raw_pages = page_res.get('pages')
-                        if isinstance(raw_pages, list):
-                            for raw_page in raw_pages:
-                                # Tokenise the name, summary and description
-                                for field in ('title', 'body'):
-                                    if field not in raw_page:
-                                        continue
-                                    tally(raw_page[field])
-                                self._db.commit()
+                if (age > 300.0) and ((user_data['projects'] / 60.0) > 5):
+                    # More than 5 projects a minute on average.
+                    self._log.debug('User %s [#%d] has %d projects in %d seconds',
+                            user.screen_name, user.user_id, user_data['projects'], age)
+                    match = True
 
-                        pg_cnt = page_res.get('last_page',1)
+                # Commit here so the user ID is valid.
+                self._db.commit()
 
-                        # Next page
-                        pg_idx = page_res.get('page',1) + 1
-                except:
-                    self._log.error('Failed to process user %s pages',
-                            user, exc_info=1)
-                    # Carry on!
+                # Stash any tokens
+                for token, count in user_tokens.items():
+                    self._db.add(UserToken(
+                        user_id=user.user_id, token=token, count=count))
 
-            if (age > 300.0) and ((user_data['projects'] / 60.0) > 5):
-                # More than 5 projects a minute on average.
-                self._log.debug('User %s [#%d] has %d projects in %d seconds',
-                        user.screen_name, user.user_id, user_data['projects'], age)
-                match = True
+                # Retrieve all the words
+                words = {}
+                for word in user_freq.keys():
+                    w = self._db.query(Word).filter(
+                            Word.word==word).one_or_none()
+                    if w is None:
+                        self._log.debug('New word: %s', word)
+                        w = Word(word=word, score=0, count=0)
+                        self._db.add(w)
+                    words[word] = w
 
-            # Commit here so the user ID is valid.
-            self._db.commit()
+                # Stash the new words, if any
+                self._db.commit()
 
-            # Stash any tokens
-            for token, count in user_tokens.items():
-                self._db.add(UserToken(
-                    user_id=user.user_id, token=token, count=count))
+                # Add the user words, compute user's score
+                score = []
+                for word, count in user_freq.items():
+                    w = words[word]
+                    self._db.add(UserWord(
+                        user_id=user.user_id, word_id=w.word_id,
+                        count=count))
+                    if w.count > 0:
+                        score.append(float(w.score) / float(w.count))
 
-            # Retrieve all the words
-            words = {}
-            for word in user_freq.keys():
-                w = self._db.query(Word).filter(
-                        Word.word==word).one_or_none()
-                if w is None:
-                    self._log.debug('New word: %s', word)
-                    w = Word(word=word, score=0, count=0)
-                    self._db.add(w)
-                words[word] = w
+                for (proc_word, follow_word), count in user_adj_freq.items():
+                    proc_w = words[proc_word]
+                    follow_w = words[follow_word]
 
-            # Stash the new words, if any
-            self._db.commit()
+                    self._db.add(UserWordAdjacent(
+                        user_id=user.user_id,
+                        proceeding_id=proc_w.word_id,
+                        following_id=follow_w.word_id,
+                        count=count))
 
-            # Add the user words, compute user's score
-            score = []
-            for word, count in user_freq.items():
-                w = words[word]
-                self._db.add(UserWord(
-                    user_id=user.user_id, word_id=w.word_id,
-                    count=count))
-                if w.count > 0:
-                    score.append(float(w.score) / float(w.count))
+                    wa = self._db.query(WordAdjacent).get((
+                        proc_w.word_id, follow_w.word_id
+                    ))
+                    if wa is None:
+                        continue
+                    if wa.count > 0:
+                        score.append(float(wa.score) / float(wa.count))
 
-            for (proc_word, follow_word), count in user_adj_freq.items():
-                proc_w = words[proc_word]
-                follow_w = words[follow_word]
+                # Compute score
+                score.sort()
+                score = sum(score[:10])
 
-                self._db.add(UserWordAdjacent(
-                    user_id=user.user_id,
-                    proceeding_id=proc_w.word_id,
-                    following_id=follow_w.word_id,
-                    count=count))
+                self._log.debug('User %s [#%d] has score %f',
+                        user.screen_name, user.user_id, score)
+                if score < -0.5:
+                    match = True
 
-                wa = self._db.query(WordAdjacent).get((
-                    proc_w.word_id, follow_w.word_id
-                ))
-                if wa is None:
-                    continue
-                if wa.count > 0:
-                    score.append(float(wa.score) / float(wa.count))
-
-            # Compute score
-            score.sort()
-            score = sum(score[:10])
-
-            self._log.debug('User %s [#%d] has score %f',
-                    user.screen_name, user.user_id, score)
-            if score < -0.5:
-                match = True
-
-            # Record the user information
-            detail = self._db.query(UserDetail).get(user_data['id'])
-            if detail is None:
-                detail = UserDetail(
-                        user_id=user_data['id'],
-                        about_me=user_data['about_me'],
-                        who_am_i=user_data['who_am_i'],
-                        location=user_data['location'],
-                        projects=user_data['projects'],
-                        what_i_would_like_to_do=\
-                                user_data['what_i_would_like_to_do'])
-                self._db.add(detail)
-            else:
-                detail.about_me = user_data['about_me']
-                detail.who_am_i = user_data['who_am_i']
-                detail.projects = user_data['projects']
-                detail.location = user_data['location']
-                detail.what_i_would_like_to_do = \
-                        user_data['what_i_would_like_to_do']
+                # Record the user information
+                detail = self._db.query(UserDetail).get(user_data['id'])
+                if detail is None:
+                    detail = UserDetail(
+                            user_id=user_data['id'],
+                            about_me=user_data['about_me'],
+                            who_am_i=user_data['who_am_i'],
+                            location=user_data['location'],
+                            projects=user_data['projects'],
+                            what_i_would_like_to_do=\
+                                    user_data['what_i_would_like_to_do'])
+                    self._db.add(detail)
+                else:
+                    detail.about_me = user_data['about_me']
+                    detail.who_am_i = user_data['who_am_i']
+                    detail.projects = user_data['projects']
+                    detail.location = user_data['location']
+                    detail.what_i_would_like_to_do = \
+                            user_data['what_i_would_like_to_do']
 
             if match:
                 # Auto-Flag the user as "suspect"
