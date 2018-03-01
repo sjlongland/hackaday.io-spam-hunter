@@ -49,6 +49,10 @@ class User(Base):
     tags = relationship("Tag", secondary=user_tag_assoc,
             back_populates="users")
 
+    def __repr__(self):
+        return 'User(user_id=%r, screen_name=%r)' \
+                % (self.user_id, self.screen_name)
+
 
 class Group(Base):
     """
@@ -63,6 +67,10 @@ class Group(Base):
     users = relationship("User", secondary=user_group_assoc,
             back_populates="groups")
 
+    def __repr__(self):
+        return 'Group(group_id=%r, name=%r)' \
+                % (self.group_id, self.name)
+
 
 class Session(Base):
     """
@@ -76,6 +84,10 @@ class Session(Base):
 
     user            = relationship("User", back_populates="sessions")
     expiry_date     = Column(DateTime(timezone=True))
+
+    def __repr__(self):
+        return 'Session(user=%r)' \
+                % (self.user)
 
 
 class UserDetail(Base):
@@ -109,6 +121,10 @@ class UserLink(Base):
     url             = Column(String, primary_key=True)
 
     user            = relationship("User", back_populates="links")
+
+    def __repr__(self):
+        return 'UserLink(user=%r, title=%r, url=%r)' \
+                % (self.user, self.title, self.url)
 
 
 class Avatar(Base):
@@ -157,6 +173,10 @@ class Word(Base):
     score           = Column(BigInteger)
     count           = Column(BigInteger)
 
+    def __repr__(self):
+        return 'Word(word_id=%r, word=%r, score=%r, count=%r)' \
+                % (self.word_id, self.word, self.score, self.count)
+
 
 class WordAdjacent(Base):
     """
@@ -170,6 +190,13 @@ class WordAdjacent(Base):
                         primary_key=True, index=True)
     score           = Column(BigInteger)
     count           = Column(BigInteger)
+
+    proceeding      = relationship("Word", foreign_keys=[proceeding_id])
+    following       = relationship("Word", foreign_keys=[following_id])
+
+    def __repr__(self):
+        return 'WordAdjacent(proceeding=%r, following=%r, score=%r, count=%r)' \
+                % (self.proceeding, self.following, self.score, self.count)
 
 
 class UserWord(Base):
@@ -185,6 +212,12 @@ class UserWord(Base):
     count           = Column(BigInteger)
 
     user            = relationship("User", back_populates="words")
+    word            = relationship("Word")
+
+    def __repr__(self):
+        return 'UserWord(user=%r, proceeding=%r, '\
+                'following=%r, count=%r)' \
+                % (self.user, self.word, self.count)
 
 
 class UserWordAdjacent(Base):
@@ -202,6 +235,14 @@ class UserWordAdjacent(Base):
     count           = Column(BigInteger)
 
     user            = relationship("User", back_populates="adj_words")
+    proceeding      = relationship("Word", foreign_keys=[proceeding_id])
+    following       = relationship("Word", foreign_keys=[following_id])
+
+    def __repr__(self):
+        return 'UserWordAdjacent(user=%r, proceeding=%r, '\
+                'following=%r, count=%r)' \
+                % (self.user, self.proceeding, self.following,
+                        self.count)
 
 
 class UserToken(Base):
