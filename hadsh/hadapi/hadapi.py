@@ -352,7 +352,7 @@ class HackadayAPI(object):
     # Projects API
 
     def _project_query_opts(self, sortby, page, per_page):
-        query = _page_query_opts(page, per_page)
+        query = self._page_query_opts(page, per_page)
         sortby = ProjectSortBy(sortby)
         query['sortby'] = sortby.value
         return query
