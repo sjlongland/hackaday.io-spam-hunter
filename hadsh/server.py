@@ -27,6 +27,8 @@ from sqlalchemy.exc import InvalidRequestError
 
 class AuthRequestHandler(RequestHandler):
     def _get_session_or_redirect(self):
+        db = self.application._db
+
         # Are we logged in?
         session_id = self.get_cookie('hadsh')
         if session_id is None:
@@ -35,7 +37,7 @@ class AuthRequestHandler(RequestHandler):
             return
 
         # Fetch the user details from the session
-        session = self.application._db.query(Session).get(session_id)
+        session = db.query(Session).get(session_id)
         if session is None:
             # Session is invalid
             self.redirect('/authorize')
@@ -52,7 +54,7 @@ class AuthRequestHandler(RequestHandler):
         if expiry_secs < 86400:
             # Extend the session another week.
             session.expiry_date = now + datetime.timedelta(days=7)
-            self.application._db.commit()
+            db.commit()
             self.set_cookie(name='hadsh',
                     value=str(session.session_id),
                     domain=self.application._domain,
@@ -89,6 +91,8 @@ class RootHandler(AuthRequestHandler):
 class AvatarHandler(AuthRequestHandler):
     @coroutine
     def get(self, avatar_id):
+        db = self.application._db
+
         # Are we logged in?
         session = self._get_session_or_redirect()
         if session is None:
@@ -106,7 +110,7 @@ class AvatarHandler(AuthRequestHandler):
         avatar_id = int(avatar_id)
         log = self.application._log.getChild('avatar[%d]' % avatar_id)
         log.debug('Retrieving from database')
-        avatar = self.application._db.query(Avatar).get(avatar_id)
+        avatar = db.query(Avatar).get(avatar_id)
         if avatar is None:
             self.set_status(404)
             self.finish()
@@ -130,6 +134,8 @@ class AvatarHandler(AuthRequestHandler):
 class NewcomerDataHandler(AuthRequestHandler):
     @coroutine
     def get(self):
+        db = self.application._db
+
         # Are we logged in?
         session = self._get_session_or_redirect()
         if session is None:
@@ -157,7 +163,7 @@ class NewcomerDataHandler(AuthRequestHandler):
         new_users = []
         while len(new_users) == 0:
             # Retrieve users from the database
-            query = self.application._db.query(User).join(\
+            query = db.query(User).join(\
                     User.groups).filter(or_(\
                     Group.name == 'auto_suspect',
                     Group.name == 'auto_legit'))
@@ -212,7 +218,7 @@ class NewcomerDataHandler(AuthRequestHandler):
             }
 
             for uw in user.words:
-                w = self.application._db.query(Word).get(uw.word_id)
+                w = db.query(Word).get(uw.word_id)
                 user_words[w.word] = {
                         'user_count': uw.count,
                         'site_count': w.count,
@@ -220,9 +226,9 @@ class NewcomerDataHandler(AuthRequestHandler):
                 }
 
             for uwa in user.adj_words:
-                pw = self.application._db.query(Word).get(uwa.proceeding_id)
-                fw = self.application._db.query(Word).get(uwa.following_id)
-                wa = self.application._db.query(WordAdjacent).get(
+                pw = db.query(Word).get(uwa.proceeding_id)
+                fw = db.query(Word).get(uwa.following_id)
+                wa = db.query(WordAdjacent).get(
                         (uwa.proceeding_id, uwa.following_id))
 
                 if wa is not None:
@@ -262,6 +268,8 @@ class NewcomerDataHandler(AuthRequestHandler):
 class ClassifyHandler(AuthAdminRequestHandler):
     @coroutine
     def post(self, user_id):
+        db = self.application._db
+
         # Are we logged in?
         session = self._get_session_or_redirect()
         if session is None:
@@ -298,7 +306,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
             }))
             return
 
-        user = self.application._db.query(User).get(user_id)
+        user = db.query(User).get(user_id)
         if user is None:
             self.set_status(404)
             self.write(json.dumps({
@@ -308,7 +316,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
 
         # Grab the groups for classification
         groups = dict([
-            (g.name, g) for g in self.application._db.query(Group).all()
+            (g.name, g) for g in db.query(Group).all()
         ])
 
         if classification == 'legit':
@@ -362,35 +370,35 @@ class ClassifyHandler(AuthAdminRequestHandler):
             # Count up the word and word adjacencies
             commit = False
             for uw in user.words:
-                w = self.application._db.query(Word).get(uw.word_id)
+                w = db.query(Word).get(uw.word_id)
                 w.score += uw.count * score_inc
                 w.count += uw.count
 
             for uwa in user.adj_words:
                 while True:
                     try:
-                        wa = self.application._db.query(WordAdjacent).get((
+                        wa = db.query(WordAdjacent).get((
                             uwa.proceeding_id, uwa.following_id))
                         if wa is None:
-                            proc_word = self.application._db.query(Word).get(
+                            proc_word = db.query(Word).get(
                                     uwa.proceeding_id)
-                            follow_word = self.application._db.query(Word).get(
+                            follow_word = db.query(Word).get(
                                     uwa.proceeding_id)
 
                             log.debug('New word adjacency: %s %s', proc_word, follow_word)
                             wa = WordAdjacent(proceeding_id=proc_word.word_id,
                                     following_id=follow_word.word_id,
                                     score=0, count=0)
-                            self.application._db.add(wa)
-                            self.application._db.commit()
+                            db.add(wa)
+                            db.commit()
                         break
                     except InvalidRequestError:
-                        self.application._db.rollback()
+                        db.rollback()
                 wa.score += uwa.count * score_inc
                 wa.count += uwa.count
 
             if commit:
-                self.application._db.commit()
+                db.commit()
                 commit = False
         else:
             # Tokenise the users' content.
@@ -418,17 +426,17 @@ class ClassifyHandler(AuthAdminRequestHandler):
             words = {}
             commit = False
             for word in user_freq.keys():
-                w = self.application._db.query(Word).filter(
+                w = db.query(Word).filter(
                         Word.word==word).one_or_none()
                 if w is None:
                     log.debug('New word: %s', word)
                     w = Word(word=word, score=0, count=0)
-                    self.application._db.add(w)
+                    db.add(w)
                     commit = True
                 words[word] = w
 
             if commit:
-                self.application._db.commit()
+                db.commit()
                 commit = False
 
             # Update the database.
@@ -442,19 +450,19 @@ class ClassifyHandler(AuthAdminRequestHandler):
                 proc_w = words[proc_word]
                 follow_w = words[follow_word]
 
-                wa = self.application._db.query(WordAdjacent).get((
+                wa = db.query(WordAdjacent).get((
                     proc_w.word_id, follow_w.word_id
                 ))
                 if wa is None:
                     log.debug('New word adjacency: %s %s', proc_word, follow_word)
                     wa = WordAdjacent(proceeding_id=proc_w.word_id,
                             following_id=follow_w.word_id, score=0, count=0)
-                    self.application._db.add(wa)
+                    db.add(wa)
                     commit = True
                 word_adj[(proc_word, follow_word)] = wa
 
             if commit:
-                self.application._db.commit()
+                db.commit()
 
             for (proc_word, follow_word), word_freq in user_adj_freq.items():
                 wa = word_adj[(proc_word, follow_word)]
@@ -463,11 +471,11 @@ class ClassifyHandler(AuthAdminRequestHandler):
 
         # Drop the user detail unless we're keeping it
         if not keep_detail:
-            self.application._db.delete(user.detail)
+            db.delete(user.detail)
             for link in user.links:
-                self.application._db.delete(link)
+                db.delete(link)
 
-        self.application._db.commit()
+        db.commit()
         self.set_status(200)
         self.write(json.dumps({
             'user_id': user_id,
@@ -479,6 +487,8 @@ class ClassifyHandler(AuthAdminRequestHandler):
 class CallbackHandler(RequestHandler):
     @coroutine
     def get(self):
+        db = self.application._db
+
         log = self.application._log.getChild('callback')
 
         # Retrieve the code
@@ -517,8 +527,8 @@ class CallbackHandler(RequestHandler):
                 session_id=uuid.uuid4(),
                 user_id=user.user_id,
                 expiry_date=expiry)
-        self.application._db.add(session)
-        self.application._db.commit()
+        db.add(session)
+        db.commit()
 
         # Grab the session ID and set that in a cookie.
         self.set_cookie(name='hadsh',
@@ -536,7 +546,7 @@ class HADSHApp(Application):
     def __init__(self, db_uri, project_id, client_id, client_secret, api_key,
             domain, secure):
         self._log = logging.getLogger(self.__class__.__name__)
-        self._db = get_db(db_uri)
+        self._db_uri = db_uri
         self._client = AsyncHTTPClient()
         self._api = HackadayAPI(client_id=client_id,
                 client_secret=client_secret, api_key=api_key,
@@ -557,6 +567,10 @@ class HADSHApp(Application):
                 "url": self._api.auth_uri
             }),
         ])
+
+    @property
+    def _db(self):
+        return get_db(self._db_uri)
 
 
 def main(*args, **kwargs):
