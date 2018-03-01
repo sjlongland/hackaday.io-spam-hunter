@@ -308,6 +308,7 @@ class Crawler(object):
                                     if field not in raw_prj:
                                         continue
                                     tally(raw_prj[field])
+                                self._db.commit()
 
                         pg_cnt = prj_res.get('last_page',1)
 
@@ -337,6 +338,7 @@ class Crawler(object):
                                     if field not in raw_page:
                                         continue
                                     tally(raw_page[field])
+                                self._db.commit()
 
                         pg_cnt = page_res.get('last_page',1)
 
