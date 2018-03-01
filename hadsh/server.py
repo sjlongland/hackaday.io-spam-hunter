@@ -383,7 +383,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
                             proc_word = db.query(Word).get(
                                     uwa.proceeding_id)
                             follow_word = db.query(Word).get(
-                                    uwa.proceeding_id)
+                                    uwa.following_id)
 
                             log.debug('New word adjacency: %s %s', proc_word, follow_word)
                             wa = WordAdjacent(proceeding_id=proc_word.word_id,
