@@ -378,7 +378,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
                     wa = WordAdjacent(proceeding_id=proc_word.word_id,
                             following_id=follow_word.word_id, score=0, count=0)
                     self.application._db.add(wa)
-                    commit = True
+                    self.application._db.commit()
                 wa.score += uwa.count * score_inc
                 wa.count += uwa.count
 
