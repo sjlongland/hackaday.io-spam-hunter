@@ -361,20 +361,22 @@ class ClassifyHandler(AuthAdminRequestHandler):
             # Count up the word and word adjacencies
             commit = False
             for uw in user.words:
-                w = self._db.query(Word).get(uw.word_id)
+                w = self.application._db.query(Word).get(uw.word_id)
                 w.score += uw.count * score_inc
                 w.count += uw.count
 
             for uwa in user.adj_words:
-                wa = self._db.query(WordAdjacent).get((
+                wa = self.application._db.query(WordAdjacent).get((
                     uwa.proceeding_id, uwa.following_id))
                 if wa is None:
-                    proc_word = self._db_query(Word).get(uwa.proceeding_id)
-                    follow_word = self._db_query(Word).get(uwa.proceeding_id)
+                    proc_word = self.application._db.query(Word).get(
+                            uwa.proceeding_id)
+                    follow_word = self.application._db.query(Word).get(
+                            uwa.proceeding_id)
 
                     log.debug('New word adjacency: %s %s', proc_word, follow_word)
-                    wa = WordAdjacent(proceeding_id=proc_w.word_id,
-                            following_id=follow_w.word_id, score=0, count=0)
+                    wa = WordAdjacent(proceeding_id=proc_word.word_id,
+                            following_id=follow_word.word_id, score=0, count=0)
                     self.application._db.add(wa)
                     commit = True
                 wa.score += uwa.count * score_inc
