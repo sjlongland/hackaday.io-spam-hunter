@@ -159,7 +159,9 @@ class Crawler(object):
             self._log.debug('Retrieving avatar at %s',
                     avatar.url)
             avatar_res = yield self._client.fetch(
-                    avatar.url)
+                    avatar.url,
+                    connect_timeout=120,
+                    request_timeout=120)
             avatar.avatar_type = avatar_res.headers['Content-Type']
             avatar.avatar=avatar_res.body
             self._db.commit()
@@ -184,7 +186,9 @@ class Crawler(object):
             # Is the link valid?
             try:
                 result = yield self._client.fetch(
-                        user.url, method='HEAD')
+                        user.url, method='HEAD',
+                        connect_timeout=120,
+                        request_timeout=120)
             except HTTPError as e:
                 if e.code != 404:
                     raise
