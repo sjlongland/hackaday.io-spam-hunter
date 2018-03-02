@@ -257,6 +257,10 @@ class Crawler(object):
 
                     try:
                         for link in link_res['links']:
+                            # Ignore if the link URL or title is empty
+                            if (not link['title']) or (not link['url']):
+                                continue
+
                             # Count the link title up
                             tally(link['title'])
 
