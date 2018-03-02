@@ -478,7 +478,8 @@ class ClassifyHandler(AuthAdminRequestHandler):
 
             # Drop the user detail unless we're keeping it
             if not keep_detail:
-                db.delete(user.detail)
+                if user.detail is not None:
+                    db.delete(user.detail)
                 for link in user.links:
                     db.delete(link)
 
