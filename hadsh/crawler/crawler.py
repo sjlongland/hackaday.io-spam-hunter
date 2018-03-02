@@ -67,7 +67,7 @@ class Crawler(object):
         self._refresh_admin_group_timeout = None
         self._io_loop.add_callback(self.refresh_admin_group)
         self._io_loop.add_timeout(
-                self._io_loop.time() + 60,
+                self._io_loop.time() + 5,
                 self._background_fetch_new_users)
         self._io_loop.add_timeout(
                 self._io_loop.time() + 5,
@@ -600,9 +600,9 @@ class Crawler(object):
             except:
                 self._log.exception('Failed to retrieve newer users')
 
-        self._log.info('Next user scan in 1 minute')
+        self._log.info('Next user scan in 15 minutes')
         self._io_loop.add_timeout(
-                self._io_loop.time() + 60.0,
+                self._io_loop.time() + 900.0,
                 self._background_fetch_new_users)
 
     @coroutine
@@ -610,6 +610,7 @@ class Crawler(object):
         """
         Try to retrieve users registered earlier.
         """
+        self._log.info('Beginning historical user retrieval')
         if not self._api.is_forbidden:
             try:
                 yield self.fetch_new_users(page=self._refresh_hist_page)
@@ -622,8 +623,9 @@ class Crawler(object):
             except:
                 self._log.exception('Failed to retrieve older users')
 
+        self._log.info('Next historical user fetch in 15 minutes')
         self._io_loop.add_timeout(
-                self._io_loop.time() + 5,
+                self._io_loop.time() + 900.0,
                 self._background_fetch_hist_users)
 
     @coroutine
