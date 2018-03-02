@@ -568,9 +568,12 @@ class Crawler(object):
                 if isinstance(user_data['users'], list):
                     for this_user_data in user_data['users']:
                         @coroutine
-                        def _inspect():
+                        def _inspect(this_user_data):
                             while True:
                                 try:
+                                    self._log.debug('Inspecting %s[#%d]',
+                                            this_user_data['screen_name'],
+                                            this_user_data['id'])
                                     yield self.update_user_from_data(
                                             this_user_data, inspect_all=True)
                                     break
@@ -584,11 +587,16 @@ class Crawler(object):
                         user_age=self._io_loop.time() - \
                                 user_data.get('created',0)
                         if user_age > 300.0:
-                            self._io_loop.add_callback(_inspect)
+                            self._io_loop.add_callback(_inspect, this_user_data)
                         else:
                             self._io_loop.add_timeout(
                                 self._io_loop.time() + 300.0,
-                                _inspect)
+                                _inspect, this_user_data)
+
+                            self._log.debug('Delaying inspection of %s[#%d] '\
+                                    '(age %f sec)',
+                                    this_user_data['screen_name'],
+                                    this_user_data['id'], user_age)
             except:
                 self._log.exception('Failed to retrieve newer users')
 
