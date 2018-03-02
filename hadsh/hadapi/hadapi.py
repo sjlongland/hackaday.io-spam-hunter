@@ -169,6 +169,11 @@ class HackadayAPI(object):
         if not uri.startswith('http'):
             uri = self._api_uri + uri
 
+        if 'connect_timeout' not in kwargs:
+            kwargs['connect_timeout'] = 120.0
+        if 'request_timeout' not in kwargs:
+            kwargs['request_timeout'] = 120.0
+
         try:
             yield self._rq_sem.acquire()
             yield self._ratelimit_sleep()
