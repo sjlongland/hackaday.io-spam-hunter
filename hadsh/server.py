@@ -478,16 +478,15 @@ class ClassifyHandler(AuthAdminRequestHandler):
 
             db.commit()
             log.info('User %d marked as %s', user_id, classification)
-            return user
+            return {
+                    'user_id': user_id,
+                    'groups': [g.name for g in user.groups]
+            }
 
         # Execute the above in a worker thread
-        user = yield self.application._pool.apply(_exec, (db, user_id))
-
+        res = yield self.application._pool.apply(_exec, (db, user_id))
         self.set_status(200)
-        self.write(json.dumps({
-            'user_id': user_id,
-            'groups': [g.name for g in user.groups]
-        }))
+        self.write(json.dumps(res))
 
 
 class CallbackHandler(RequestHandler):
