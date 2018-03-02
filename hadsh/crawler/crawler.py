@@ -72,9 +72,6 @@ class Crawler(object):
         self._io_loop.add_timeout(
                 self._io_loop.time() + 5,
                 self._background_fetch_hist_users)
-        self._io_loop.add_timeout(
-                self._io_loop.time() + 300.0,
-                self._background_update_users)
 
         # Event to indicate when new users have been added
         self.new_user_event = Event()
@@ -521,38 +518,6 @@ class Crawler(object):
         if new:
             self.new_user_event.set()
         raise Return(user)
-
-    @coroutine
-    def _background_update_users(self):
-        """
-        Fetch some users from the database and update them if not yet classified.
-        """
-        if not self._api.is_forbidden:
-            try:
-                update_time = datetime.datetime.now(tz=pytz.utc) \
-                            - datetime.timedelta(days=1)
-                to_update = self._db.query(User).filter(or_(\
-                        User.created == None,
-                        User.last_update < update_time)).order_by(\
-                                User.last_update).all()
-
-                # Fetch the user data for these users
-                ids = [u.user_id for u in to_update[:50]]
-                response_data = yield self._api.get_users(ids=ids)
-
-                for user_data in response_data['users']:
-                    yield self._inspect_user(user_data)
-            except InvalidRequestError:
-                # SQL cock up, roll back.
-                self._db.rollback()
-                self._log.exception('Failed to update existing users'\
-                        ': database rolled back')
-            except:
-                self._log.exception('Failed to update existing users')
-
-        self._io_loop.add_timeout(
-                self._io_loop.time() + 300.0,
-                self._background_update_users)
 
     @coroutine
     def _background_fetch_new_users(self):
