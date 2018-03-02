@@ -635,7 +635,8 @@ def main(*args, **kwargs):
             client_secret=args.client_secret,
             api_key=args.api_key,
             domain=args.domain,
-            secure=args.secure
+            secure=args.secure,
+            thread_count=args.thread_count
     )
     http_server = HTTPServer(application)
     http_server.listen(port=args.listen_port, address=args.listen_address)
