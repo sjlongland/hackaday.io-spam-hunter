@@ -283,8 +283,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
             return
 
         db = self.application._db
-
-        def _exec():
+        def _exec(db, user_id):
             user_id = int(user_id)
             log = self.application._log.getChild('classify[%d]' % user_id)
 
@@ -481,7 +480,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
             return user
 
         # Execute the above in a worker thread
-        user = yield self.application._pool.apply(_exec)
+        user = yield self.application._pool.apply(_exec, (db, user_id))
 
         self.set_status(200)
         self.write(json.dumps({
