@@ -372,109 +372,29 @@ class ClassifyHandler(AuthAdminRequestHandler):
                 }))
                 return
 
-            # See if the user has words analysed already
-            if user.words or user.adj_words:
-                # Count up the word and word adjacencies
-                commit = False
-                for uw in user.words:
-                    w = db.query(Word).get(uw.word_id)
-                    w.score += uw.count * score_inc
-                    w.count += uw.count
+            # Count up the word and word adjacencies
+            for uw in user.words:
+                w = db.query(Word).get(uw.word_id)
+                w.score += uw.count * score_inc
+                w.count += uw.count
 
-                for uwa in user.adj_words:
-                    while True:
-                        try:
-                            wa = db.query(WordAdjacent).get((
-                                uwa.proceeding_id, uwa.following_id))
-                            if wa is None:
-                                proc_word = db.query(Word).get(
-                                        uwa.proceeding_id)
-                                follow_word = db.query(Word).get(
-                                        uwa.following_id)
+            for uwa in user.adj_words:
+                wa = db.query(WordAdjacent).get((
+                    uwa.proceeding_id, uwa.following_id))
+                if wa is None:
+                    proc_word = db.query(Word).get(
+                            uwa.proceeding_id)
+                    follow_word = db.query(Word).get(
+                            uwa.following_id)
 
-                                log.debug('New word adjacency: %s %s', proc_word, follow_word)
-                                wa = WordAdjacent(proceeding_id=proc_word.word_id,
-                                        following_id=follow_word.word_id,
-                                        score=0, count=0)
-                                db.add(wa)
-                                db.commit()
-                            break
-                        except InvalidRequestError:
-                            db.rollback()
-                    wa.score += uwa.count * score_inc
-                    wa.count += uwa.count
-
-                if commit:
-                    db.commit()
-                    commit = False
-            else:
-                # Tokenise the users' content.
-                user_freq = {}
-                user_adj_freq = {}
-                def tally(field):
-                    wordlist = tokenise(field)
-                    frequency(wordlist, user_freq)
-                    if len(wordlist) > 2:
-                        adjacency(wordlist, user_adj_freq)
-
-                if user.detail:
-                    detail = user.detail
-
-                    # Free-form fields that the user can enter text into
-                    tally(detail.about_me)
-                    tally(detail.who_am_i)
-                    tally(detail.what_i_would_like_to_do)
-                    tally(detail.location)
-
-                for link in user.links:
-                    tally(link.title)
-
-                # Retrieve all the words
-                words = {}
-                commit = False
-                for word in user_freq.keys():
-                    w = db.query(Word).filter(
-                            Word.word==word).one_or_none()
-                    if w is None:
-                        log.debug('New word: %s', word)
-                        w = Word(word=word, score=0, count=0)
-                        db.add(w)
-                        commit = True
-                    words[word] = w
-
-                if commit:
-                    db.commit()
-                    commit = False
-
-                # Update the database.
-                for word, word_freq in user_freq.items():
-                    w = words[word]
-                    w.count += word_freq
-                    w.score += (word_freq * score_inc)
-
-                word_adj = {}
-                for (proc_word, follow_word), word_freq in user_adj_freq.items():
-                    proc_w = words[proc_word]
-                    follow_w = words[follow_word]
-
-                    wa = db.query(WordAdjacent).get((
-                        proc_w.word_id, follow_w.word_id
-                    ))
-                    if wa is None:
-                        log.debug('New word adjacency: %s %s', proc_word, follow_word)
-                        wa = WordAdjacent(proceeding_id=proc_w.word_id,
-                                following_id=follow_w.word_id, score=0, count=0)
-                        db.add(wa)
-                        commit = True
-                    word_adj[(proc_word, follow_word)] = wa
-
-                if commit:
-                    db.commit()
-
-                for (proc_word, follow_word), word_freq in user_adj_freq.items():
-                    wa = word_adj[(proc_word, follow_word)]
-                    wa.count += word_freq
-                    wa.score += (word_freq * score_inc)
+                    log.debug('New word adjacency: %s %s',
+                            proc_word, follow_word)
+                    wa = WordAdjacent(proceeding_id=proc_word.word_id,
+                            following_id=follow_word.word_id,
+                            score=0, count=0)
+                    db.add(wa)
+                wa.score += uwa.count * score_inc
+                wa.count += uwa.count
 
             # Drop the user detail unless we're keeping it
             if not keep_detail:
