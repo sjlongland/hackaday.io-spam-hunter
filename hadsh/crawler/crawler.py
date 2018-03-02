@@ -558,12 +558,12 @@ class Crawler(object):
                         # of spammy content.  Give it a few minutes.
                         user_age=self._io_loop.time() - \
                                 this_user_data.get('created',0)
-                        if user_age > 300.0:
+                        if user_age > 900.0:
                             self._io_loop.add_callback(_inspect,
                                     this_user_data)
                         else:
                             self._io_loop.add_timeout(
-                                self._io_loop.time() + 300.0,
+                                self._io_loop.time() + 900.0,
                                 _inspect, this_user_data)
 
                             self._log.debug('Delaying inspection of %s[#%d] '\
