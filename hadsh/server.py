@@ -14,6 +14,7 @@ from tornado.httpserver import HTTPServer
 from tornado.gen import coroutine, TimeoutError
 from tornado.ioloop import IOLoop
 
+from .pool import WorkerPool
 from .hadapi.hadapi import HackadayAPI
 from .crawler.crawler import Crawler
 from .resizer import ImageResizer
@@ -544,7 +545,7 @@ class HADSHApp(Application):
     Hackaday.io Spambot Hunter application.
     """
     def __init__(self, db_uri, project_id, client_id, client_secret, api_key,
-            domain, secure):
+            domain, secure, thread_count):
         self._log = logging.getLogger(self.__class__.__name__)
         self._db_uri = db_uri
         self._client = AsyncHTTPClient()
@@ -554,7 +555,9 @@ class HADSHApp(Application):
         self._crawler = Crawler(project_id, get_db(db_uri),
                 self._api, self._client,
                 self._log.getChild('crawler'))
-        self._resizer = ImageResizer(self._log.getChild('resizer'))
+        self._pool = WorkerPool(thread_count)
+        self._resizer = ImageResizer(self._log.getChild('resizer'),
+                self._pool)
         self._domain = domain
         self._secure = secure
         super(HADSHApp, self).__init__([
@@ -600,6 +603,8 @@ def main(*args, **kwargs):
             default=3000, help='Port number (TCP) to listen on.')
     parser.add_argument('--log-level', dest='log_level',
             default='INFO', help='Logging level')
+    parser.add_argument('--thread-count', dest='thread_count', type=int,
+            default=8, help='Number of concurrent threads.')
 
     args = parser.parse_args(*args, **kwargs)
 
