@@ -477,6 +477,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
                     db.delete(link)
 
             db.commit()
+            log.info('User %d marked as %s', user_id, classification)
             return user
 
         # Execute the above in a worker thread
@@ -487,7 +488,6 @@ class ClassifyHandler(AuthAdminRequestHandler):
             'user_id': user_id,
             'groups': [g.name for g in user.groups]
         }))
-        log.info('User %d marked as %s', user_id, classification)
 
 
 class CallbackHandler(RequestHandler):
