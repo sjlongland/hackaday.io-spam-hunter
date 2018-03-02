@@ -29,44 +29,41 @@ from sqlalchemy.exc import InvalidRequestError
 
 class AuthRequestHandler(RequestHandler):
     def _get_session_or_redirect(self):
-        db = self.application._db
+        db = self.application._session_db
 
-        try:
-            # Are we logged in?
-            session_id = self.get_cookie('hadsh')
-            if session_id is None:
-                # Not yet logged in
-                self.redirect('/authorize')
-                return
+        # Are we logged in?
+        session_id = self.get_cookie('hadsh')
+        if session_id is None:
+            # Not yet logged in
+            self.redirect('/authorize')
+            return
 
-            # Fetch the user details from the session
-            session = db.query(Session).get(session_id)
-            if session is None:
-                # Session is invalid
-                self.redirect('/authorize')
-                return
+        # Fetch the user details from the session
+        session = db.query(Session).get(session_id)
+        if session is None:
+            # Session is invalid
+            self.redirect('/authorize')
+            return
 
-            # Is the session within a day of expiry?
-            now = datetime.datetime.now(tz=pytz.utc)
-            expiry_secs = (session.expiry_date - now).total_seconds()
-            if expiry_secs < 0:
-                # Session is defunct.
-                self.redirect('/authorize')
-                return
+        # Is the session within a day of expiry?
+        now = datetime.datetime.now(tz=pytz.utc)
+        expiry_secs = (session.expiry_date - now).total_seconds()
+        if expiry_secs < 0:
+            # Session is defunct.
+            self.redirect('/authorize')
+            return
 
-            if expiry_secs < 86400:
-                # Extend the session another week.
-                session.expiry_date = now + datetime.timedelta(days=7)
-                db.commit()
-                self.set_cookie(name='hadsh',
-                        value=str(session.session_id),
-                        domain=self.application._domain,
-                        secure=self.application._secure,
-                        expires_days=7)
+        if expiry_secs < 86400:
+            # Extend the session another week.
+            session.expiry_date = now + datetime.timedelta(days=7)
+            db.commit()
+            self.set_cookie(name='hadsh',
+                    value=str(session.session_id),
+                    domain=self.application._domain,
+                    secure=self.application._secure,
+                    expires_days=7)
 
-            return session
-        finally:
-            db.close()
+        return session
 
 
 class AuthAdminRequestHandler(AuthRequestHandler):
@@ -497,6 +494,8 @@ class HADSHApp(Application):
             domain, secure, thread_count):
         self._log = logging.getLogger(self.__class__.__name__)
         self._db_uri = db_uri
+        # Session management connection
+        self._session_db = get_db(db_uri)
         self._client = AsyncHTTPClient()
         self._api = HackadayAPI(client_id=client_id,
                 client_secret=client_secret, api_key=api_key,
