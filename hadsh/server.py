@@ -288,8 +288,8 @@ class ClassifyHandler(AuthAdminRequestHandler):
             }))
             return
 
-        db = self.application._db
-        def _exec(db, user_id):
+        def _exec(user_id):
+            db = self.application._db
             user_id = int(user_id)
             log = self.application._log.getChild('classify[%d]' % user_id)
 
@@ -405,16 +405,18 @@ class ClassifyHandler(AuthAdminRequestHandler):
 
             db.commit()
             log.info('User %d marked as %s', user_id, classification)
-            return {
+            res = {
                     'user_id': user_id,
                     'groups': [g.name for g in user.groups]
             }
+            db.close()
+            return res
 
         # Wait for semaphore before proceeding
         yield self.application._classify_sem.acquire()
         try:
             # Execute the above in a worker thread
-            res = yield self.application._pool.apply(_exec, (db, user_id))
+            res = yield self.application._pool.apply(_exec, (user_id,))
             self.set_status(200)
             self.write(json.dumps(res))
         finally:
