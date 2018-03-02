@@ -11,6 +11,7 @@ from tornado.web import Application, RequestHandler, \
         RedirectHandler, MissingArgumentError
 from tornado.httpclient import AsyncHTTPClient, HTTPError
 from tornado.httpserver import HTTPServer
+from tornado.locks import Semaphore
 from tornado.gen import coroutine, TimeoutError
 from tornado.ioloop import IOLoop
 
@@ -483,10 +484,15 @@ class ClassifyHandler(AuthAdminRequestHandler):
                     'groups': [g.name for g in user.groups]
             }
 
-        # Execute the above in a worker thread
-        res = yield self.application._pool.apply(_exec, (db, user_id))
-        self.set_status(200)
-        self.write(json.dumps(res))
+        # Wait for semaphore before proceeding
+        yield self.application._classify_sem.acquire()
+        try:
+            # Execute the above in a worker thread
+            res = yield self.application._pool.apply(_exec, (db, user_id))
+            self.set_status(200)
+            self.write(json.dumps(res))
+        finally:
+            self.application._classify_sem.release()
 
 
 class CallbackHandler(RequestHandler):
@@ -564,6 +570,8 @@ class HADSHApp(Application):
                 self._pool)
         self._domain = domain
         self._secure = secure
+        self._classify_sem = Semaphore(1)
+
         super(HADSHApp, self).__init__([
             (r"/", RootHandler),
             (r"/avatar/([0-9]+)", AvatarHandler),
