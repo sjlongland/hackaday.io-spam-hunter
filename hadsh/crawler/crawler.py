@@ -576,7 +576,7 @@ class Crawler(object):
                             while True:
                                 try:
                                     user_age=self._io_loop.time() - \
-                                            user_data.get('created',0)
+                                            this_user_data.get('created',0)
                                     self._log.debug('Inspecting %s[#%d] '\
                                             '(age %f sec)',
                                             this_user_data['screen_name'],
@@ -592,7 +592,7 @@ class Crawler(object):
                         # Some spambots lie in wait before adding lots
                         # of spammy content.  Give it a few minutes.
                         user_age=self._io_loop.time() - \
-                                user_data.get('created',0)
+                                this_user_data.get('created',0)
                         if user_age > 300.0:
                             self._io_loop.add_callback(_inspect,
                                     this_user_data)
