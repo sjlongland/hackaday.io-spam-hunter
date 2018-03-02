@@ -563,16 +563,28 @@ class Crawler(object):
                 self._log.debug('Received: %s', user_data)
                 if isinstance(user_data['users'], list):
                     for this_user_data in user_data['users']:
-                        try:
-                            user = yield self.update_user_from_data(
-                                    this_user_data, inspect_all=True)
-                        except InvalidUser:
-                            continue
-            except InvalidRequestError:
-                # SQL cock up, roll back.
-                self._db.rollback()
-                self._log.exception('Failed to retrieve newer users'\
-                        ': database rolled back')
+                        @coroutine
+                        def _inspect():
+                            while True:
+                                try:
+                                    yield self.update_user_from_data(
+                                            this_user_data, inspect_all=True)
+                                    break
+                                except InvalidUser:
+                                    pass
+                                except InvalidRequestError:
+                                    self._db.rollback()
+
+                        # Some spambots lie in wait before adding lots
+                        # of spammy content.  Give it a few minutes.
+                        user_age=self._io_loop.time() - \
+                                user_data.get('created',0)
+                        if user_age > 300.0:
+                            self._io_loop.add_callback(_inspect)
+                        else:
+                            self._io_loop.add_timeout(
+                                self._io_loop.time() + 300.0,
+                                _inspect)
             except:
                 self._log.exception('Failed to retrieve newer users')
 
