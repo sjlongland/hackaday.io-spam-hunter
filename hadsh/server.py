@@ -269,8 +269,6 @@ class NewcomerDataHandler(AuthRequestHandler):
 class ClassifyHandler(AuthAdminRequestHandler):
     @coroutine
     def post(self, user_id):
-        db = self.application._db
-
         # Are we logged in?
         session = self._get_session_or_redirect()
         if session is None:
@@ -284,199 +282,207 @@ class ClassifyHandler(AuthAdminRequestHandler):
             }))
             return
 
-        user_id = int(user_id)
-        log = self.application._log.getChild('classify[%d]' % user_id)
+        db = self.application._db
 
-        (content_type, _, body_data) = decode_body(
-                self.request.headers['Content-Type'],
-                self.request.body)
+        def _exec():
+            user_id = int(user_id)
+            log = self.application._log.getChild('classify[%d]' % user_id)
 
-        if content_type != 'application/json':
-            self.set_status(400)
-            self.write(json.dumps({
-                'error': 'unrecognised payload type',
-                'type': content_type,
-            }))
-            return
+            (content_type, _, body_data) = decode_body(
+                    self.request.headers['Content-Type'],
+                    self.request.body)
 
-        classification = json.loads(body_data)
-        if not isinstance(classification, str):
-            self.set_status(400)
-            self.write(json.dumps({
-                'error': 'payload is not a string'
-            }))
-            return
+            if content_type != 'application/json':
+                self.set_status(400)
+                self.write(json.dumps({
+                    'error': 'unrecognised payload type',
+                    'type': content_type,
+                }))
+                return
 
-        user = db.query(User).get(user_id)
-        if user is None:
-            self.set_status(404)
-            self.write(json.dumps({
-                'error': 'no such user',
-                'user_id': user_id,
-            }))
+            classification = json.loads(body_data)
+            if not isinstance(classification, str):
+                self.set_status(400)
+                self.write(json.dumps({
+                    'error': 'payload is not a string'
+                }))
+                return
 
-        # Grab the groups for classification
-        groups = dict([
-            (g.name, g) for g in db.query(Group).all()
-        ])
+            user = db.query(User).get(user_id)
+            if user is None:
+                self.set_status(404)
+                self.write(json.dumps({
+                    'error': 'no such user',
+                    'user_id': user_id,
+                }))
 
-        if classification == 'legit':
-            try:
-                user.groups.remove(groups['auto_suspect'])
-            except ValueError:
-                pass
+            # Grab the groups for classification
+            groups = dict([
+                (g.name, g) for g in db.query(Group).all()
+            ])
 
-            try:
-                user.groups.remove(groups['auto_legit'])
-            except ValueError:
-                pass
+            if classification == 'legit':
+                try:
+                    user.groups.remove(groups['auto_suspect'])
+                except ValueError:
+                    pass
 
-            try:
-                user.groups.remove(groups['suspect'])
-            except ValueError:
-                pass
+                try:
+                    user.groups.remove(groups['auto_legit'])
+                except ValueError:
+                    pass
 
-            user.groups.append(groups['legit'])
-            score_inc = 1
-            keep_detail = False
-        elif classification == 'suspect':
-            try:
-                user.groups.remove(groups['auto_suspect'])
-            except ValueError:
-                pass
+                try:
+                    user.groups.remove(groups['suspect'])
+                except ValueError:
+                    pass
 
-            try:
-                user.groups.remove(groups['auto_legit'])
-            except ValueError:
-                pass
+                user.groups.append(groups['legit'])
+                score_inc = 1
+                keep_detail = False
+            elif classification == 'suspect':
+                try:
+                    user.groups.remove(groups['auto_suspect'])
+                except ValueError:
+                    pass
 
-            try:
-                user.groups.remove(groups['legit'])
-            except ValueError:
-                pass
+                try:
+                    user.groups.remove(groups['auto_legit'])
+                except ValueError:
+                    pass
 
-            user.groups.append(groups['suspect'])
-            score_inc = -1
-            keep_detail = True
-        else:
-            self.set_status(400)
-            self.write(json.dumps({
-                'error': 'unrecognised classification',
-                'classification': classification
-            }))
-            return
+                try:
+                    user.groups.remove(groups['legit'])
+                except ValueError:
+                    pass
 
-        # See if the user has words analysed already
-        if user.words or user.adj_words:
-            # Count up the word and word adjacencies
-            commit = False
-            for uw in user.words:
-                w = db.query(Word).get(uw.word_id)
-                w.score += uw.count * score_inc
-                w.count += uw.count
+                user.groups.append(groups['suspect'])
+                score_inc = -1
+                keep_detail = True
+            else:
+                self.set_status(400)
+                self.write(json.dumps({
+                    'error': 'unrecognised classification',
+                    'classification': classification
+                }))
+                return
 
-            for uwa in user.adj_words:
-                while True:
-                    try:
-                        wa = db.query(WordAdjacent).get((
-                            uwa.proceeding_id, uwa.following_id))
-                        if wa is None:
-                            proc_word = db.query(Word).get(
-                                    uwa.proceeding_id)
-                            follow_word = db.query(Word).get(
-                                    uwa.following_id)
-
-                            log.debug('New word adjacency: %s %s', proc_word, follow_word)
-                            wa = WordAdjacent(proceeding_id=proc_word.word_id,
-                                    following_id=follow_word.word_id,
-                                    score=0, count=0)
-                            db.add(wa)
-                            db.commit()
-                        break
-                    except InvalidRequestError:
-                        db.rollback()
-                wa.score += uwa.count * score_inc
-                wa.count += uwa.count
-
-            if commit:
-                db.commit()
+            # See if the user has words analysed already
+            if user.words or user.adj_words:
+                # Count up the word and word adjacencies
                 commit = False
-        else:
-            # Tokenise the users' content.
-            user_freq = {}
-            user_adj_freq = {}
-            def tally(field):
-                wordlist = tokenise(field)
-                frequency(wordlist, user_freq)
-                if len(wordlist) > 2:
-                    adjacency(wordlist, user_adj_freq)
+                for uw in user.words:
+                    w = db.query(Word).get(uw.word_id)
+                    w.score += uw.count * score_inc
+                    w.count += uw.count
 
-            if user.detail:
-                detail = user.detail
+                for uwa in user.adj_words:
+                    while True:
+                        try:
+                            wa = db.query(WordAdjacent).get((
+                                uwa.proceeding_id, uwa.following_id))
+                            if wa is None:
+                                proc_word = db.query(Word).get(
+                                        uwa.proceeding_id)
+                                follow_word = db.query(Word).get(
+                                        uwa.following_id)
 
-                # Free-form fields that the user can enter text into
-                tally(detail.about_me)
-                tally(detail.who_am_i)
-                tally(detail.what_i_would_like_to_do)
-                tally(detail.location)
+                                log.debug('New word adjacency: %s %s', proc_word, follow_word)
+                                wa = WordAdjacent(proceeding_id=proc_word.word_id,
+                                        following_id=follow_word.word_id,
+                                        score=0, count=0)
+                                db.add(wa)
+                                db.commit()
+                            break
+                        except InvalidRequestError:
+                            db.rollback()
+                    wa.score += uwa.count * score_inc
+                    wa.count += uwa.count
 
-            for link in user.links:
-                tally(link.title)
+                if commit:
+                    db.commit()
+                    commit = False
+            else:
+                # Tokenise the users' content.
+                user_freq = {}
+                user_adj_freq = {}
+                def tally(field):
+                    wordlist = tokenise(field)
+                    frequency(wordlist, user_freq)
+                    if len(wordlist) > 2:
+                        adjacency(wordlist, user_adj_freq)
 
-            # Retrieve all the words
-            words = {}
-            commit = False
-            for word in user_freq.keys():
-                w = db.query(Word).filter(
-                        Word.word==word).one_or_none()
-                if w is None:
-                    log.debug('New word: %s', word)
-                    w = Word(word=word, score=0, count=0)
-                    db.add(w)
-                    commit = True
-                words[word] = w
+                if user.detail:
+                    detail = user.detail
 
-            if commit:
-                db.commit()
+                    # Free-form fields that the user can enter text into
+                    tally(detail.about_me)
+                    tally(detail.who_am_i)
+                    tally(detail.what_i_would_like_to_do)
+                    tally(detail.location)
+
+                for link in user.links:
+                    tally(link.title)
+
+                # Retrieve all the words
+                words = {}
                 commit = False
+                for word in user_freq.keys():
+                    w = db.query(Word).filter(
+                            Word.word==word).one_or_none()
+                    if w is None:
+                        log.debug('New word: %s', word)
+                        w = Word(word=word, score=0, count=0)
+                        db.add(w)
+                        commit = True
+                    words[word] = w
 
-            # Update the database.
-            for word, word_freq in user_freq.items():
-                w = words[word]
-                w.count += word_freq
-                w.score += (word_freq * score_inc)
+                if commit:
+                    db.commit()
+                    commit = False
 
-            word_adj = {}
-            for (proc_word, follow_word), word_freq in user_adj_freq.items():
-                proc_w = words[proc_word]
-                follow_w = words[follow_word]
+                # Update the database.
+                for word, word_freq in user_freq.items():
+                    w = words[word]
+                    w.count += word_freq
+                    w.score += (word_freq * score_inc)
 
-                wa = db.query(WordAdjacent).get((
-                    proc_w.word_id, follow_w.word_id
-                ))
-                if wa is None:
-                    log.debug('New word adjacency: %s %s', proc_word, follow_word)
-                    wa = WordAdjacent(proceeding_id=proc_w.word_id,
-                            following_id=follow_w.word_id, score=0, count=0)
-                    db.add(wa)
-                    commit = True
-                word_adj[(proc_word, follow_word)] = wa
+                word_adj = {}
+                for (proc_word, follow_word), word_freq in user_adj_freq.items():
+                    proc_w = words[proc_word]
+                    follow_w = words[follow_word]
 
-            if commit:
-                db.commit()
+                    wa = db.query(WordAdjacent).get((
+                        proc_w.word_id, follow_w.word_id
+                    ))
+                    if wa is None:
+                        log.debug('New word adjacency: %s %s', proc_word, follow_word)
+                        wa = WordAdjacent(proceeding_id=proc_w.word_id,
+                                following_id=follow_w.word_id, score=0, count=0)
+                        db.add(wa)
+                        commit = True
+                    word_adj[(proc_word, follow_word)] = wa
 
-            for (proc_word, follow_word), word_freq in user_adj_freq.items():
-                wa = word_adj[(proc_word, follow_word)]
-                wa.count += word_freq
-                wa.score += (word_freq * score_inc)
+                if commit:
+                    db.commit()
 
-        # Drop the user detail unless we're keeping it
-        if not keep_detail:
-            db.delete(user.detail)
-            for link in user.links:
-                db.delete(link)
+                for (proc_word, follow_word), word_freq in user_adj_freq.items():
+                    wa = word_adj[(proc_word, follow_word)]
+                    wa.count += word_freq
+                    wa.score += (word_freq * score_inc)
 
-        db.commit()
+            # Drop the user detail unless we're keeping it
+            if not keep_detail:
+                db.delete(user.detail)
+                for link in user.links:
+                    db.delete(link)
+
+            db.commit()
+            return user
+
+        # Execute the above in a worker thread
+        user = yield self.application._pool.apply(_exec)
+
         self.set_status(200)
         self.write(json.dumps({
             'user_id': user_id,
