@@ -31,39 +31,42 @@ class AuthRequestHandler(RequestHandler):
     def _get_session_or_redirect(self):
         db = self.application._db
 
-        # Are we logged in?
-        session_id = self.get_cookie('hadsh')
-        if session_id is None:
-            # Not yet logged in
-            self.redirect('/authorize')
-            return
+        try:
+            # Are we logged in?
+            session_id = self.get_cookie('hadsh')
+            if session_id is None:
+                # Not yet logged in
+                self.redirect('/authorize')
+                return
 
-        # Fetch the user details from the session
-        session = db.query(Session).get(session_id)
-        if session is None:
-            # Session is invalid
-            self.redirect('/authorize')
-            return
+            # Fetch the user details from the session
+            session = db.query(Session).get(session_id)
+            if session is None:
+                # Session is invalid
+                self.redirect('/authorize')
+                return
 
-        # Is the session within a day of expiry?
-        now = datetime.datetime.now(tz=pytz.utc)
-        expiry_secs = (session.expiry_date - now).total_seconds()
-        if expiry_secs < 0:
-            # Session is defunct.
-            self.redirect('/authorize')
-            return
+            # Is the session within a day of expiry?
+            now = datetime.datetime.now(tz=pytz.utc)
+            expiry_secs = (session.expiry_date - now).total_seconds()
+            if expiry_secs < 0:
+                # Session is defunct.
+                self.redirect('/authorize')
+                return
 
-        if expiry_secs < 86400:
-            # Extend the session another week.
-            session.expiry_date = now + datetime.timedelta(days=7)
-            db.commit()
-            self.set_cookie(name='hadsh',
-                    value=str(session.session_id),
-                    domain=self.application._domain,
-                    secure=self.application._secure,
-                    expires_days=7)
+            if expiry_secs < 86400:
+                # Extend the session another week.
+                session.expiry_date = now + datetime.timedelta(days=7)
+                db.commit()
+                self.set_cookie(name='hadsh',
+                        value=str(session.session_id),
+                        domain=self.application._domain,
+                        secure=self.application._secure,
+                        expires_days=7)
 
-        return session
+            return session
+        finally:
+            db.close()
 
 
 class AuthAdminRequestHandler(AuthRequestHandler):
@@ -94,43 +97,45 @@ class AvatarHandler(AuthRequestHandler):
     @coroutine
     def get(self, avatar_id):
         db = self.application._db
-
-        # Are we logged in?
-        session = self._get_session_or_redirect()
-        if session is None:
-            return
-
         try:
-            width = int(self.get_query_argument('width'))
-        except MissingArgumentError:
-            width = None
-        try:
-            height = int(self.get_query_argument('height'))
-        except MissingArgumentError:
-            height = None
+            # Are we logged in?
+            session = self._get_session_or_redirect()
+            if session is None:
+                return
 
-        avatar_id = int(avatar_id)
-        log = self.application._log.getChild('avatar[%d]' % avatar_id)
-        log.debug('Retrieving from database')
-        avatar = db.query(Avatar).get(avatar_id)
-        if avatar is None:
-            self.set_status(404)
+            try:
+                width = int(self.get_query_argument('width'))
+            except MissingArgumentError:
+                width = None
+            try:
+                height = int(self.get_query_argument('height'))
+            except MissingArgumentError:
+                height = None
+
+            avatar_id = int(avatar_id)
+            log = self.application._log.getChild('avatar[%d]' % avatar_id)
+            log.debug('Retrieving from database')
+            avatar = db.query(Avatar).get(avatar_id)
+            if avatar is None:
+                self.set_status(404)
+                self.finish()
+                return
+
+            if not avatar.avatar_type:
+                yield self.application._crawler.fetch_avatar(avatar)
+
+            if (width is not None) or (height is not None):
+                image_data = yield self.application._resizer.resize(
+                        avatar, width, height)
+            else:
+                image_data = avatar.avatar
+
+            self.set_status(200)
+            self.set_header('Content-Type', avatar.avatar_type)
+            self.write(image_data)
             self.finish()
-            return
-
-        if not avatar.avatar_type:
-            yield self.application._crawler.fetch_avatar(avatar)
-
-        if (width is not None) or (height is not None):
-            image_data = yield self.application._resizer.resize(
-                    avatar, width, height)
-        else:
-            image_data = avatar.avatar
-
-        self.set_status(200)
-        self.set_header('Content-Type', avatar.avatar_type)
-        self.write(image_data)
-        self.finish()
+        finally:
+            db.close()
 
 
 class NewcomerDataHandler(AuthRequestHandler):
@@ -138,138 +143,141 @@ class NewcomerDataHandler(AuthRequestHandler):
     def get(self):
         db = self.application._db
 
-        # Are we logged in?
-        session = self._get_session_or_redirect()
-        if session is None:
-            return
-
         try:
-            page = int(self.get_query_argument('page'))
-        except MissingArgumentError:
-            page = 0
+            # Are we logged in?
+            session = self._get_session_or_redirect()
+            if session is None:
+                return
 
-        try:
-            count = int(self.get_query_argument('count'))
-        except MissingArgumentError:
-            count = 10
+            try:
+                page = int(self.get_query_argument('page'))
+            except MissingArgumentError:
+                page = 0
 
-        try:
-            before_user_id = int(self.get_query_argument('before_user_id'))
-        except MissingArgumentError:
-            before_user_id = None
+            try:
+                count = int(self.get_query_argument('count'))
+            except MissingArgumentError:
+                count = 10
 
-        try:
-            after_user_id = int(self.get_query_argument('after_user_id'))
-        except MissingArgumentError:
-            after_user_id = None
+            try:
+                before_user_id = int(self.get_query_argument('before_user_id'))
+            except MissingArgumentError:
+                before_user_id = None
 
-        log = self.application._log.getChild(\
-                'newcomer_data[%s < user_id < %s]' \
-                % (before_user_id, after_user_id))
+            try:
+                after_user_id = int(self.get_query_argument('after_user_id'))
+            except MissingArgumentError:
+                after_user_id = None
 
-        new_users = []
-        while len(new_users) == 0:
-            # Retrieve users from the database
-            query = db.query(User).join(\
-                    User.groups).filter(or_(\
-                    Group.name == 'auto_suspect',
-                    Group.name == 'auto_legit'))
-            if before_user_id is not None:
-                query = query.filter(User.user_id < before_user_id)
-            if after_user_id is not None:
-                query = query.filter(User.user_id > after_user_id)
-            new_users = query.order_by(\
-                    User.user_id.desc(),
-                    User.user_id.desc()).offset(page*count).limit(count).all()
+            log = self.application._log.getChild(\
+                    'newcomer_data[%s < user_id < %s]' \
+                    % (before_user_id, after_user_id))
 
-            if len(new_users) == 0:
-                # There are no more new users, wait for crawl to happen
-                log.debug('No users found, waiting for more from crawler')
-                self.application._crawler.new_user_event.clear()
-                try:
-                    yield self.application._crawler.new_user_event.wait(
-                            timeout=60.0)
-                except TimeoutError:
-                    break
+            new_users = []
+            while len(new_users) == 0:
+                # Retrieve users from the database
+                query = db.query(User).join(\
+                        User.groups).filter(or_(\
+                        Group.name == 'auto_suspect',
+                        Group.name == 'auto_legit'))
+                if before_user_id is not None:
+                    query = query.filter(User.user_id < before_user_id)
+                if after_user_id is not None:
+                    query = query.filter(User.user_id > after_user_id)
+                new_users = query.order_by(\
+                        User.user_id.desc(),
+                        User.user_id.desc()).offset(page*count).limit(count).all()
 
-        # Return JSON data
-        def _dump_link(link):
-            return {
-                    'title':        link.title,
-                    'url':          link.url
-            }
+                if len(new_users) == 0:
+                    # There are no more new users, wait for crawl to happen
+                    log.debug('No users found, waiting for more from crawler')
+                    self.application._crawler.new_user_event.clear()
+                    try:
+                        yield self.application._crawler.new_user_event.wait(
+                                timeout=60.0)
+                    except TimeoutError:
+                        break
 
-        def _dump_user(user):
-            user_words = {}
-            user_adj = []
-            data = {
-                    'id':           user.user_id,
-                    'screen_name':  user.screen_name,
-                    'url':          user.url,
-                    'avatar_id':    user.avatar_id,
-                    'created':      (user.created or user.last_update).isoformat(),
-                    'last_update':  user.last_update.isoformat() \
-                                    if user.last_update is not None else None,
-                    'links':        list(map(_dump_link, user.links)),
-                    'groups':       [
-                        g.name for g in user.groups
-                    ],
-                    'tags':         [
-                        t.tag for t in user.tags
-                    ],
-                    'tokens':       dict([
-                        (t.token, t.count) for t in user.tokens
-                    ]),
-                    'words':        user_words,
-                    'word_adj':     user_adj
-            }
-
-            for uw in user.words:
-                w = db.query(Word).get(uw.word_id)
-                user_words[w.word] = {
-                        'user_count': uw.count,
-                        'site_count': w.count,
-                        'site_score': w.score,
+            # Return JSON data
+            def _dump_link(link):
+                return {
+                        'title':        link.title,
+                        'url':          link.url
                 }
 
-            for uwa in user.adj_words:
-                pw = db.query(Word).get(uwa.proceeding_id)
-                fw = db.query(Word).get(uwa.following_id)
-                wa = db.query(WordAdjacent).get(
-                        (uwa.proceeding_id, uwa.following_id))
+            def _dump_user(user):
+                user_words = {}
+                user_adj = []
+                data = {
+                        'id':           user.user_id,
+                        'screen_name':  user.screen_name,
+                        'url':          user.url,
+                        'avatar_id':    user.avatar_id,
+                        'created':      (user.created or user.last_update).isoformat(),
+                        'last_update':  user.last_update.isoformat() \
+                                        if user.last_update is not None else None,
+                        'links':        list(map(_dump_link, user.links)),
+                        'groups':       [
+                            g.name for g in user.groups
+                        ],
+                        'tags':         [
+                            t.tag for t in user.tags
+                        ],
+                        'tokens':       dict([
+                            (t.token, t.count) for t in user.tokens
+                        ]),
+                        'words':        user_words,
+                        'word_adj':     user_adj
+                }
 
-                if wa is not None:
-                    wa_count = wa.count
-                    wa_score = wa.score
-                else:
-                    wa_count = 0
-                    wa_score = 0
+                for uw in user.words:
+                    w = db.query(Word).get(uw.word_id)
+                    user_words[w.word] = {
+                            'user_count': uw.count,
+                            'site_count': w.count,
+                            'site_score': w.score,
+                    }
 
-                user_adj.append({
-                    'proceeding': pw.word,
-                    'following': fw.word,
-                    'user_count': uwa.count,
-                    'site_count': wa_count,
-                    'site_score': wa_score,
-                })
+                for uwa in user.adj_words:
+                    pw = db.query(Word).get(uwa.proceeding_id)
+                    fw = db.query(Word).get(uwa.following_id)
+                    wa = db.query(WordAdjacent).get(
+                            (uwa.proceeding_id, uwa.following_id))
 
-            detail = user.detail
-            if detail is not None:
-                data.update({
-                    'about_me': detail.about_me,
-                    'who_am_i': detail.who_am_i,
-                    'location': detail.location,
-                    'projects': detail.projects,
-                    'what_i_would_like_to_do': detail.what_i_would_like_to_do,
-                })
-            return data
+                    if wa is not None:
+                        wa_count = wa.count
+                        wa_score = wa.score
+                    else:
+                        wa_count = 0
+                        wa_score = 0
 
-        self.set_status(200)
-        self.set_header('Content-Type', 'application/json')
-        self.write(json.dumps({
-                'page': page,
-                'users': list(map(_dump_user, new_users))
-        }))
+                    user_adj.append({
+                        'proceeding': pw.word,
+                        'following': fw.word,
+                        'user_count': uwa.count,
+                        'site_count': wa_count,
+                        'site_score': wa_score,
+                    })
+
+                detail = user.detail
+                if detail is not None:
+                    data.update({
+                        'about_me': detail.about_me,
+                        'who_am_i': detail.who_am_i,
+                        'location': detail.location,
+                        'projects': detail.projects,
+                        'what_i_would_like_to_do': detail.what_i_would_like_to_do,
+                    })
+                return data
+
+            self.set_status(200)
+            self.set_header('Content-Type', 'application/json')
+            self.write(json.dumps({
+                    'page': page,
+                    'users': list(map(_dump_user, new_users))
+            }))
+        finally:
+            db.close()
 
 
 class ClassifyHandler(AuthAdminRequestHandler):
@@ -290,127 +298,129 @@ class ClassifyHandler(AuthAdminRequestHandler):
 
         def _exec(user_id):
             db = self.application._db
-            user_id = int(user_id)
-            log = self.application._log.getChild('classify[%d]' % user_id)
+            try:
+                user_id = int(user_id)
+                log = self.application._log.getChild('classify[%d]' % user_id)
 
-            (content_type, _, body_data) = decode_body(
-                    self.request.headers['Content-Type'],
-                    self.request.body)
+                (content_type, _, body_data) = decode_body(
+                        self.request.headers['Content-Type'],
+                        self.request.body)
 
-            if content_type != 'application/json':
-                self.set_status(400)
-                self.write(json.dumps({
-                    'error': 'unrecognised payload type',
-                    'type': content_type,
-                }))
-                return
+                if content_type != 'application/json':
+                    self.set_status(400)
+                    self.write(json.dumps({
+                        'error': 'unrecognised payload type',
+                        'type': content_type,
+                    }))
+                    return
 
-            classification = json.loads(body_data)
-            if not isinstance(classification, str):
-                self.set_status(400)
-                self.write(json.dumps({
-                    'error': 'payload is not a string'
-                }))
-                return
+                classification = json.loads(body_data)
+                if not isinstance(classification, str):
+                    self.set_status(400)
+                    self.write(json.dumps({
+                        'error': 'payload is not a string'
+                    }))
+                    return
 
-            user = db.query(User).get(user_id)
-            if user is None:
-                self.set_status(404)
-                self.write(json.dumps({
-                    'error': 'no such user',
-                    'user_id': user_id,
-                }))
+                user = db.query(User).get(user_id)
+                if user is None:
+                    self.set_status(404)
+                    self.write(json.dumps({
+                        'error': 'no such user',
+                        'user_id': user_id,
+                    }))
 
-            # Grab the groups for classification
-            groups = dict([
-                (g.name, g) for g in db.query(Group).all()
-            ])
+                # Grab the groups for classification
+                groups = dict([
+                    (g.name, g) for g in db.query(Group).all()
+                ])
 
-            if classification == 'legit':
-                try:
-                    user.groups.remove(groups['auto_suspect'])
-                except ValueError:
-                    pass
+                if classification == 'legit':
+                    try:
+                        user.groups.remove(groups['auto_suspect'])
+                    except ValueError:
+                        pass
 
-                try:
-                    user.groups.remove(groups['auto_legit'])
-                except ValueError:
-                    pass
+                    try:
+                        user.groups.remove(groups['auto_legit'])
+                    except ValueError:
+                        pass
 
-                try:
-                    user.groups.remove(groups['suspect'])
-                except ValueError:
-                    pass
+                    try:
+                        user.groups.remove(groups['suspect'])
+                    except ValueError:
+                        pass
 
-                user.groups.append(groups['legit'])
-                score_inc = 1
-                keep_detail = False
-            elif classification == 'suspect':
-                try:
-                    user.groups.remove(groups['auto_suspect'])
-                except ValueError:
-                    pass
+                    user.groups.append(groups['legit'])
+                    score_inc = 1
+                    keep_detail = False
+                elif classification == 'suspect':
+                    try:
+                        user.groups.remove(groups['auto_suspect'])
+                    except ValueError:
+                        pass
 
-                try:
-                    user.groups.remove(groups['auto_legit'])
-                except ValueError:
-                    pass
+                    try:
+                        user.groups.remove(groups['auto_legit'])
+                    except ValueError:
+                        pass
 
-                try:
-                    user.groups.remove(groups['legit'])
-                except ValueError:
-                    pass
+                    try:
+                        user.groups.remove(groups['legit'])
+                    except ValueError:
+                        pass
 
-                user.groups.append(groups['suspect'])
-                score_inc = -1
-                keep_detail = True
-            else:
-                self.set_status(400)
-                self.write(json.dumps({
-                    'error': 'unrecognised classification',
-                    'classification': classification
-                }))
-                return
+                    user.groups.append(groups['suspect'])
+                    score_inc = -1
+                    keep_detail = True
+                else:
+                    self.set_status(400)
+                    self.write(json.dumps({
+                        'error': 'unrecognised classification',
+                        'classification': classification
+                    }))
+                    return
 
-            # Count up the word and word adjacencies
-            for uw in user.words:
-                w = db.query(Word).get(uw.word_id)
-                w.score += uw.count * score_inc
-                w.count += uw.count
+                # Count up the word and word adjacencies
+                for uw in user.words:
+                    w = db.query(Word).get(uw.word_id)
+                    w.score += uw.count * score_inc
+                    w.count += uw.count
 
-            for uwa in user.adj_words:
-                wa = db.query(WordAdjacent).get((
-                    uwa.proceeding_id, uwa.following_id))
-                if wa is None:
-                    proc_word = db.query(Word).get(
-                            uwa.proceeding_id)
-                    follow_word = db.query(Word).get(
-                            uwa.following_id)
+                for uwa in user.adj_words:
+                    wa = db.query(WordAdjacent).get((
+                        uwa.proceeding_id, uwa.following_id))
+                    if wa is None:
+                        proc_word = db.query(Word).get(
+                                uwa.proceeding_id)
+                        follow_word = db.query(Word).get(
+                                uwa.following_id)
 
-                    log.debug('New word adjacency: %s %s',
-                            proc_word, follow_word)
-                    wa = WordAdjacent(proceeding_id=proc_word.word_id,
-                            following_id=follow_word.word_id,
-                            score=0, count=0)
-                    db.add(wa)
-                wa.score += uwa.count * score_inc
-                wa.count += uwa.count
+                        log.debug('New word adjacency: %s %s',
+                                proc_word, follow_word)
+                        wa = WordAdjacent(proceeding_id=proc_word.word_id,
+                                following_id=follow_word.word_id,
+                                score=0, count=0)
+                        db.add(wa)
+                    wa.score += uwa.count * score_inc
+                    wa.count += uwa.count
 
-            # Drop the user detail unless we're keeping it
-            if not keep_detail:
-                if user.detail is not None:
-                    db.delete(user.detail)
-                for link in user.links:
-                    db.delete(link)
+                # Drop the user detail unless we're keeping it
+                if not keep_detail:
+                    if user.detail is not None:
+                        db.delete(user.detail)
+                    for link in user.links:
+                        db.delete(link)
 
-            db.commit()
-            log.info('User %d marked as %s', user_id, classification)
-            res = {
-                    'user_id': user_id,
-                    'groups': [g.name for g in user.groups]
-            }
-            db.close()
-            return res
+                db.commit()
+                log.info('User %d marked as %s', user_id, classification)
+                res = {
+                        'user_id': user_id,
+                        'groups': [g.name for g in user.groups]
+                }
+                return res
+            finally:
+                db.close()
 
         # Wait for semaphore before proceeding
         yield self.application._classify_sem.acquire()
@@ -427,56 +437,57 @@ class CallbackHandler(RequestHandler):
     @coroutine
     def get(self):
         db = self.application._db
-
-        log = self.application._log.getChild('callback')
-
-        # Retrieve the code
         try:
-            code = self.get_query_argument('code', strip=False)
-            log.debug('Code is %s, retrieving token', code)
-            oauth_data = yield self.application._api.get_token(code)
-            log.debug('OAuth response %s', oauth_data)
+            log = self.application._log.getChild('callback')
 
+            # Retrieve the code
             try:
-                token = oauth_data['access_token']
-            except KeyError:
-                # Not a successful response.
-                self.set_status(403)
-                self.set_header('Content-Type', 'application/json')
-                self.write(json.dumps(oauth_data))
-                return
+                code = self.get_query_argument('code', strip=False)
+                log.debug('Code is %s, retrieving token', code)
+                oauth_data = yield self.application._api.get_token(code)
+                log.debug('OAuth response %s', oauth_data)
 
-            user_data = yield self.application._api.get_current_user(token)
-        except HTTPError as e:
-            if e.code == 403:
-                # We've been blocked.
-                self.set_header('Content-Type', e.response.headers['Content-Type'])
-                self.write(e.response.body)
-                return
-            raise
+                try:
+                    token = oauth_data['access_token']
+                except KeyError:
+                    # Not a successful response.
+                    self.set_status(403)
+                    self.set_header('Content-Type', 'application/json')
+                    self.write(json.dumps(oauth_data))
+                    return
 
-        # Retrieve and update the user from the website data.
-        user = yield self.application._crawler.update_user_from_data(
-                user_data)
+                user_data = yield self.application._api.get_current_user(token)
+            except HTTPError as e:
+                if e.code == 403:
+                    # We've been blocked.
+                    self.set_header('Content-Type', e.response.headers['Content-Type'])
+                    self.write(e.response.body)
+                    return
+                raise
 
-        # We have the user account, create the session
-        expiry = datetime.datetime.now(tz=pytz.utc) \
-                + datetime.timedelta(days=7)
-        session = Session(
-                session_id=uuid.uuid4(),
-                user_id=user.user_id,
-                expiry_date=expiry)
-        db.add(session)
-        db.commit()
+            # Retrieve and update the user from the website data.
+            user = yield self.application._crawler.update_user_from_data(
+                    user_data)
 
-        # Grab the session ID and set that in a cookie.
-        self.set_cookie(name='hadsh',
-                value=str(session.session_id),
-                domain=self.application._domain,
-                secure=self.application._secure,
-                expires_days=7)
-        self.redirect('/', permanent=False)
+            # We have the user account, create the session
+            expiry = datetime.datetime.now(tz=pytz.utc) \
+                    + datetime.timedelta(days=7)
+            session = Session(
+                    session_id=uuid.uuid4(),
+                    user_id=user.user_id,
+                    expiry_date=expiry)
+            db.add(session)
+            db.commit()
 
+            # Grab the session ID and set that in a cookie.
+            self.set_cookie(name='hadsh',
+                    value=str(session.session_id),
+                    domain=self.application._domain,
+                    secure=self.application._secure,
+                    expires_days=7)
+            self.redirect('/', permanent=False)
+        finally:
+            db.close()
 
 class HADSHApp(Application):
     """
