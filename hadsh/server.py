@@ -149,6 +149,11 @@ class NewcomerDataHandler(AuthRequestHandler):
             page = 0
 
         try:
+            count = int(self.get_query_argument('count'))
+        except MissingArgumentError:
+            count = 10
+
+        try:
             before_user_id = int(self.get_query_argument('before_user_id'))
         except MissingArgumentError:
             before_user_id = None
@@ -175,7 +180,7 @@ class NewcomerDataHandler(AuthRequestHandler):
                 query = query.filter(User.user_id > after_user_id)
             new_users = query.order_by(\
                     User.user_id.desc(),
-                    User.user_id.desc()).offset(page*50).limit(50).all()
+                    User.user_id.desc()).offset(page*count).limit(count).all()
 
             if len(new_users) == 0:
                 # There are no more new users, wait for crawl to happen
