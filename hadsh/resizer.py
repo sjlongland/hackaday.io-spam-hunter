@@ -2,19 +2,18 @@ import threading
 
 from tornado.gen import coroutine, Future, Return
 from tornado.ioloop import IOLoop
-from multiprocessing.pool import ThreadPool
 from PIL import Image
 from sys import exc_info
 from io import BytesIO
 
 
 class ImageResizer(object):
-    def __init__(self, log, io_loop=None):
+    def __init__(self, log, pool, io_loop=None):
         if io_loop is None:
             io_loop = IOLoop.current()
         self._log = log
         self._io_loop = io_loop
-        self._pool = ThreadPool()
+        self._pool = pool
 
     @coroutine
     def resize(self, avatar, width, height):
@@ -72,7 +71,7 @@ class ImageResizer(object):
                 self._io_loop.add_callback(_on_done, exc_info())
 
         # Run the above in the thread pool:
-        self._pool.apply_async(_do_resize, (avatar.avatar,
+        yield self._pool.apply(_do_resize, (avatar.avatar,
                 avatar.avatar_type, width, height))
 
         # Wait for the result
