@@ -76,6 +76,9 @@ class Crawler(object):
         # Event to indicate when new users have been added
         self.new_user_event = Event()
 
+        # Deleted users, by ID
+        self._deleted_users = set()
+
     def _get_or_make_group(self, name):
         group = self._db.query(Group).filter(
                 Group.name == name).first()
@@ -170,6 +173,9 @@ class Crawler(object):
         """
         Inspect the user, see if they're worth investigating.
         """
+        if user_data['id'] in self._deleted_users:
+            return
+
         try:
             if user is None:
                 user = self._db.query(User).get(user_data['id'])
@@ -199,6 +205,7 @@ class Crawler(object):
                     # Possible if the object hasn't yet been committed yet.
                     self._db.expunge(user)
                     pass
+                self._deleted_users.add(user_data['id'])
                 raise InvalidUser('no longer valid')
 
             if user.last_update is not None:
