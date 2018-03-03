@@ -87,6 +87,11 @@ var getNextPage = function() {
 							|| (oldest_uid > user.id))
 							oldest_uid = user.id;
 
+						/* Hide if there's nothing to inspect */
+						if (user.pending && (Object.keys(user.words).length === 0)) {
+							return
+						}
+
 						var userBox = document.createElement('div');
 						userBox.style.border = '1px solid black';
 						userBox.style.padding = '2em';
