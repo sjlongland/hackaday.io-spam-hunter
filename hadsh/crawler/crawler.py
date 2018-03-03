@@ -15,7 +15,7 @@ from ..db.model import User, Group, Session, UserDetail, \
         UserWord, UserWordAdjacent, UserToken, Word, WordAdjacent, \
         DeferredUser
 from ..wordstat import tokenise, frequency, adjacency
-from sqlalchemy.exc import InvalidRequestError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import or_
 
 
@@ -206,7 +206,7 @@ class Crawler(object):
                 try:
                     self._db.delete(user)
                     self._db.commit()
-                except InvalidRequestError:
+                except SQLAlchemyError:
                     # Possible if the object hasn't yet been committed yet.
                     self._db.expunge(user)
                     pass
@@ -579,7 +579,7 @@ class Crawler(object):
                                 break
                             except InvalidUser:
                                 pass
-                            except InvalidRequestError:
+                            except SQLAlchemyError:
                                 self._db.rollback()
             except:
                 self._log.exception('Failed to retrieve newer users')
@@ -618,7 +618,7 @@ class Crawler(object):
                                     break
                                 except InvalidUser:
                                     pass
-                                except InvalidRequestError:
+                                except SQLAlchemyError:
                                     self._db.rollback()
             except:
                 self._log.exception('Failed to retrieve deferred users')
@@ -639,7 +639,7 @@ class Crawler(object):
                 yield self.fetch_new_users(page=self._refresh_hist_page,
                         defer=False)
                 self._refresh_hist_page += 1
-            except InvalidRequestError:
+            except SQLAlchemyError:
                 # SQL cock up, roll back.
                 self._db.rollback()
                 self._log.exception('Failed to retrieve older users'\
