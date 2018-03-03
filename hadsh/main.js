@@ -110,6 +110,12 @@ var getNextPage = function() {
 						var profile_uid = document.createTextNode(' ' + user.id);
 						userBox.appendChild(profile_uid);
 
+						if (user.pending) {
+							userBox.appendChild(
+								document.createTextNode(' Re-inspection pending')
+							);
+						}
+
 						var profile_score = document.createElement('div');
 						userBox.appendChild(profile_score);
 
@@ -171,7 +177,7 @@ var getNextPage = function() {
 								};
 								profile_groups.removeChild(classify_legit);
 							};
-							if (group_set.auto_legit) {
+							if (group_set.auto_legit && (!user.pending)) {
 								auto_mark[user.id] = do_classify;
 							}
 
@@ -198,6 +204,16 @@ var getNextPage = function() {
 							};
 							profile_groups.appendChild(classify_suspect);
 						}
+
+						var defer_classify = document.createElement('button');
+						defer_classify.innerHTML = 'Defer';
+						defer_classify.onclick = function() {
+							var rq = new XMLHttpRequest();
+							rm_auto();
+							textbox.removeChild(userBox);
+						};
+						profile_groups.appendChild(defer_classify);
+
 						userBox.appendChild(profile_groups);
 
 						var profile_tags = document.createElement('div');
