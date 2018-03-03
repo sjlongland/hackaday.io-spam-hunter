@@ -440,7 +440,7 @@ class Crawler(object):
                     # There's nothing to score.  Inspect again later.
                     defuser = self._db.query(DeferredUser).get(user_data['id'])
                     if defuser is None:
-                        defuser = DeferredUser(user_data['id'],
+                        defuser = DeferredUser(user_id=user_data['id'],
                                 inspect_time=datetime.datetime.now(tz=pytz.utc) \
                                         + datetime.timedelta(seconds=900.0),
                                 inspections=1)
