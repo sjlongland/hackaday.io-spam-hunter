@@ -209,8 +209,12 @@ class NewcomerDataHandler(AuthRequestHandler):
                 du = db.query(DeferredUser).get(user.user_id)
                 if (du is None) or (du.inspections >= 5):
                     pending = False
+                    inspections = None
+                    next_inspection = None
                 else:
                     pending = True
+                    inspections = du.inspections
+                    next_inspection = du.inspect_time.isoformat()
 
                 data = {
                         'id':           user.user_id,
@@ -232,7 +236,9 @@ class NewcomerDataHandler(AuthRequestHandler):
                         ]),
                         'words':        user_words,
                         'word_adj':     user_adj,
-                        'pending':      pending
+                        'pending':      pending,
+                        'inspections':  inspections,
+                        'next_inspection': next_inspection
                 }
 
                 for uw in user.words:
