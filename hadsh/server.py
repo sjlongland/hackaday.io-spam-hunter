@@ -205,6 +205,13 @@ class NewcomerDataHandler(AuthRequestHandler):
             def _dump_user(user):
                 user_words = {}
                 user_adj = []
+
+                du = db.query(DeferredUser).get(user.user_id)
+                if (du is None) or (du.inspections >= 5):
+                    pending = False
+                else:
+                    pending = True
+
                 data = {
                         'id':           user.user_id,
                         'screen_name':  user.screen_name,
@@ -224,7 +231,8 @@ class NewcomerDataHandler(AuthRequestHandler):
                             (t.token, t.count) for t in user.tokens
                         ]),
                         'words':        user_words,
-                        'word_adj':     user_adj
+                        'word_adj':     user_adj,
+                        'pending':      pending
                 }
 
                 for uw in user.words:
