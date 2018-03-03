@@ -21,7 +21,7 @@ from .crawler.crawler import Crawler
 from .resizer import ImageResizer
 from .wordstat import tokenise, frequency, adjacency
 from .db.db import get_db, User, Group, Session, UserDetail, \
-        UserLink, Avatar, Tag, Word, WordAdjacent
+        UserLink, Avatar, Tag, Word, WordAdjacent, DeferredUser
 from .util import decode_body
 from sqlalchemy import or_
 from sqlalchemy.exc import InvalidRequestError
@@ -408,6 +408,11 @@ class ClassifyHandler(AuthAdminRequestHandler):
                         db.delete(user.detail)
                     for link in user.links:
                         db.delete(link)
+
+                # Remove user from deferred list
+                du = db.query(DeferredUser).get(user_id)
+                if du is not None:
+                    db.delete(du)
 
                 db.commit()
                 log.info('User %d marked as %s', user_id, classification)
