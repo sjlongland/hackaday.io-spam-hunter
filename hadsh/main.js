@@ -305,25 +305,36 @@ var getNextPage = function() {
 						if (user.words && Object.keys(user.words).length) {
 							var profile_words = document.createElement('div');
 							first = false;
-							Object.keys(user.words).forEach(function (word) {
+							var words = Object.keys(user.words).map(function (word) {
 								var stat = user.words[word];
-								var word_span = document.createElement('span');
-								var word_tt = document.createElement('tt');
 								var score = 0.0;
 								if (stat.site_count > 0) {
 									score = Math.round((stat.site_score * 100)
 										/ stat.site_count) / 100;
 									user_score.push(score);
 								}
+								stat.word = word;
+								stat.norm_score = score;
+								return stat;
+							});
+							words.sort(function (a, b) {
+								if (a.norm_score < b.norm_score)
+									return -1;
+								else if (a.norm_score > b.norm_score)
+									return 1;
+								return 0;
+							});
+							words.forEach(function (stat) {
+								var word = stat.word;
+								var word_span = document.createElement('span');
+								var word_tt = document.createElement('tt');
+								var score = stat.norm_score;
 
 								word_tt.innerHTML = htmlEscape(word);
 								word_span.appendChild(word_tt);
-								word_span.appendChild(
-									document.createTextNode(
-										' (' + stat.user_count
+								word_span.title = stat.user_count
 										+ ' occurances; score: '
-										+ score
-										+ ')'));
+										+ score;
 								word_span.style.backgroundColor = scoreColour(score);
 								if (first) {
 									profile_words.appendChild(
@@ -340,26 +351,35 @@ var getNextPage = function() {
 						if (user.word_adj && user.word_adj.length) {
 							var profile_word_adj = document.createElement('div');
 							first = false;
-							user.word_adj.forEach(function (word_adj) {
-								var adj_span = document.createElement('span');
-								var adj_tt = document.createElement('tt');
+							var word_adjs = user.word_adj.map(function (word_adj) {
 								var score = 0.0;
 								if (word_adj.site_count > 0) {
 									score = Math.round((word_adj.site_score * 100)
 										/ word_adj.site_count) / 100;
 									user_score.push(score);
 								}
+								word_adj.norm_score = score;
+								return word_adj;
+							});
+							word_adjs.sort(function (a, b) {
+								if (a.norm_score < b.norm_score)
+									return -1;
+								else if (a.norm_score > b.norm_score)
+									return 1;
+								return 0;
+							});
+							word_adjs.forEach(function (word_adj) {
+								var adj_span = document.createElement('span');
+								var adj_tt = document.createElement('tt');
+								var score = word_adj.norm_score;
 
 								adj_tt.innerHTML = htmlEscape(word_adj.proceeding)
 										+ ' &rarr; '
 										+ htmlEscape(word_adj.following);
 								adj_span.appendChild(adj_tt);
-								adj_span.appendChild(
-									document.createTextNode(
-										' (' + word_adj.user_count
+								adj_span.title = word_adj.user_count
 										+ ' occurances; score: '
-										+ score
-										+ ')'));
+										+ score;
 								if (first) {
 									profile_word_adj.appendChild(
 										document.createTextNode(' ')
