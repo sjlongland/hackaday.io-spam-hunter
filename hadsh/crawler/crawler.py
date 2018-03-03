@@ -438,7 +438,7 @@ class Crawler(object):
                     if wa.count > 0:
                         score.append(float(wa.score) / float(wa.count))
 
-                if defer and (not score):
+                if defer and (len(score) < 10):
                     # There's nothing to score.  Inspect again later.
                     defuser = self._db.query(DeferredUser).get(user_data['id'])
                     if defuser is None:
