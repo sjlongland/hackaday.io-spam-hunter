@@ -21,6 +21,13 @@ var htmlEscape = function(str) {
         .replace(/>/g, '&gt;');
 };
 
+
+var scoreColour = function (score) {
+	var red = Math.round(((score > 0) ? (1.0 - score) : 1.0)*255);
+	var grn = Math.round(((score < 0) ? (score + 1.0) : 1.0)*255);
+	return 'rgb(' + red + ', ' + grn + ', 0)';
+};
+
 var getNextPage = function() {
 	var rq = new XMLHttpRequest();
 	busy = true;
@@ -294,8 +301,10 @@ var getNextPage = function() {
 
 						/* Compute the user's score */
 						var user_score = [];
+						var first;
 						if (user.words && Object.keys(user.words).length) {
 							var profile_words = document.createElement('div');
+							first = false;
 							Object.keys(user.words).forEach(function (word) {
 								var stat = user.words[word];
 								var word_span = document.createElement('span');
@@ -315,6 +324,14 @@ var getNextPage = function() {
 										+ ' occurances; score: '
 										+ score
 										+ ')'));
+								word_span.style.backgroundColor = scoreColour(score);
+								if (first) {
+									profile_words.appendChild(
+										document.createTextNode(' ')
+									);
+								} else {
+									first = true;
+								}
 								profile_words.appendChild(word_span);
 							});
 							userBox.appendChild(profile_words);
@@ -322,6 +339,7 @@ var getNextPage = function() {
 
 						if (user.word_adj && user.word_adj.length) {
 							var profile_word_adj = document.createElement('div');
+							first = false;
 							user.word_adj.forEach(function (word_adj) {
 								var adj_span = document.createElement('span');
 								var adj_tt = document.createElement('tt');
@@ -342,8 +360,18 @@ var getNextPage = function() {
 										+ ' occurances; score: '
 										+ score
 										+ ')'));
+								if (first) {
+									profile_word_adj.appendChild(
+										document.createTextNode(' ')
+									);
+								} else {
+									first = true;
+								}
+
 								profile_word_adj.appendChild(adj_span);
 
+								/* Derive span colour */
+								adj_span.style.backgroundColor = scoreColour(score);
 							});
 							userBox.appendChild(profile_word_adj);
 						}
@@ -367,19 +395,17 @@ var getNextPage = function() {
 						if (user_score < 0.0) {
 							profile_score_gauge_left.style.width = (16 * (10.0 + user_score)) + 'px';
 							profile_score_gauge_bar.style.width = (16 * (-user_score)) + 'px';
-							profile_score_gauge_bar.style.background = '#f00';
 							profile_score_gauge_right.style.width = '160px';
 						} else if (user_score > 0.0) {
 							profile_score_gauge_left.style.width = '160px';
 							profile_score_gauge_bar.style.width = (16 * (user_score)) + 'px';
-							profile_score_gauge_bar.style.background = '#0f0';
 							profile_score_gauge_right.style.width = (16 * (10.0 - user_score)) + 'px';
 						} else {
 							profile_score_gauge_left.style.width = '155px';
 							profile_score_gauge_bar.style.width = '10px';
-							profile_score_gauge_bar.style.background = '#ff0';
 							profile_score_gauge_right.style.width = '155px';
 						}
+						profile_score_gauge_bar.style.backgroundColor = scoreColour(user_score);
 
 						textbox.appendChild(userBox);
 					});
