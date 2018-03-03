@@ -59,6 +59,9 @@ class DeferredUser(Base):
     Object to represent when a user account has been added but inspection
     has been deferred.
     """
+
+    __tablename__   = 'deferred_user'
+
     user_id         = Column(BigInteger, primary_key=True)
     inspect_time    = Column(DateTime(timezone=True))
     inspections     = Column(Integer)
