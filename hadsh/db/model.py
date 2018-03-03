@@ -54,6 +54,16 @@ class User(Base):
                 % (self.user_id, self.screen_name)
 
 
+class DeferredUser(Base):
+    """
+    Object to represent when a user account has been added but inspection
+    has been deferred.
+    """
+    user_id         = Column(BigInteger, primary_key=True)
+    inspect_time    = Column(DateTime(timezone=True))
+    inspections     = Column(Integer)
+
+
 class Group(Base):
     """
     Groups used for classifying users.
