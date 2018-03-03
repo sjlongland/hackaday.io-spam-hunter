@@ -557,40 +557,15 @@ class Crawler(object):
                 self._log.debug('Received: %s', user_data)
                 if isinstance(user_data['users'], list):
                     for this_user_data in user_data['users']:
-                        @coroutine
-                        def _inspect(this_user_data):
-                            while True:
-                                try:
-                                    user_age=self._io_loop.time() - \
-                                            this_user_data.get('created',0)
-                                    self._log.debug('Inspecting %s[#%d] '\
-                                            '(age %f sec)',
-                                            this_user_data['screen_name'],
-                                            this_user_data['id'], user_age)
-                                    yield self.update_user_from_data(
-                                            this_user_data, inspect_all=True)
-                                    break
-                                except InvalidUser:
-                                    pass
-                                except InvalidRequestError:
-                                    self._db.rollback()
-
-                        # Some spambots lie in wait before adding lots
-                        # of spammy content.  Give it a few minutes.
-                        user_age=self._io_loop.time() - \
-                                this_user_data.get('created',0)
-                        if user_age > 900.0:
-                            self._io_loop.add_callback(_inspect,
-                                    this_user_data)
-                        else:
-                            self._io_loop.add_timeout(
-                                self._io_loop.time() + 900.0,
-                                _inspect, this_user_data)
-
-                            self._log.debug('Delaying inspection of %s[#%d] '\
-                                    '(age %f sec)',
-                                    this_user_data['screen_name'],
-                                    this_user_data['id'], user_age)
+                        while True:
+                            try:
+                                yield self.update_user_from_data(
+                                        this_user_data, inspect_all=True)
+                                break
+                            except InvalidUser:
+                                pass
+                            except InvalidRequestError:
+                                self._db.rollback()
             except:
                 self._log.exception('Failed to retrieve newer users')
 
@@ -598,6 +573,43 @@ class Crawler(object):
         self._io_loop.add_timeout(
                 self._io_loop.time() + 900.0,
                 self._background_fetch_new_users)
+
+    @coroutine
+    def _background_inspect_deferred(self):
+        """
+        Inspect previously deferred users
+        """
+        if not self._api.is_forbidden:
+            self._log.info('Scanning deferred users')
+            try:
+                # Grab a handful of deferred users
+                ids = [u.user_id for u in self._db.query(DeferredUser).filter(
+                        DeferredUser.inspections < 5,
+                        DeferredUser.inspect_time <
+                            datetime.datetime.now(tz=pytz.utc)).order_by(
+                                    DeferredUser.inspect_time).limit(50).all()]
+                self._log.debug('Scanning %s', ids)
+
+                user_data = yield self._api.get_users(ids=ids, per_page=50)
+                self._log.debug('Received: %s', user_data)
+                if isinstance(user_data['users'], list):
+                    for this_user_data in user_data['users']:
+                        while True:
+                            try:
+                                yield self.update_user_from_data(
+                                        this_user_data, inspect_all=True)
+                                break
+                            except InvalidUser:
+                                pass
+                            except InvalidRequestError:
+                                self._db.rollback()
+            except:
+                self._log.exception('Failed to retrieve deferred users')
+
+        self._log.info('Next deferred user scan in 15 minutes')
+        self._io_loop.add_timeout(
+                self._io_loop.time() + 900.0,
+                self._background_inspect_deferred)
 
     @coroutine
     def _background_fetch_hist_users(self):
