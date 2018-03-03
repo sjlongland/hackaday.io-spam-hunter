@@ -434,8 +434,6 @@ class Crawler(object):
                     if wa.count > 0:
                         score.append(float(wa.score) / float(wa.count))
 
-                # Compute score
-                score.sort()
                 if not score:
                     # There's nothing to score.  Inspect again later.
                     defuser = self._db.query(DeferredUser).get(user_data['id'])
@@ -450,6 +448,12 @@ class Crawler(object):
                                         + datetime.timedelta(
                                                 seconds=900.0 \
                                                         * defuser.inspections)
+                    self._log.info('User %s has no score, '\
+                            'inspect again after %s (inspections %s)',
+                            user, defuser.inspect_time, defuser.inspections)
+
+                # Compute score
+                score.sort()
                 score = sum(score[:10])
 
                 self._log.debug('User %s [#%d] has score %f',
