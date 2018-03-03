@@ -379,8 +379,12 @@ class Crawler(object):
 
                 # Stash any tokens
                 for token, count in user_tokens.items():
-                    self._db.add(UserToken(
-                        user_id=user.user_id, token=token, count=count))
+                    t = self._db.query(UserToken).get((user.user_id, token))
+                    if t is None:
+                        self._db.add(UserToken(
+                            user_id=user.user_id, token=token, count=count))
+                    else:
+                        t.count = count
 
                 # Retrieve all the words
                 words = {}
