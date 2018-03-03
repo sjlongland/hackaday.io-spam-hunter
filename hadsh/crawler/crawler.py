@@ -596,21 +596,23 @@ class Crawler(object):
                         DeferredUser.inspect_time <
                             datetime.datetime.now(tz=pytz.utc)).order_by(
                                     DeferredUser.inspect_time).limit(50).all()]
-                self._log.debug('Scanning %s', ids)
 
-                user_data = yield self._api.get_users(ids=ids, per_page=50)
-                self._log.debug('Received: %s', user_data)
-                if isinstance(user_data['users'], list):
-                    for this_user_data in user_data['users']:
-                        while True:
-                            try:
-                                yield self.update_user_from_data(
-                                        this_user_data, inspect_all=True)
-                                break
-                            except InvalidUser:
-                                pass
-                            except InvalidRequestError:
-                                self._db.rollback()
+                if ids:
+                    self._log.debug('Scanning %s', ids)
+
+                    user_data = yield self._api.get_users(ids=ids, per_page=50)
+                    self._log.debug('Received: %s', user_data)
+                    if isinstance(user_data['users'], list):
+                        for this_user_data in user_data['users']:
+                            while True:
+                                try:
+                                    yield self.update_user_from_data(
+                                            this_user_data, inspect_all=True)
+                                    break
+                                except InvalidUser:
+                                    pass
+                                except InvalidRequestError:
+                                    self._db.rollback()
             except:
                 self._log.exception('Failed to retrieve deferred users')
 
