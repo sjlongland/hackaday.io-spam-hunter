@@ -12,7 +12,8 @@ from tornado.locks import Event
 from ..hadapi.hadapi import UserSortBy
 from ..db.model import User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag, NewestUserPageRefresh, \
-        UserWord, UserWordAdjacent, UserToken, Word, WordAdjacent
+        UserWord, UserWordAdjacent, UserToken, Word, WordAdjacent, \
+        DeferredUser
 from ..wordstat import tokenise, frequency, adjacency
 from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy import or_
@@ -435,6 +436,20 @@ class Crawler(object):
 
                 # Compute score
                 score.sort()
+                if not score:
+                    # There's nothing to score.  Inspect again later.
+                    defuser = self._db.query(DeferredUser).get(user_data['id'])
+                    if defuser is None:
+                        defuser = DeferredUser(user_data['id'],
+                                inspect_time=datetime.datetime.now(tz=pytz.utc) \
+                                        + datetime.timedelta(seconds=900.0),
+                                inspections=1)
+                    else:
+                        defuser.inspections += 1
+                        defuser.inspect_time=datetime.datetime.now(tz=pytz.utc) \
+                                        + datetime.timedelta(
+                                                seconds=900.0 \
+                                                        * defuser.inspections)
                 score = sum(score[:10])
 
                 self._log.debug('User %s [#%d] has score %f',
