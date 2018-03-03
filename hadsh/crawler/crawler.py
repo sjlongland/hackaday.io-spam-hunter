@@ -1,6 +1,7 @@
 import logging
 import datetime
 import pytz
+from socket import gaierror
 
 import re
 
@@ -193,10 +194,15 @@ class Crawler(object):
 
             # Is the link valid?
             try:
-                result = yield self._client.fetch(
-                        user.url, method='HEAD',
-                        connect_timeout=120,
-                        request_timeout=120)
+                while True:
+                    try:
+                        result = yield self._client.fetch(
+                                user.url, method='HEAD',
+                                connect_timeout=120,
+                                request_timeout=120)
+                        break
+                    except gaierror:
+                        continue
             except HTTPError as e:
                 if e.code != 404:
                     raise
