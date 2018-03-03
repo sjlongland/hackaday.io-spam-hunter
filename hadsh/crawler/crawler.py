@@ -506,7 +506,8 @@ class Crawler(object):
 
             self._db.commit()
         except:
-            self._log.error('Failed to process user data %r', user_data)
+            self._log.error('Failed to process user data %r',
+                    user_data, exc_info=1)
             raise
 
     @coroutine
