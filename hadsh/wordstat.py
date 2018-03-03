@@ -2,6 +2,7 @@
 
 from .htmlstrip import html_to_text
 from polyglot.text import Text
+from string import punctuation
 
 
 def tokenise(html_text):
@@ -9,7 +10,9 @@ def tokenise(html_text):
     Return a list of words that appear in the text.
     """
     try:
-        return list(Text(html_to_text(html_text)).lower().words)
+        return list(
+                filter(lambda w : w not in punctuation,
+                    Text(html_to_text(html_text)).lower().words))
     except ValueError:
         # Empty sequence?
         return []
