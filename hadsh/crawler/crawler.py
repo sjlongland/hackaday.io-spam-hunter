@@ -442,6 +442,7 @@ class Crawler(object):
                                 inspect_time=datetime.datetime.now(tz=pytz.utc) \
                                         + datetime.timedelta(seconds=900.0),
                                 inspections=1)
+                        self._db.add(defuser)
                     else:
                         defuser.inspections += 1
                         defuser.inspect_time=datetime.datetime.now(tz=pytz.utc) \
