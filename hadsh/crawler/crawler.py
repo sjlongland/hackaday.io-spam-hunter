@@ -335,34 +335,33 @@ class Crawler(object):
                         # Carry on!
 
                 # How about the user's pages?
-                if user_data.get('pages'):
-                    try:
-                        pg_idx = 1
-                        pg_cnt = 1
-                        while pg_idx <= pg_cnt:
-                            page_res = yield self._api.get_user_pages(user.user_id,
-                                    page=pg_idx, per_page=50)
-                            self._log.debug('Pages for %s: %s',
-                                    user, page_res)
+                try:
+                    pg_idx = 1
+                    pg_cnt = 1
+                    while pg_idx <= pg_cnt:
+                        page_res = yield self._api.get_user_pages(user.user_id,
+                                page=pg_idx, per_page=50)
+                        self._log.debug('Pages for %s: %s',
+                                user, page_res)
 
-                            raw_pages = page_res.get('pages')
-                            if isinstance(raw_pages, list):
-                                for raw_page in raw_pages:
-                                    # Tokenise the name, summary and description
-                                    for field in ('title', 'body'):
-                                        if field not in raw_page:
-                                            continue
-                                        tally(raw_page[field])
-                                    self._db.commit()
+                        raw_pages = page_res.get('pages')
+                        if isinstance(raw_pages, list):
+                            for raw_page in raw_pages:
+                                # Tokenise the name, summary and description
+                                for field in ('title', 'body'):
+                                    if field not in raw_page:
+                                        continue
+                                    tally(raw_page[field])
+                                self._db.commit()
 
-                            pg_cnt = page_res.get('last_page',1)
+                        pg_cnt = page_res.get('last_page',1)
 
-                            # Next page
-                            pg_idx = page_res.get('page',1) + 1
-                    except:
-                        self._log.error('Failed to process user %s pages',
-                                user, exc_info=1)
-                        # Carry on!
+                        # Next page
+                        pg_idx = page_res.get('page',1) + 1
+                except:
+                    self._log.error('Failed to process user %s pages',
+                            user, exc_info=1)
+                    # Carry on!
 
                 if (age > 300.0) and ((user_data['projects'] / 60.0) > 5):
                     # More than 5 projects a minute on average.
