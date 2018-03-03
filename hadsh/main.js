@@ -112,7 +112,11 @@ var getNextPage = function() {
 
 						if (user.pending) {
 							userBox.appendChild(
-								document.createTextNode(' Re-inspection pending')
+								document.createTextNode(' Re-inspection pending ('
+									+ user.next_inspection
+									+ '; '
+									+ user.inspections
+									+ ' inspections)')
 							);
 						}
 
