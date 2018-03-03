@@ -442,9 +442,10 @@ class Crawler(object):
                 score.sort()
                 score = sum(score[:10])
 
+                defuser = self._db.query(DeferredUser).get(user_data['id'])
+
                 if defer and abs(score < 0.5):
                     # There's nothing to score.  Inspect again later.
-                    defuser = self._db.query(DeferredUser).get(user_data['id'])
                     if defuser is None:
                         defuser = DeferredUser(user_id=user_data['id'],
                                 inspect_time=datetime.datetime.now(tz=pytz.utc) \
@@ -461,6 +462,10 @@ class Crawler(object):
                             'inspect again after %s (inspections %s)',
                             user, score, defuser.inspect_time,
                             defuser.inspections)
+                elif defuser is not None:
+                    self._log.info('Cancelling deferred inspection for %s',
+                            user)
+                    self._db.delete(defuser)
 
                 self._log.debug('User %s [#%d] has score %f',
                         user.screen_name, user.user_id, score)
