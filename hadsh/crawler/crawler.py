@@ -116,7 +116,8 @@ class Crawler(object):
         for member_data in members_data:
             member = yield self.update_user_from_data(
                     member_data['user'],
-                    inspect_all=False)
+                    inspect_all=False,
+                    defer=False)
             members[member.user_id] = member
 
         # Current members in database
@@ -173,7 +174,7 @@ class Crawler(object):
         raise Return(avatar)
 
     @coroutine
-    def _inspect_user(self, user_data, user=None):
+    def _inspect_user(self, user_data, user=None, defer=True):
         """
         Inspect the user, see if they're worth investigating.
         """
@@ -437,7 +438,7 @@ class Crawler(object):
                     if wa.count > 0:
                         score.append(float(wa.score) / float(wa.count))
 
-                if not score:
+                if defer and (not score):
                     # There's nothing to score.  Inspect again later.
                     defuser = self._db.query(DeferredUser).get(user_data['id'])
                     if defuser is None:
@@ -503,7 +504,7 @@ class Crawler(object):
             raise
 
     @coroutine
-    def update_user_from_data(self, user_data, inspect_all=True):
+    def update_user_from_data(self, user_data, inspect_all=True, defer=True):
         """
         Update a user in the database from data retrieved via the API.
         """
@@ -540,7 +541,7 @@ class Crawler(object):
 
         # Inspect the user
         if inspect_all or (user.last_update is None):
-            yield self._inspect_user(user_data, user=user)
+            yield self._inspect_user(user_data, user=user, defer=defer)
             user.last_update = datetime.datetime.now(tz=pytz.utc)
         self._db.commit()
 
@@ -629,7 +630,8 @@ class Crawler(object):
         self._log.info('Beginning historical user retrieval')
         if not self._api.is_forbidden:
             try:
-                yield self.fetch_new_users(page=self._refresh_hist_page)
+                yield self.fetch_new_users(page=self._refresh_hist_page,
+                        defer=False)
                 self._refresh_hist_page += 1
             except InvalidRequestError:
                 # SQL cock up, roll back.
@@ -645,7 +647,7 @@ class Crawler(object):
                 self._background_fetch_hist_users)
 
     @coroutine
-    def fetch_new_users(self, page=1, inspect_all=False):
+    def fetch_new_users(self, page=1, inspect_all=False, defer=True):
         """
         Retrieve new users from the Hackaday.io API and inspect the new arrivals.
         Returns the list of users on the given page and the total number of pages.
@@ -678,7 +680,7 @@ class Crawler(object):
             for user_data in new_user_data['users']:
                 try:
                     user = yield self.update_user_from_data(
-                            user_data, inspect_all)
+                            user_data, inspect_all, defer=True)
                 except InvalidUser:
                     continue
 
