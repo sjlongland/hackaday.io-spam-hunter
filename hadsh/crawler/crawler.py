@@ -454,7 +454,7 @@ class Crawler(object):
 
                 defuser = self._db.query(DeferredUser).get(user_data['id'])
 
-                if defer and abs(score < 0.5):
+                if defer and (abs(score < 0.5) or (age < 3600.0)):
                     # There's nothing to score.  Inspect again later.
                     if defuser is None:
                         defuser = DeferredUser(user_id=user_data['id'],
@@ -468,9 +468,9 @@ class Crawler(object):
                                         + datetime.timedelta(
                                                 seconds=900.0 \
                                                         * defuser.inspections)
-                    self._log.info('User %s has low score %f, '\
+                    self._log.info('User %s has score %f and age %f, '\
                             'inspect again after %s (inspections %s)',
-                            user, score, defuser.inspect_time,
+                            user, score, age, defuser.inspect_time,
                             defuser.inspections)
                 elif defuser is not None:
                     self._log.info('Cancelling deferred inspection for %s',
