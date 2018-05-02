@@ -181,6 +181,18 @@ class HackadayAPI(object):
             while True:
                 try:
                     response = yield self._client.fetch(uri, **kwargs)
+                    self._log.debug('Request:\n'
+                        '%s %s\n'
+                        'Headers: %s\n'
+                        'Response: %s\n'
+                        'Headers: %s\n'
+                        'Body:\n%s',
+                        response.request.method,
+                        response.request.url,
+                        response.request.headers,
+                        response.code,
+                        response.headers,
+                        response.body)
                     break
                 except gaierror as e:
                     if e.errno != EAGAIN:
@@ -264,6 +276,18 @@ class HackadayAPI(object):
         response = yield self._client.fetch(
                 'https://hackaday.io/hackers?sort=%s&page=%d' \
                         % (sortby.value, page))
+        self._log.debug('Request:\n'
+            '%s %s\n'
+            'Headers: %s\n'
+            'Response: %s\n'
+            'Headers: %s\n'
+            'Body:\n%s',
+            response.request.method,
+            response.request.url,
+            response.request.headers,
+            response.code,
+            response.headers,
+            response.body)
         (ct, ctopts, body) = self._decode(response)
 
         # Body is in HTML
