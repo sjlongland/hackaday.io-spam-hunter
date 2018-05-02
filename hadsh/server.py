@@ -515,6 +515,9 @@ class HADSHApp(Application):
         self._db_uri = db_uri
         # Session management connection
         self._session_db = get_db(db_uri)
+        AsyncHTTPClient.configure(
+                None, defaults=dict(
+                    user_agent="HADSH/0.0.1 (https://hackaday.io/project/29161-hackadayio-spambot-hunter-project)"))
         self._client = AsyncHTTPClient()
         self._api = HackadayAPI(client_id=client_id,
                 client_secret=client_secret, api_key=api_key,
