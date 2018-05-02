@@ -575,6 +575,7 @@ class Crawler(object):
 
         if new:
             self.new_user_event.set()
+        self._log.debug('User %s up-to-date', user)
         raise Return(user)
 
     @coroutine
@@ -603,6 +604,7 @@ class Crawler(object):
                                 pass
                             except SQLAlchemyError:
                                 self._db.rollback()
+                self._log.debug('Successfully fetched new users')
             except:
                 self._log.exception('Failed to retrieve newer users')
 
@@ -642,6 +644,7 @@ class Crawler(object):
                                     pass
                                 except SQLAlchemyError:
                                     self._db.rollback()
+                self._log.debug('Successfully fetched deferred users')
             except:
                 self._log.exception('Failed to retrieve deferred users')
 
