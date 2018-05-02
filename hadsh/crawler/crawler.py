@@ -109,6 +109,9 @@ class Crawler(object):
             team_data = yield self._api.get_project_team(
                     self._project_id, sortby=UserSortBy.influence,
                     page=page, per_page=50)
+            self._log.debug('Retrieved team member page %d of %d',
+                    team_data.get('page',page),
+                    team_data.get('last_page',page_cnt))
             members_data.extend(team_data['team'])
             page += 1
             page_cnt = team_data['last_page']
@@ -269,7 +272,10 @@ class Crawler(object):
                 while pg_idx <= pg_cnt:
                     link_res = yield self._api.get_user_links(user.user_id,
                             page=pg_idx, per_page=50)
-
+                    self._log.debug('Retrieved user %s link page %d of %d',
+                            user,
+                            link_res.get('page',pg_idx),
+                            link_res.get('last_page',pg_cnt))
                     if link_res['links'] == 0:
                         # No links, yes sometimes it's an integer.
                         break
@@ -321,7 +327,8 @@ class Crawler(object):
                         pg_idx = 1
                         pg_cnt = 1
                         while pg_idx <= pg_cnt:
-                            prj_res = yield self._api.get_user_projects(user.user_id,
+                            prj_res = yield self._api.get_user_projects(
+                                    user.user_id,
                                     page=pg_idx, per_page=50)
                             self._log.debug('Projects for %s: %s',
                                     user, prj_res)
@@ -580,7 +587,7 @@ class Crawler(object):
 
                 user_data = yield self._api.get_users(ids=slice(start, end),
                         per_page=50)
-                self._log.debug('Received: %s', user_data)
+                self._log.debug('Received new users: %s', user_data)
                 if isinstance(user_data['users'], list):
                     for this_user_data in user_data['users']:
                         while True:
@@ -619,7 +626,7 @@ class Crawler(object):
                     self._log.debug('Scanning %s', ids)
 
                     user_data = yield self._api.get_users(ids=ids, per_page=50)
-                    self._log.debug('Received: %s', user_data)
+                    self._log.debug('Received deferred users: %s', user_data)
                     if isinstance(user_data['users'], list):
                         for this_user_data in user_data['users']:
                             while True:
@@ -684,6 +691,9 @@ class Crawler(object):
 
             new_user_data = yield self._api.get_users(sortby=UserSortBy.newest,
                     page=page, per_page=50)
+            self._log.debug('Retrieved new user page %d of %d',
+                    new_user_data.get('page',page),
+                    new_user_data.get('last_page', 0))
             if page > 1:
                 if last_refresh is None:
                     last_refresh = NewestUserPageRefresh(
