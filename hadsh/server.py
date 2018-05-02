@@ -283,6 +283,8 @@ class NewcomerDataHandler(AuthRequestHandler):
 
             self.set_status(200)
             self.set_header('Content-Type', 'application/json')
+            self.set_header('Cache-Control',
+                    'no-cache, no-store, must-revalidate')
             self.write(json.dumps({
                     'page': page,
                     'users': list(map(_dump_user, new_users))
