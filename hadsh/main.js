@@ -1,6 +1,5 @@
 
 /* Window state */
-var page = 1;
 var textbox = null;
 var busy = false;
 
@@ -76,6 +75,9 @@ var getNextPage = function() {
 	};
 	nextSpinner();
 
+	var found = 0;
+	var displayed = 0;
+
 	rq.onreadystatechange = function() {
 		try {
 			if (this.readyState == 4) {
@@ -85,6 +87,7 @@ var getNextPage = function() {
 
 				if (this.status === 200) {
 					var data = JSON.parse(rq.responseText);
+					found += data.users.length;
 					data.users.forEach(function (user) {
 						if ((newest_uid === null)
 							|| (newest_uid < user.id))
@@ -98,6 +101,7 @@ var getNextPage = function() {
 						if (user.pending && (Object.keys(user.words).length === 0)) {
 							return
 						}
+						displayed++;
 
 						var userBox = document.createElement('div');
 						userBox.style.border = '1px solid black';
@@ -429,7 +433,10 @@ var getNextPage = function() {
 
 						textbox.appendChild(userBox);
 					});
-					page = data.page + 1;
+
+					if (found && !displayed) {
+						setTimeout(getNextPage, 10);
+					}
 				}
 				busy = false;
 			}
