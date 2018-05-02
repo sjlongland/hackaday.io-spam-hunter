@@ -183,6 +183,7 @@ class Crawler(object):
         Inspect the user, see if they're worth investigating.
         """
         if user_data['id'] in self._deleted_users:
+            self._log.debug('User %d is deleted', user_data['id'])
             return
 
         try:
@@ -522,6 +523,7 @@ class Crawler(object):
                 self._auto_legit.users.append(user)
 
             self._db.commit()
+            self._log.debug('Finished inspecting %s', user_data)
         except:
             self._log.error('Failed to process user data %r',
                     user_data, exc_info=1)
@@ -532,6 +534,7 @@ class Crawler(object):
         """
         Update a user in the database from data retrieved via the API.
         """
+        self._log.debug('Inspecting user data: %s', user_data)
         avatar = self.get_avatar(user_data['image_url'])
 
         # Look up the user in the database
@@ -557,6 +560,7 @@ class Crawler(object):
             self._db.add(user)
         else:
             # Existing user, update the user details
+            self._log.debug('Updating existing user %s', user)
             user.screen_name = user_data['screen_name']
             user.avatar_id=avatar.avatar_id
             user.url = user_data['url']
