@@ -297,10 +297,7 @@ class HackadayAPI(object):
             if match:
                 ids.append(int(match.group(1)))
 
-        # Find highest ID number and subtract per_page.
-        last = max(ids)
-        first = last - per_page
-        users = yield self.get_users(ids=slice(first,last))
+        users = yield self.get_users(ids=ids, per_page=per_page)
         raise Return(users)
 
 
