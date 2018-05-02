@@ -644,6 +644,17 @@ class Crawler(object):
                                     pass
                                 except SQLAlchemyError:
                                     self._db.rollback()
+                    else:
+                        # Mark as checked
+                        for user_id in ids:
+                            self._log.debug('Deferring user ID %d', user_id)
+                            du = self._db.query(DeferredUser).get(user_id)
+                            du.inspections += 1
+                            du.inspect_time=datetime.datetime.now(tz=pytz.utc) \
+                                            + datetime.timedelta(
+                                                seconds=900.0 * du.inspections)
+                        self._db.commit()
+
                 self._log.debug('Successfully fetched deferred users')
             except:
                 self._log.exception('Failed to retrieve deferred users')
