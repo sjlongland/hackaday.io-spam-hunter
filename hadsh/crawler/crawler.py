@@ -462,7 +462,8 @@ class Crawler(object):
 
                 defuser = self._db.query(DeferredUser).get(user_data['id'])
 
-                if defer and (abs(score < 0.5) or (age < 3600.0)):
+                if (defer and (abs(score < 0.5) or (age < 3600.0))) \
+                        and (age < 2419200.0):
                     # There's nothing to score.  Inspect again later.
                     if defuser is None:
                         defuser = DeferredUser(user_id=user_data['id'],
