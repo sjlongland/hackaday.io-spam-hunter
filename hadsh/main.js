@@ -71,7 +71,11 @@ var getNextPage = function() {
 				break;
 		}
 
-		loading_msg.innerHTML = 'Loading' + dots + spinner;
+		loading_msg.innerHTML = 'Loading'
+			+ ((oldest_uid !== null)
+				? (' users older than #' + oldest_uid)
+				: (' most recent users'))
+			+ dots + spinner;
 	};
 	nextSpinner();
 
