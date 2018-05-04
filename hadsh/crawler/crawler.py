@@ -551,7 +551,8 @@ class Crawler(object):
             raise
 
     @coroutine
-    def update_user_from_data(self, user_data, inspect_all=True, defer=True):
+    def update_user_from_data(self, user_data, inspect_all=True,
+            defer=True, return_new=False):
         """
         Update a user in the database from data retrieved via the API.
         """
@@ -597,6 +598,8 @@ class Crawler(object):
         if new:
             self.new_user_event.set()
         self._log.debug('User %s up-to-date', user)
+        if return_new:
+            raise Return((user, new))
         raise Return(user)
 
     @coroutine
@@ -698,10 +701,9 @@ class Crawler(object):
         users = []
         if not self._api.is_forbidden:
             try:
-                users.extend(
-                        yield self.fetch_new_users(
+                users = yield self.fetch_new_users(
                             page=self._refresh_hist_page,
-                            defer=False))
+                            defer=False, return_new=True)
                 self._refresh_hist_page += 1
             except SQLAlchemyError:
                 # SQL cock up, roll back.
@@ -711,14 +713,25 @@ class Crawler(object):
             except:
                 self._log.exception('Failed to retrieve older users')
 
-        delay = self._config['old_user_fetch_interval']
+        # Are there new users in this list?
+        new = False
+        for (_, is_new) in users:
+            if is_new:
+                new = True
+                break
+
+        # If we saw no new users but lots of old users, we're behind, catch up.
+        delay = self._config['old_user_catchup_interval'] \
+                if users and (not new) \
+                else self._config['old_user_fetch_interval']
         self._log.info('Next historical user fetch in %.3f sec', delay)
         self._io_loop.add_timeout(
                 self._io_loop.time() + delay,
                 self._background_fetch_hist_users)
 
     @coroutine
-    def fetch_new_users(self, page=1, inspect_all=False, defer=True):
+    def fetch_new_users(self, page=1, inspect_all=False, defer=True,
+            return_new=False):
         """
         Retrieve new users from the Hackaday.io API and inspect the new arrivals.
         Returns the list of users on the given page and the total number of pages.
@@ -753,8 +766,9 @@ class Crawler(object):
 
             for user_data in new_user_data['users']:
                 try:
-                    user = yield self.update_user_from_data(
-                            user_data, inspect_all, defer=True)
+                    (user, new) = yield self.update_user_from_data(
+                            user_data, inspect_all, defer=True,
+                            return_new=True)
                 except InvalidUser:
                     continue
 
@@ -765,7 +779,11 @@ class Crawler(object):
                     self._log.debug('Skipping user %s due to group membership %s',
                             user.screen_name, user_groups)
                     continue
-                users.append(user)
+
+                if return_new:
+                    users.append((user, new))
+                else:
+                    users.append(user)
             page += 1
 
         raise Return((users, page, new_user_data.get('last_page')))
