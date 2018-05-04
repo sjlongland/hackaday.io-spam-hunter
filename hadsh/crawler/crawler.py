@@ -39,16 +39,16 @@ class InvalidUser(ValueError):
 class Crawler(object):
 
     DEFAULT_CONFIG = {
-            init_delay: 5.0,
-            new_user_fetch_interval: 900.0,
-            defer_delay: 900.0,
-            deferred_check_interval: 900.0,
-            defer_min_age: 3600.0,
-            defer_max_age: 2419200.0,
-            defer_max_count: 5,
-            old_user_fetch_interval: 60.0,
-            old_user_catchup_interval: 15.0,
-            admin_user_fetch_interval: 86400.0,
+            'init_delay': 5.0,
+            'new_user_fetch_interval': 900.0,
+            'defer_delay': 900.0,
+            'deferred_check_interval': 900.0,
+            'defer_min_age': 3600.0,
+            'defer_max_age': 2419200.0,
+            'defer_max_count': 5,
+            'old_user_fetch_interval': 60.0,
+            'old_user_catchup_interval': 15.0,
+            'admin_user_fetch_interval': 86400.0,
     }
 
     def __init__(self, project_id, db, api, client, log,
