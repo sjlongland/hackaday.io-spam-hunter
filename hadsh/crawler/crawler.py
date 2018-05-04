@@ -37,12 +37,29 @@ class InvalidUser(ValueError):
 
 
 class Crawler(object):
-    def __init__(self, project_id, db, api, client, log, io_loop=None):
+
+    DEFAULT_CONFIG = {
+            init_delay: 5.0,
+            new_user_fetch_interval: 900.0,
+            defer_delay: 900.0,
+            deferred_check_interval: 900.0,
+            defer_min_age: 3600.0,
+            defer_max_age: 2419200.0,
+            defer_max_count: 5,
+            old_user_fetch_interval: 60.0,
+            old_user_catchup_interval: 15.0,
+            admin_user_fetch_interval: 86400.0,
+    }
+
+    def __init__(self, project_id, db, api, client, log,
+            config=None, io_loop=None):
         self._project_id = project_id
         self._log = log
         self._db = db
         self._api = api
         self._client = client
+        self._config = self.DEFAULT_CONFIG
+        self._config.update(config or {})
 
         # Oldest page refreshed
         oldest_page = \
@@ -52,8 +69,8 @@ class Crawler(object):
             # No pages fetched, start at the first page.
             self._refresh_hist_page = 1
         else:
-            # Go back 10 pages from that in case things have moved on.
-            self._refresh_hist_page = max([1, oldest_page.page_num - 10])
+            # Start at last visited page.
+            self._refresh_hist_page = oldest_page.page_num
 
         if io_loop is None:
             io_loop = IOLoop.current()
@@ -69,13 +86,13 @@ class Crawler(object):
         self._refresh_admin_group_timeout = None
         self._io_loop.add_callback(self.refresh_admin_group)
         self._io_loop.add_timeout(
-                self._io_loop.time() + 5,
+                self._io_loop.time() + self._config['init_delay'],
                 self._background_fetch_new_users)
         self._io_loop.add_timeout(
-                self._io_loop.time() + 5,
+                self._io_loop.time() + self._config['init_delay'],
                 self._background_fetch_hist_users)
         self._io_loop.add_timeout(
-                self._io_loop.time() + 10.0,
+                self._io_loop.time() + self._config['init_delay'],
                 self._background_inspect_deferred)
 
         # Event to indicate when new users have been added
@@ -143,7 +160,8 @@ class Crawler(object):
 
         # Schedule this to run again tomorrow.
         self._refresh_admin_group_timeout = self._io_loop.add_timeout(
-                self._io_loop.time() + 86400.0,
+                self._io_loop.time()
+                    + self._config['admin_user_fetch_interval'],
                 self.refresh_admin_group)
 
     def get_avatar(self, avatar_url):
@@ -462,20 +480,22 @@ class Crawler(object):
 
                 defuser = self._db.query(DeferredUser).get(user_data['id'])
 
-                if (defer and (abs(score < 0.5) or (age < 3600.0))) \
-                        and (age < 2419200.0):
+                if (defer and (abs(score < 0.5) \
+                        or (age < self._config['defer_min_age']))) \
+                        and (age < self._config['defer_max_age']):
                     # There's nothing to score.  Inspect again later.
                     if defuser is None:
                         defuser = DeferredUser(user_id=user_data['id'],
                                 inspect_time=datetime.datetime.now(tz=pytz.utc) \
-                                        + datetime.timedelta(seconds=900.0),
+                                        + datetime.timedelta(
+                                            seconds=self._config['defer_delay']),
                                 inspections=1)
                         self._db.add(defuser)
                     else:
                         defuser.inspections += 1
                         defuser.inspect_time=datetime.datetime.now(tz=pytz.utc) \
                                         + datetime.timedelta(
-                                                seconds=900.0 \
+                                                seconds=self._config['defer_delay'] \
                                                         * defuser.inspections)
                     self._log.info('User %s has score %f and age %f, '\
                             'inspect again after %s (inspections %s)',
@@ -609,9 +629,10 @@ class Crawler(object):
             except:
                 self._log.exception('Failed to retrieve newer users')
 
-        self._log.info('Next user scan in 15 minutes')
+        delay = self._config['new_user_fetch_interval']
+        self._log.info('Next user scan in %.3f sec', delay)
         self._io_loop.add_timeout(
-                self._io_loop.time() + 900.0,
+                self._io_loop.time() + delay,
                 self._background_fetch_new_users)
 
     @coroutine
@@ -624,7 +645,8 @@ class Crawler(object):
             try:
                 # Grab a handful of deferred users
                 ids = [u.user_id for u in self._db.query(DeferredUser).filter(
-                        DeferredUser.inspections < 5,
+                        DeferredUser.inspections \
+                                < self._config['defer_max_count'],
                         DeferredUser.inspect_time <
                             datetime.datetime.now(tz=pytz.utc)).order_by(
                                     DeferredUser.inspect_time).limit(50).all()]
@@ -653,16 +675,18 @@ class Crawler(object):
                             du.inspections += 1
                             du.inspect_time=datetime.datetime.now(tz=pytz.utc) \
                                             + datetime.timedelta(
-                                                seconds=900.0 * du.inspections)
+                                                seconds=self._config['defer_delay']
+                                                * du.inspections)
                         self._db.commit()
 
                 self._log.debug('Successfully fetched deferred users')
             except:
                 self._log.exception('Failed to retrieve deferred users')
 
-        self._log.info('Next deferred user scan in 15 minutes')
+        delay = self._config['deferred_check_interval']
+        self._log.info('Next deferred user scan in %.3f sec', delay)
         self._io_loop.add_timeout(
-                self._io_loop.time() + 900.0,
+                self._io_loop.time() + delay,
                 self._background_inspect_deferred)
 
     @coroutine
@@ -671,10 +695,13 @@ class Crawler(object):
         Try to retrieve users registered earlier.
         """
         self._log.info('Beginning historical user retrieval')
+        users = []
         if not self._api.is_forbidden:
             try:
-                yield self.fetch_new_users(page=self._refresh_hist_page,
-                        defer=False)
+                users.extend(
+                        yield self.fetch_new_users(
+                            page=self._refresh_hist_page,
+                            defer=False))
                 self._refresh_hist_page += 1
             except SQLAlchemyError:
                 # SQL cock up, roll back.
@@ -684,9 +711,10 @@ class Crawler(object):
             except:
                 self._log.exception('Failed to retrieve older users')
 
-        self._log.info('Next historical user fetch in 15 minutes')
+        delay = self._config['old_user_fetch_interval']
+        self._log.info('Next historical user fetch in %.3f sec', delay)
         self._io_loop.add_timeout(
-                self._io_loop.time() + 900.0,
+                self._io_loop.time() + delay,
                 self._background_fetch_hist_users)
 
     @coroutine
