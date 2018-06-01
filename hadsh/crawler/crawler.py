@@ -609,26 +609,27 @@ class Crawler(object):
         """
         if not self._api.is_forbidden:
             self._log.info('Scanning for new users')
+            page = 1
             try:
-                newest = self._db.query(User).order_by(User.user_id.desc()).first()
-                start = newest.user_id + 1
-                end = start + 50
+                seen_new = False
+                while not seen_new:
+                    (users, page, _) = yield self.fetch_new_users(
+                            page=1, inspect_all=True, defer=True, return_new=True)
 
-                user_data = yield self._api.get_users(ids=slice(start, end),
-                        per_page=50)
-                self._log.debug('Received new users: %s', user_data)
-                if isinstance(user_data['users'], list):
-                    for this_user_data in user_data['users']:
-                        while True:
-                            try:
-                                yield self.update_user_from_data(
-                                        this_user_data, inspect_all=True)
-                                break
-                            except InvalidUser:
-                                pass
-                            except SQLAlchemyError:
-                                self._db.rollback()
-                self._log.debug('Successfully fetched new users')
+                    # Are there any users returned?
+                    if len(users) < 0:
+                        break
+
+                    seen_new = False
+                    for (user, new) in users:
+                        self._log.debug('Scanned %s user %s',
+                                "new" if new else "existing",
+                                user)
+                        if new:
+                            seen_new = True
+
+                    self._log.debug('Successfully fetched new users on page %d',
+                            page)
             except:
                 self._log.exception('Failed to retrieve newer users')
 
