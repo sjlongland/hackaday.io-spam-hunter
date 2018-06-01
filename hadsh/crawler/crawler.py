@@ -630,6 +630,11 @@ class Crawler(object):
 
                     self._log.debug('Successfully fetched new users on page %d',
                             page)
+            except SQLAlchemyError:
+                # SQL cock up, roll back.
+                self._db.rollback()
+                self._log.exception('Failed to retrieve newer users'\
+                        ': database rolled back')
             except:
                 self._log.exception('Failed to retrieve newer users')
 
