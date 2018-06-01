@@ -705,7 +705,6 @@ class Crawler(object):
                 users = yield self.fetch_new_users(
                             page=self._refresh_hist_page,
                             defer=False, return_new=True)
-                self._refresh_hist_page += 1
             except SQLAlchemyError:
                 # SQL cock up, roll back.
                 self._db.rollback()
@@ -716,7 +715,7 @@ class Crawler(object):
 
         # Are there new users in this list?
         new = False
-        for (_, is_new) in users:
+        for (_, is_new, self._refresh_hist_page) in users:
             if is_new:
                 new = True
                 break
