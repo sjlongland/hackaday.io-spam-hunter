@@ -46,8 +46,8 @@ class Crawler(object):
             'defer_min_age': 3600.0,
             'defer_max_age': 2419200.0,
             'defer_max_count': 5,
-            'old_user_fetch_interval': 60.0,
-            'old_user_catchup_interval': 15.0,
+            'old_user_fetch_interval': 300.0,
+            'old_user_catchup_interval': 60.0,
             'admin_user_fetch_interval': 86400.0,
     }
 
