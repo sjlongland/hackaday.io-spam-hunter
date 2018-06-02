@@ -360,7 +360,7 @@ class Crawler(object):
 
                 # Does the user have a lot of projects in a short time?
                 age = (datetime.datetime.now(tz=pytz.utc) - \
-                        user.created).total_seconds()
+                        user.had_created).total_seconds()
 
                 # How about the content of those projects?
                 if user_data.get('projects'):
