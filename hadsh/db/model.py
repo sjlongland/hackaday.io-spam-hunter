@@ -1,7 +1,7 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, BigInteger, String, ForeignKey, \
-        Boolean, LargeBinary, Text, DateTime, Table, Integer
+        LargeBinary, Text, DateTime, Table, Integer
 from sqlalchemy.dialects.postgresql import UUID
 
 Base = declarative_base()
@@ -30,6 +30,7 @@ class User(Base):
     url             = Column(String)
     avatar_id       = Column(BigInteger, ForeignKey('avatar.avatar_id'))
     created         = Column(DateTime(timezone=True))
+    had_created     = Column(DateTime(timezone=True))
     last_update     = Column(DateTime(timezone=True))
 
     sessions = relationship("Session", back_populates="user",
