@@ -476,7 +476,7 @@ class CallbackHandler(RequestHandler):
 
                 user_data = yield self.application._api.get_current_user(token)
             except HTTPError as e:
-                if e.code == 403:
+                if e.code in (400, 403):
                     # We've been blocked.
                     self.set_header('Content-Type', e.response.headers['Content-Type'])
                     self.write(e.response.body)
