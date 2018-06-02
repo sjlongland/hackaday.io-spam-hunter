@@ -324,7 +324,7 @@ class HackadayAPI(object):
             if match:
                 ids.append(int(match.group(1)))
 
-        users = yield self.get_users(ids=ids, per_page=per_page)
+        users = yield self.get_users(ids=ids)
         raise Return(users)
 
 
