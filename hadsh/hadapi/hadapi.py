@@ -142,6 +142,68 @@ class HackadayAPI(object):
                 default_encoding)
 
     @coroutine
+    def api_fetch(self, uri, **kwargs):
+        """
+        Make a raw request whilst respecting the HAD API request limits.
+
+        This is primarily to support retrieval of avatars and other data
+        without hitting the HAD.io site needlessly hard.
+        """
+        if 'connect_timeout' not in kwargs:
+            kwargs['connect_timeout'] = 120.0
+        if 'request_timeout' not in kwargs:
+            kwargs['request_timeout'] = 120.0
+
+        try:
+            yield self._rq_sem.acquire()
+            yield self._ratelimit_sleep()
+            while True:
+                try:
+                    response = yield self._client.fetch(uri, **kwargs)
+                    self._log.debug('Request:\n'
+                        '%s %s\n'
+                        'Headers: %s\n'
+                        'Response: %s\n'
+                        'Headers: %s\n'
+                        'Body:\n%s',
+                        response.request.method,
+                        response.request.url,
+                        response.request.headers,
+                        response.code,
+                        response.headers,
+                        response.body)
+                    break
+                except gaierror as e:
+                    if e.errno != EAGAIN:
+                        raise
+                    raise
+                except HTTPError as e:
+                    self._log.debug('Request:\n'
+                        '%s %s\n'
+                        'Headers: %s\n'
+                        'Response: %s\n'
+                        'Headers: %s\n'
+                        'Body:\n%s',
+                        e.response.request.method,
+                        e.response.request.url,
+                        e.response.request.headers,
+                        e.response.code,
+                        e.response.headers,
+                        e.response.body)
+                    if e.code == 403:
+                        # Back-end is rate limiting us.  Back off an hour.
+                        self._forbidden_expiry = self._io_loop.time() \
+                                + 3600.0
+                    raise
+                except ConnectionResetError:
+                    # Back-end is blocking us.  Back off a minute.
+                    self._forbidden_expiry = self._io_loop.time() \
+                            + 60.0
+                    raise
+        finally:
+            self._rq_sem.release()
+
+    @coroutine
     def _api_call(self, uri, query=None, token=None, api_key=True, **kwargs):
         headers = kwargs.setdefault('headers', {})
         headers.setdefault('Accept', 'application/json')
@@ -169,59 +231,8 @@ class HackadayAPI(object):
         if not uri.startswith('http'):
             uri = self._api_uri + uri
 
-        if 'connect_timeout' not in kwargs:
-            kwargs['connect_timeout'] = 120.0
-        if 'request_timeout' not in kwargs:
-            kwargs['request_timeout'] = 120.0
-
-        try:
-            yield self._rq_sem.acquire()
-            yield self._ratelimit_sleep()
-            self._log.debug('%s %r', kwargs.get('method','GET'), uri)
-            while True:
-                try:
-                    response = yield self._client.fetch(uri, **kwargs)
-                    self._log.debug('Request:\n'
-                        '%s %s\n'
-                        'Headers: %s\n'
-                        'Response: %s\n'
-                        'Headers: %s\n'
-                        'Body:\n%s',
-                        response.request.method,
-                        response.request.url,
-                        response.request.headers,
-                        response.code,
-                        response.headers,
-                        response.body)
-                    break
-                except gaierror as e:
-                    if e.errno != EAGAIN:
-                        raise
-                except HTTPError as e:
-                    self._log.debug('Request:\n'
-                        '%s %s\n'
-                        'Headers: %s\n'
-                        'Response: %s\n'
-                        'Headers: %s\n'
-                        'Body:\n%s',
-                        e.response.request.method,
-                        e.response.request.url,
-                        e.response.request.headers,
-                        e.response.code,
-                        e.response.headers,
-                        e.response.body)
-                    if e.code == 403:
-                        # Back-end is rate limiting us.  Back off an hour.
-                        self._forbidden_expiry = self._io_loop.time() \
-                                + 3600.0
-                    raise
-                except ConnectionResetError:
-                    # Back-end is blocking us.  Back off a minute.
-                    self._forbidden_expiry = self._io_loop.time() \
-                            + 60.0
-                    raise
-        finally:
-            self._rq_sem.release()
+        self._log.debug('%s %r', kwargs.get('method','GET'), uri)
+        response = yield self.api_fetch(uri, **kwargs)
 
         # If we get here, then our service is back.
         self._forbidden_expiry = None
@@ -282,15 +293,12 @@ class HackadayAPI(object):
     _GET_USERS_WORKAROUND_RE = re.compile(
             '    <a href="/hacker/(\d+)" class="hacker-image">')
     @coroutine
-    def _get_users_workaround(self, sortby=UserSortBy.influence, page=None,
-            per_page=None):
+    def _get_users_workaround(self, sortby=UserSortBy.influence, page=None):
         if page is None:
             page = 1
-        if per_page is None:
-            per_page = 50
 
         sortby = UserSortBy(sortby)
-        response = yield self._client.fetch(
+        response = yield self.api_fetch(
                 'https://hackaday.io/hackers?sort=%s&page=%d' \
                         % (sortby.value, page))
         self._log.debug('Request:\n'
@@ -329,8 +337,8 @@ class HackadayAPI(object):
         if ids is None:
             # sortby==newest is broken, has been for a while now.
             if sortby == UserSortBy.newest:
-                result = yield self._get_users_workaround(sortby,
-                        query.get('page'), query.get('per_page'))
+                result = yield self._get_users_workaround(
+                        sortby, query.get('page'))
             else:
                 result = yield self._api_call('/users', query=query)
         elif isinstance(ids, slice):
