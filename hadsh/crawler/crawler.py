@@ -583,13 +583,8 @@ class Crawler(object):
 
         # Look up the user in the database
         user = self._db.query(User).get(user_data['id'])
-
-        user_created_ts=user_data['created']
-        if user_created_ts:
-            user_created = datetime.datetime.fromtimestamp(
-                            user_data['created'], tz=pytz.utc)
-        else:
-            user_created = datetime.datetime.now(pytz.utc)
+        user_created = datetime.datetime.fromtimestamp(
+                        user_data['created'], tz=pytz.utc)
 
         new = user is None
         if new:
@@ -598,7 +593,8 @@ class Crawler(object):
                         screen_name=user_data['screen_name'],
                         url=user_data['url'],
                         avatar_id=avatar.avatar_id,
-                        created=user_created)
+                        created=datetime.datetime.now(pytz.utc),
+                        had_created=user_created)
             self._log.info('New user: %s [#%d]',
                     user.screen_name, user.user_id)
             self._db.add(user)
@@ -609,7 +605,8 @@ class Crawler(object):
             user.avatar_id=avatar.avatar_id
             user.url = user_data['url']
             if user.created is None:
-                user.created = user_created
+                user.created = datetime.datetime.now(pytz.utc)
+            user.had_created = user_created
 
         # Inspect the user
         if inspect_all or (user.last_update is None):
