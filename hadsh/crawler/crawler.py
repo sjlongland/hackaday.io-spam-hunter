@@ -729,7 +729,8 @@ class Crawler(object):
         users = []
         if not self._api.is_forbidden:
             try:
-                users = yield self.fetch_new_users(
+                (users, self._refresh_hist_page, _) = \
+                        yield self.fetch_new_users(
                             page=self._refresh_hist_page,
                             defer=False, return_new=True)
             except SQLAlchemyError:
@@ -742,7 +743,7 @@ class Crawler(object):
 
         # Are there new users in this list?
         new = False
-        for (_, is_new, self._refresh_hist_page) in users:
+        for (_, is_new) in users:
             if is_new:
                 new = True
                 break
