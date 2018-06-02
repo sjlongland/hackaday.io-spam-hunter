@@ -203,6 +203,8 @@ class HackadayAPI(object):
         finally:
             self._rq_sem.release()
 
+        raise Return(response)
+
     @coroutine
     def _api_call(self, uri, query=None, token=None, api_key=True, **kwargs):
         headers = kwargs.setdefault('headers', {})
