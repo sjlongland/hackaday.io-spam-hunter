@@ -521,13 +521,11 @@ class HADSHApp(Application):
         AsyncHTTPClient.configure(
                 None, defaults=dict(
                     user_agent="HADSH/0.0.1 (https://hackaday.io/project/29161-hackadayio-spambot-hunter-project)"))
-        self._client = AsyncHTTPClient()
         self._api = HackadayAPI(client_id=client_id,
                 client_secret=client_secret, api_key=api_key,
-                client=self._client, log=self._log.getChild('api'))
+                client=AsyncHTTPClient(), log=self._log.getChild('api'))
         self._crawler = Crawler(project_id, admin_uid, get_db(db_uri),
-                self._api, self._client,
-                self._log.getChild('crawler'))
+                self._api, self._log.getChild('crawler'))
         self._pool = WorkerPool(thread_count)
         self._resizer = ImageResizer(self._log.getChild('resizer'),
                 self._pool)
