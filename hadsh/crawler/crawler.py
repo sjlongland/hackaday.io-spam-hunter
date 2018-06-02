@@ -67,7 +67,7 @@ class Crawler(object):
             'admin_user_fetch_interval': 86400.0,
     }
 
-    def __init__(self, project_id, admin_uid, db, api, client, log,
+    def __init__(self, project_id, admin_uid, db, api, log,
             config=None, io_loop=None):
         self._project_id = project_id
         self._admin_uid = admin_uid
@@ -75,7 +75,6 @@ class Crawler(object):
         self._log = log
         self._db = db
         self._api = api
-        self._client = client
         self._config = self.DEFAULT_CONFIG
         self._config.update(config or {})
 
@@ -223,10 +222,8 @@ class Crawler(object):
             # We don't have the avatar yet
             self._log.debug('Retrieving avatar at %s',
                     avatar.url)
-            avatar_res = yield self._client.fetch(
-                    avatar.url,
-                    connect_timeout=120,
-                    request_timeout=120)
+            avatar_res = yield self._api.api_fetch(
+                    avatar.url)
             avatar.avatar_type = avatar_res.headers['Content-Type']
             avatar.avatar=avatar_res.body
             self._db.commit()
@@ -256,10 +253,8 @@ class Crawler(object):
             try:
                 while True:
                     try:
-                        result = yield self._client.fetch(
-                                user.url, method='HEAD',
-                                connect_timeout=120,
-                                request_timeout=120)
+                        result = yield self._api.api_fetch(
+                                user.url, method='HEAD')
                         break
                     except gaierror:
                         continue
