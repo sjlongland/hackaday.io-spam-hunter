@@ -51,9 +51,11 @@ class Crawler(object):
             'admin_user_fetch_interval': 86400.0,
     }
 
-    def __init__(self, project_id, db, api, client, log,
+    def __init__(self, project_id, admin_uid, db, api, client, log,
             config=None, io_loop=None):
         self._project_id = project_id
+        self._admin_uid = admin_uid
+        self._admin_uid_scanned = False
         self._log = log
         self._db = db
         self._api = api
@@ -133,13 +135,28 @@ class Crawler(object):
             page += 1
             page_cnt = team_data['last_page']
 
+        if not self._admin_uid_scanned:
+            extras = list(self._admin_uid)
+            while len(extras) > 0:
+                fetch_uids = extras[:50]
+                team_data = yield self._api.get_users(ids=fetch_uids,
+                        sortby=UserSortBy.influence, page=page, per_page=50)
+                self._log.debug('Retrieved additional members: %s', fetch_uids)
+                members_data.extend([{'user': u} for u in team_data['users']])
+                extras = extras[50:]
+            self._admin_uid_scanned = True
+
         members = {}
         for member_data in members_data:
-            member = yield self.update_user_from_data(
-                    member_data['user'],
-                    inspect_all=False,
-                    defer=False)
-            members[member.user_id] = member
+            try:
+                member = yield self.update_user_from_data(
+                        member_data['user'],
+                        inspect_all=False,
+                        defer=False)
+                members[member.user_id] = member
+            except:
+                self._log.warning('Failed to process admin: %s',
+                    member_data, exc_info=1)
 
         # Current members in database
         existing = set([m.user_id for m in self._admin.users])
@@ -152,6 +169,11 @@ class Crawler(object):
 
         # Remove any old members
         for user_id in (existing - set(members.keys())):
+            if user_id in self._admin_uid:
+                self._log.debug('%d is given via command line, not removing',
+                        user_id)
+                continue
+
             self._log.debug('Removing user ID %d from admin group', user_id)
             self._admin.users.remove(
                     self._db.query(User).get(user_id))
