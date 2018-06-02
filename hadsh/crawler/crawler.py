@@ -32,6 +32,22 @@ CHECK_PATTERNS = (
         re.compile(r'\+[0-9]+ *\([0-9]+\)[ 0-9\-]+'),
 )
 
+# URI whitelist
+URI_WHITELIST = (
+        # Google Plus
+        re.compile(r'^https?://plus.google.com/[^/]+$'),
+        # Github
+        re.compile(r'^https?://github.com/[^/]+$'),
+        # Twitter
+        re.compile(r'^https?://twitter.com/[^/]+$'),
+        # Youtube
+        re.compile(r'^https?://www.youtube.com/channel/'),
+        # Hackaday.com
+        re.compile(r'^https?://hackaday.com'),
+        # Hackaday.io
+        re.compile(r'^https?://hackaday.io'),
+)
+
 class InvalidUser(ValueError):
     pass
 
@@ -347,9 +363,15 @@ class Crawler(object):
                             else:
                                 l.title = link['title']
 
-                            # Ignore the link if it's from twitter, Google+ or github
-                            match = match or (link['type'] \
-                                    not in ('twitter','github','google'))
+                            if not match:
+                                # Ignore the link if it's in the whitelist
+                                uri_matched = False
+                                for pattern in URI_WHITELIST:
+                                    if pattern.match(link['url']):
+                                        uri_matched = True
+                                        break
+
+                                match = match or (not uri_matched)
                     except:
                         self._log.error('Failed to process link result %r', link_res)
                         raise
