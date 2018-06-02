@@ -53,7 +53,7 @@ class HackadayAPI(object):
             '&grant_type=authorization_code'
 
     # Rate limiting
-    RQLIM_NUM=5    # requests
+    RQLIM_NUM=1    # requests
     RQLIM_TIME=10  # seconds
     RQLIM_CONCURRENT=1
 
@@ -214,6 +214,11 @@ class HackadayAPI(object):
                         # Back-end is rate limiting us.  Back off an hour.
                         self._forbidden_expiry = self._io_loop.time() \
                                 + 3600.0
+                    raise
+                except ConnectionResetError:
+                    # Back-end is blocking us.  Back off a minute.
+                    self._forbidden_expiry = self._io_loop.time() \
+                            + 60.0
                     raise
         finally:
             self._rq_sem.release()
