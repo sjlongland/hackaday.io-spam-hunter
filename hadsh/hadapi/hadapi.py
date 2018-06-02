@@ -327,14 +327,12 @@ class HackadayAPI(object):
         query = self._user_query_opts(sortby, page, per_page)
 
         if ids is None:
-            # This is currently broken for sortby=newest,
-            # see if it's fixed though.
-            try:
-                result = yield self._api_call('/users', query=query)
-            except HTTPError:
-                # Nope, it isn't work-around time!
+            # sortby==newest is broken, has been for a while now.
+            if sortby == UserSortBy.newest:
                 result = yield self._get_users_workaround(sortby,
                         query.get('page'), query.get('per_page'))
+            else:
+                result = yield self._api_call('/users', query=query)
         elif isinstance(ids, slice):
             query['ids'] = '%d,%d' % (ids.start, ids.stop)
             result = yield self._api_call('/users/range', query=query)
