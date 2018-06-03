@@ -37,6 +37,8 @@ class User(Base):
             cascade="all, delete-orphan")
     links = relationship("UserLink", back_populates="user",
             cascade="all, delete-orphan")
+    hostnames = relationship("UserHostname", back_populates="user",
+            cascade="all, delete-orphan")
     words = relationship("UserWord", back_populates="user",
             cascade="all, delete-orphan")
     adj_words = relationship("UserWordAdjacent", back_populates="user",
