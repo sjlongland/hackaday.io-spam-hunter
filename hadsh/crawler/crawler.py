@@ -37,7 +37,7 @@ CHECK_PATTERNS = (
 # URI whitelist
 URI_WHITELIST = (
         # Google Plus
-        re.compile(r'^https?://plus.google.com/[^/]+$'),
+        re.compile(r'^https?://plus.google.com/'),
         # Github
         re.compile(r'^https?://github.com/[^/]+$'),
         # Twitter
