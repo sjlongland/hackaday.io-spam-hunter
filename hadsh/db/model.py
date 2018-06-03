@@ -229,8 +229,7 @@ class UserWord(Base):
     word            = relationship("Word")
 
     def __repr__(self):
-        return 'UserWord(user=%r, proceeding=%r, '\
-                'following=%r, count=%r)' \
+        return 'UserWord(user=%r, word=%r, count=%r)' \
                 % (self.user, self.word, self.count)
 
 
