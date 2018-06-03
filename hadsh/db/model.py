@@ -176,6 +176,22 @@ class NewestUserPageRefresh(Base):
     refresh_date    = Column(DateTime(timezone=True))
 
 
+class Hostname(Base):
+    """
+    A hostname that appears in the links of user profiles.
+    """
+    __tablename__   = 'hostname'
+
+    hostname_id     = Column(BigInteger, primary_key=True)
+    hostname        = Column(String, unique=True, index=True)
+    score           = Column(BigInteger)
+    count           = Column(BigInteger)
+
+    def __repr__(self):
+        return 'Hostname(hostname_id=%r, hostname=%r, score=%r, count=%r)' \
+                % (self.hostname_id, self.hostname, self.score, self.count)
+
+
 class Word(Base):
     """
     A single word in the vocabulary of the Hackaday.io community.
@@ -231,6 +247,26 @@ class UserWord(Base):
     def __repr__(self):
         return 'UserWord(user=%r, word=%r, count=%r)' \
                 % (self.user, self.word, self.count)
+
+
+class UserHostname(Base):
+    """
+    Hostnames used by a given user
+    """
+    __tablename__   = 'user_hostname'
+
+    user_id         = Column(BigInteger, ForeignKey('user.user_id'),
+                        primary_key=True, index=True)
+    hostname_id     = Column(BigInteger, ForeignKey('hostname.hostname_id'),
+                        primary_key=True)
+    count           = Column(BigInteger)
+
+    user            = relationship("User", back_populates="hostnames")
+    hostname        = relationship("Hostname")
+
+    def __repr__(self):
+        return 'UserHostname(user=%r, hostname=%r, count=%r)' \
+                % (self.user, self.hostname, self.count)
 
 
 class UserWordAdjacent(Base):
