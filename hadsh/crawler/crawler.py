@@ -3,6 +3,8 @@ import datetime
 import pytz
 from socket import gaierror
 
+from urllib.parse import urlparse
+
 import re
 
 from tornado.httpclient import HTTPError
@@ -14,7 +16,7 @@ from ..hadapi.hadapi import UserSortBy
 from ..db.model import User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag, NewestUserPageRefresh, \
         UserWord, UserWordAdjacent, UserToken, Word, WordAdjacent, \
-        DeferredUser
+        DeferredUser, Hostname, UserHostname
 from ..wordstat import tokenise, frequency, adjacency
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import or_
@@ -284,6 +286,7 @@ class Crawler(object):
             else:
                 # Tokenise the users' content.
                 user_freq = {}
+                user_host_freq = {}
                 user_adj_freq = {}
                 user_tokens = {}
                 def tally(field):
@@ -340,6 +343,11 @@ class Crawler(object):
 
                             # Count the link title up
                             tally(link['title'])
+
+                            # Count up the hostname frequencies
+                            hostname = urlparse(link['url']).hostname
+                            user_host_freq[hostname] = \
+                                    user_host_freq.get(hostname, 0) + 1
 
                             # Do we have the link already?
                             l = self._db.query(UserLink).filter(
@@ -457,6 +465,17 @@ class Crawler(object):
                     else:
                         t.count = count
 
+                # Retrieve all the hostnames
+                hostnames = {}
+                for hostname in user_host_freq.keys():
+                    h = self._db.query(Hostname).filter(
+                            Hostname.hostname==hostname).one_or_none()
+                    if h is None:
+                        self._log.debug('New hostname: %s', hostname)
+                        h = Hostname(hostname=hostname, score=0, count=0)
+                        self._db.add(h)
+                    hostnames[hostname] = h
+
                 # Retrieve all the words
                 words = {}
                 for word in user_freq.keys():
@@ -489,6 +508,24 @@ class Crawler(object):
                     if w.count > 0:
                         score.append(float(w.score) / float(w.count))
 
+                # Add the user host names
+                for hostname, count in user_host_freq.items():
+                    h = hostnames[hostname]
+                    uh = self._db.query(UserHostname).get((user.user_id,
+                            h.hostname_id))
+
+                    if uh is None:
+                        uh = UserHostname(
+                            user_id=user.user_id, word_id=h.hostname_id,
+                            count=count)
+                        self._db.add(uh)
+                    else:
+                        uh.count = count
+
+                    if h.count > 0:
+                        score.append(float(h.score) / float(h.count))
+
+                # Add the user word adjcancies
                 for (proc_word, follow_word), count in user_adj_freq.items():
                     proc_w = words[proc_word]
                     follow_w = words[follow_word]
