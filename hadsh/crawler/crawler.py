@@ -38,6 +38,8 @@ CHECK_PATTERNS = (
 URI_WHITELIST = (
         # Google Plus
         re.compile(r'^https?://plus.google.com/'),
+        # Linked In
+        re.compile(r'^https?://([a-z]{2}|www)\.linkedin\.com/in/[^/]+$'),
         # Github
         re.compile(r'^https?://github.com/[^/]+$'),
         # Twitter
