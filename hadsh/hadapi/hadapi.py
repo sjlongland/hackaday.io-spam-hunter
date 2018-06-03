@@ -37,6 +37,24 @@ class ProjectSortBy(Enum):
     updated='updated'
 
 
+# Helper, is a given content-type printable?
+def is_text(content_type):
+    if not isinstance(content_type, str):
+        return False
+    if content_type.startswith('text/'):
+        return True
+    if content_type.startswith('application/json'):
+        return True
+    return False
+
+# Helper, dump the response body if it is text.
+def response_text(response):
+    if is_text(response.headers.get('Content-Type')):
+        return response.body
+    else:
+        return '-- %d bytes --' % len(response.body)
+
+
 class HackadayAPI(object):
     """
     Core Hackaday.io API handler.
@@ -171,7 +189,7 @@ class HackadayAPI(object):
                         response.request.headers,
                         response.code,
                         response.headers,
-                        response.body)
+                        response_text(response))
                     break
                 except gaierror as e:
                     if e.errno != EAGAIN:
@@ -189,7 +207,7 @@ class HackadayAPI(object):
                         e.response.request.headers,
                         e.response.code,
                         e.response.headers,
-                        e.response.body)
+                        response_text(e.response))
                     if e.code == 403:
                         # Back-end is rate limiting us.  Back off an hour.
                         self._forbidden_expiry = self._io_loop.time() \
@@ -303,18 +321,6 @@ class HackadayAPI(object):
         response = yield self.api_fetch(
                 'https://hackaday.io/hackers?sort=%s&page=%d' \
                         % (sortby.value, page))
-        self._log.debug('Request:\n'
-            '%s %s\n'
-            'Headers: %s\n'
-            'Response: %s\n'
-            'Headers: %s\n'
-            'Body:\n%s',
-            response.request.method,
-            response.request.url,
-            response.request.headers,
-            response.code,
-            response.headers,
-            response.body)
         (ct, ctopts, body) = self._decode(response)
 
         # Body is in HTML
