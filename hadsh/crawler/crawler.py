@@ -348,7 +348,7 @@ class Crawler(object):
 
                             # Count up the hostname/domain frequencies
                             full_hostname = urlparse(link['url']).hostname.split('.')
-                            while full_hostname:
+                            while len(full_hostname) > 1:
                                 hostname = '.'.join(full_hostname)
                                 user_host_freq[hostname] = \
                                         user_host_freq.get(hostname, 0) + 1
