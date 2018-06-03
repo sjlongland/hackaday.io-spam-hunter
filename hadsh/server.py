@@ -205,6 +205,7 @@ class NewcomerDataHandler(AuthRequestHandler):
 
             def _dump_user(user):
                 user_words = {}
+                user_hostnames = {}
                 user_adj = []
 
                 du = db.query(DeferredUser).get(user.user_id)
@@ -226,6 +227,7 @@ class NewcomerDataHandler(AuthRequestHandler):
                         'last_update':  user.last_update.isoformat() \
                                         if user.last_update is not None else None,
                         'links':        list(map(_dump_link, user.links)),
+                        'hostnames':    user_hostnames,
                         'groups':       [
                             g.name for g in user.groups
                         ],
@@ -241,6 +243,14 @@ class NewcomerDataHandler(AuthRequestHandler):
                         'inspections':  inspections,
                         'next_inspection': next_inspection
                 }
+
+                for uh in user.hostnames:
+                    h = db.query(Hostname).get(uh.hostname_id)
+                    user_hostnames[h.hostname] = {
+                            'user_count': uh.count,
+                            'site_count': h.count,
+                            'site_score': h.score,
+                    }
 
                 for uw in user.words:
                     w = db.query(Word).get(uw.word_id)
