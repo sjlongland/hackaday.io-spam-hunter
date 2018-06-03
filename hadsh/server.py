@@ -21,7 +21,8 @@ from .crawler.crawler import Crawler
 from .resizer import ImageResizer
 from .wordstat import tokenise, frequency, adjacency
 from .db.db import get_db, User, Group, Session, UserDetail, \
-        UserLink, Avatar, Tag, Word, WordAdjacent, DeferredUser
+        UserLink, Avatar, Tag, Word, WordAdjacent, DeferredUser, \
+        Hostname
 from .util import decode_body
 from sqlalchemy import or_
 from sqlalchemy.exc import InvalidRequestError
@@ -394,7 +395,12 @@ class ClassifyHandler(AuthAdminRequestHandler):
                     }))
                     return
 
-                # Count up the word and word adjacencies
+                # Count up the hostname, word and word adjacencies
+                for uh in user.hostnames:
+                    h = db.query(Hostname).get(uh.hostname_id)
+                    h.score += uh.count * score_inc
+                    h.count += uh.count
+
                 for uw in user.words:
                     w = db.query(Word).get(uw.word_id)
                     w.score += uw.count * score_inc
