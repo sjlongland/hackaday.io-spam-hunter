@@ -310,6 +310,52 @@ var getNextPage = function() {
 						/* Compute the user's score */
 						var user_score = [];
 						var first;
+						if (user.hostnames && Object.keys(user.hostnames).length) {
+							var profile_hostnames = document.createElement('div');
+							first = false;
+							var hostnames = Object.keys(user.hostnames).map(function (hostname) {
+								var stat = user.hostnames[hostname];
+								var score = 0.0;
+								if (stat.site_count > 0) {
+									score = Math.round((stat.site_score * 100)
+										/ stat.site_count) / 100;
+									user_score.push(score);
+								}
+								stat.hostname = hostname;
+								stat.norm_score = score;
+								return stat;
+							});
+							hostnames.sort(function (a, b) {
+								if (a.norm_score < b.norm_score)
+									return -1;
+								else if (a.norm_score > b.norm_score)
+									return 1;
+								return 0;
+							});
+							hostnames.forEach(function (stat) {
+								var hostname = stat.hostname;
+								var hostname_span = document.createElement('span');
+								var hostname_tt = document.createElement('tt');
+								var score = stat.norm_score;
+
+								hostname_tt.innerHTML = htmlEscape(hostname);
+								hostname_span.appendChild(hostname_tt);
+								hostname_span.title = stat.user_count
+										+ ' occurances; score: '
+										+ score;
+								hostname_span.style.backgroundColor = scoreColour(score);
+								if (first) {
+									profile_hostnames.appendChild(
+										document.createTextNode(' ')
+									);
+								} else {
+									first = true;
+								}
+								profile_hostnames.appendChild(hostname_span);
+							});
+							userBox.appendChild(profile_hostnames);
+						}
+
 						if (user.words && Object.keys(user.words).length) {
 							var profile_words = document.createElement('div');
 							first = false;
