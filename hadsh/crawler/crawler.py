@@ -516,7 +516,8 @@ class Crawler(object):
 
                     if uh is None:
                         uh = UserHostname(
-                            user_id=user.user_id, word_id=h.hostname_id,
+                            user_id=user.user_id,
+                            hostname_id=h.hostname_id,
                             count=count)
                         self._db.add(uh)
                     else:
