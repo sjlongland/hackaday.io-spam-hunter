@@ -344,10 +344,14 @@ class Crawler(object):
                             # Count the link title up
                             tally(link['title'])
 
-                            # Count up the hostname frequencies
-                            hostname = urlparse(link['url']).hostname
-                            user_host_freq[hostname] = \
-                                    user_host_freq.get(hostname, 0) + 1
+                            # Count up the hostname/domain frequencies
+                            full_hostname = urlparse(link['url']).hostname.split('.')
+                            while full_hostname:
+                                hostname = '.'.join(full_hostname)
+                                user_host_freq[hostname] = \
+                                        user_host_freq.get(hostname, 0) + 1
+                                # Pop off the first bit to count the parent domain
+                                full_hostname.pop(0)
 
                             # Do we have the link already?
                             l = self._db.query(UserLink).filter(
