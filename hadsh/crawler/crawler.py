@@ -145,64 +145,67 @@ class Crawler(object):
         if self._refresh_admin_group_timeout is not None:
             self._io_loop.remove_timeout(self._refresh_admin_group_timeout)
 
-        members_data = []
-        page = 1
-        page_cnt = 1
-        while page <= page_cnt:
-            team_data = yield self._api.get_project_team(
-                    self._project_id, sortby=UserSortBy.influence,
-                    page=page, per_page=50)
-            self._log.debug('Retrieved team member page %d of %d',
-                    team_data.get('page',page),
-                    team_data.get('last_page',page_cnt))
-            members_data.extend(team_data['team'])
-            page += 1
-            page_cnt = team_data['last_page']
+        try:
+            members_data = []
+            page = 1
+            page_cnt = 1
+            while page <= page_cnt:
+                team_data = yield self._api.get_project_team(
+                        self._project_id, sortby=UserSortBy.influence,
+                        page=page, per_page=50)
+                self._log.debug('Retrieved team member page %d of %d',
+                        team_data.get('page',page),
+                        team_data.get('last_page',page_cnt))
+                members_data.extend(team_data['team'])
+                page += 1
+                page_cnt = team_data['last_page']
 
-        if not self._admin_uid_scanned:
-            extras = list(self._admin_uid)
-            while len(extras) > 0:
-                fetch_uids = extras[:50]
-                team_data = yield self._api.get_users(ids=fetch_uids,
-                        sortby=UserSortBy.influence, page=page, per_page=50)
-                self._log.debug('Retrieved additional members: %s', fetch_uids)
-                members_data.extend([{'user': u} for u in team_data['users']])
-                extras = extras[50:]
-            self._admin_uid_scanned = True
+            if not self._admin_uid_scanned:
+                extras = list(self._admin_uid)
+                while len(extras) > 0:
+                    fetch_uids = extras[:50]
+                    team_data = yield self._api.get_users(ids=fetch_uids,
+                            sortby=UserSortBy.influence, page=page, per_page=50)
+                    self._log.debug('Retrieved additional members: %s', fetch_uids)
+                    members_data.extend([{'user': u} for u in team_data['users']])
+                    extras = extras[50:]
+                self._admin_uid_scanned = True
 
-        members = {}
-        for member_data in members_data:
-            try:
-                member = yield self.update_user_from_data(
-                        member_data['user'],
-                        inspect_all=False,
-                        defer=False)
-                members[member.user_id] = member
-            except:
-                self._log.warning('Failed to process admin: %s',
-                    member_data, exc_info=1)
+            members = {}
+            for member_data in members_data:
+                try:
+                    member = yield self.update_user_from_data(
+                            member_data['user'],
+                            inspect_all=False,
+                            defer=False)
+                    members[member.user_id] = member
+                except:
+                    self._log.warning('Failed to process admin: %s',
+                        member_data, exc_info=1)
 
-        # Current members in database
-        existing = set([m.user_id for m in self._admin.users])
+            # Current members in database
+            existing = set([m.user_id for m in self._admin.users])
 
-        # Add any new members
-        for user_id in (set(members.keys()) - existing):
-            self._log.debug('Adding user ID %d to admin group', user_id)
-            self._admin.users.append(members[user_id])
-            existing.add(user_id)
+            # Add any new members
+            for user_id in (set(members.keys()) - existing):
+                self._log.debug('Adding user ID %d to admin group', user_id)
+                self._admin.users.append(members[user_id])
+                existing.add(user_id)
 
-        # Remove any old members
-        for user_id in (existing - set(members.keys())):
-            if user_id in self._admin_uid:
-                self._log.debug('%d is given via command line, not removing',
-                        user_id)
-                continue
+            # Remove any old members
+            for user_id in (existing - set(members.keys())):
+                if user_id in self._admin_uid:
+                    self._log.debug('%d is given via command line, not removing',
+                            user_id)
+                    continue
 
-            self._log.debug('Removing user ID %d from admin group', user_id)
-            self._admin.users.remove(
-                    self._db.query(User).get(user_id))
+                self._log.debug('Removing user ID %d from admin group', user_id)
+                self._admin.users.remove(
+                        self._db.query(User).get(user_id))
 
-        self._db.commit()
+            self._db.commit()
+        except:
+            self._log.warning('Failed to refresh admin group', exc_info=1)
 
         # Schedule this to run again tomorrow.
         self._refresh_admin_group_timeout = self._io_loop.add_timeout(
