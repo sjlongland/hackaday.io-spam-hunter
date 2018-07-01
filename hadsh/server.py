@@ -624,8 +624,8 @@ def main(*args, **kwargs):
 
     # Grab crawler settings
     crawler_config = dict([
-        (key, type(default_value)(getattr(args, 'crawler_%s' % key)))
-        for (key, default_value) in Crawler.DEFAULT_CONFIG.items()
+        (key, getattr(args, 'crawler_%s' % key))
+        for key in Crawler.DEFAULT_CONFIG.keys()
     ])
 
     application = HADSHApp(
