@@ -79,8 +79,13 @@ class Crawler(object):
         self._log = log
         self._db = db
         self._api = api
-        self._config = self.DEFAULT_CONFIG
+
+        log.debug('Given config is %s', config)
+        self._config = self.DEFAULT_CONFIG.copy()
         self._config.update(config or {})
+
+        log.debug('Running config is %s',
+                self._config)
 
         # Oldest page refreshed
         oldest_page = \
