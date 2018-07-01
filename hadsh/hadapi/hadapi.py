@@ -215,9 +215,9 @@ class HackadayAPI(object):
                                 + 3600.0
                     raise
                 except ConnectionResetError:
-                    # Back-end is blocking us.  Back off a minute.
+                    # Back-end is blocking us.  Back off 15 minutes.
                     self._forbidden_expiry = self._io_loop.time() \
-                            + 60.0
+                            + 900.0
                     raise
         finally:
             self._rq_sem.release()
