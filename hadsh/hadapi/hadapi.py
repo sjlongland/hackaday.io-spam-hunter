@@ -313,7 +313,7 @@ class HackadayAPI(object):
     _GET_USERS_WORKAROUND_RE = re.compile(
             '    <a href="/hacker/(\d+)" class="hacker-image">')
     @coroutine
-    def _get_users_workaround(self, sortby=UserSortBy.influence, page=None):
+    def get_user_ids(self, sortby=UserSortBy.influence, page=None):
         if page is None:
             page = 1
 
@@ -330,9 +330,13 @@ class HackadayAPI(object):
             if match:
                 ids.append(int(match.group(1)))
 
+        raise Return(ids)
+
+    @coroutine
+    def _get_users_workaround(self, sortby=UserSortBy.influence, page=None):
+        ids = yield self.get_user_ids(sortby, page)
         users = yield self.get_users(ids=ids)
         raise Return(users)
-
 
     @coroutine
     def get_users(self, sortby=UserSortBy.influence,
