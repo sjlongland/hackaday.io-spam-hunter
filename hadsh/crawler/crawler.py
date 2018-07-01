@@ -696,17 +696,13 @@ class Crawler(object):
         Try to retrieve users newer than our current set.
         """
         if not self._api.is_forbidden:
-            self._log.info('Scanning for new users')
             page = 1
             try:
-                seen_new = False
-                while not seen_new:
+                while True:
+                    self._log.info('Scanning for new users page %d', page)
                     (users, page, _) = yield self.fetch_new_users(
-                            page=1, inspect_all=True, defer=True, return_new=True)
-
-                    # Are there any users returned?
-                    if len(users) < 0:
-                        break
+                            page=page, inspect_all=True,
+                            defer=True, return_new=True)
 
                     seen_new = False
                     for (user, new) in users:
@@ -716,8 +712,9 @@ class Crawler(object):
                         if new:
                             seen_new = True
 
-                    self._log.debug('Successfully fetched new users on page %d',
-                            page)
+                    self._log.debug('Successfully fetched new users')
+                    if not seen_new:
+                        break
             except SQLAlchemyError:
                 # SQL cock up, roll back.
                 self._db.rollback()
@@ -843,22 +840,27 @@ class Crawler(object):
                     if (now - last_refresh.refresh_date).total_seconds() \
                             < 86400.0:
                         # Skip this page for now
+                        self._log.debug('Skipping page %d', page)
                         page += 1
                         continue
 
+            self._log.debug('Retrieving newest user page %d', page)
             ids = yield self._api.get_user_ids(sortby=UserSortBy.newest,
                     page=page)
             self._log.debug('Retrieved newest user page %d', page)
 
             if page > 1:
                 if last_refresh is None:
+                    self._log.debug('Adding page %s refresh time %s',
+                            page, now)
                     last_refresh = NewestUserPageRefresh(
                             page_num=page, refresh_date=now)
                     self._db.add(last_refresh)
-                    self._db.commit()
                 else:
+                    self._log.debug('Updating page %s refresh time %s',
+                            page, now)
                     last_refresh.refresh_date = now
-                    self._db.commit()
+                self._db.commit()
 
             # Filter out the users we already have.
             new_users = []
