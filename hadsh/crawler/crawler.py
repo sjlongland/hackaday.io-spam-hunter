@@ -720,6 +720,9 @@ class Crawler(object):
 
         self._first_pass = True
         delay = self._config['new_user_fetch_interval']
+        next_time = self._io_loop.time()
+        next_time += (delay - (next_time % delay))
+        delay = next_time - self._io_loop.time()
         self._log.info('Next new user scan in %.3f sec', delay)
         self._io_loop.add_timeout(
                 self._io_loop.time() + delay,
