@@ -528,7 +528,7 @@ class HADSHApp(Application):
     Hackaday.io Spambot Hunter application.
     """
     def __init__(self, db_uri, project_id, admin_uid,
-            client_id, client_secret, api_key,
+            client_id, client_secret, api_key, api_rq_interval,
             domain, secure, thread_count, crawler_config):
         self._log = logging.getLogger(self.__class__.__name__)
         self._db_uri = db_uri
@@ -539,6 +539,7 @@ class HADSHApp(Application):
                     user_agent="HADSH/0.0.1 (https://hackaday.io/project/29161-hackadayio-spambot-hunter-project)"))
         self._api = HackadayAPI(client_id=client_id,
                 client_secret=client_secret, api_key=api_key,
+                rqlim_time=api_rq_interval,
                 client=AsyncHTTPClient(), log=self._log.getChild('api'))
         self._crawler = Crawler(project_id, admin_uid, get_db(db_uri),
                 self._api, self._log.getChild('crawler'),
@@ -589,6 +590,9 @@ def main(*args, **kwargs):
             help='Hackaday.io client secret')
     parser.add_argument('--api-key', dest='api_key',
             help='Hackaday.io user key')
+    parser.add_argument('--api-rq-interval', dest='api_rq_interval',
+            type=float, default=HackadayAPI.RQLIM_TIME,
+            help='Minimum period between consecutive requests')
     parser.add_argument('--listen-address', dest='listen_address',
             default='', help='Interface address to listen on.')
     parser.add_argument('--listen-port', dest='listen_port', type=int,
@@ -635,6 +639,7 @@ def main(*args, **kwargs):
             client_id=args.client_id,
             client_secret=args.client_secret,
             api_key=args.api_key,
+            api_rq_interval=args.api_rq_interval,
             domain=args.domain,
             secure=args.secure,
             thread_count=args.thread_count,
