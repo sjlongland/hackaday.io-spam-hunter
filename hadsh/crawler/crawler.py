@@ -98,6 +98,9 @@ class Crawler(object):
             # Start at last visited page.
             self._refresh_hist_page = oldest_page.page_num
 
+        # Have we made a first pass through each page?
+        self._first_pass = False
+
         if io_loop is None:
             io_loop = IOLoop.current()
         self._io_loop = io_loop
@@ -698,23 +701,23 @@ class Crawler(object):
         if not self._api.is_forbidden:
             page = 1
             try:
-                while True:
+                while page < max([self._refresh_hist_page,2]):
                     self._log.info('Scanning for new users page %d', page)
                     (users, page, _) = yield self.fetch_new_users(
                             page=page, inspect_all=True,
                             defer=True, return_new=True)
 
-                    seen_new = False
-                    for (user, new) in users:
-                        self._log.debug('Scanned %s user %s',
-                                "new" if new else "existing",
-                                user)
-                        if new:
-                            seen_new = True
+                    if self._first_pass:
+                        seen_new = False
+                        for (user, new) in users:
+                            self._log.debug('Scanned %s user %s',
+                                    "new" if new else "existing",
+                                    user)
+                            if new:
+                                seen_new = True
 
-                    self._log.debug('Successfully fetched new users')
-                    if not seen_new:
-                        break
+                        if not seen_new:
+                            break
             except SQLAlchemyError:
                 # SQL cock up, roll back.
                 self._db.rollback()
@@ -723,8 +726,9 @@ class Crawler(object):
             except:
                 self._log.exception('Failed to retrieve newer users')
 
+        self._first_pass = True
         delay = self._config['new_user_fetch_interval']
-        self._log.info('Next user scan in %.3f sec', delay)
+        self._log.info('Next new user scan in %.3f sec', delay)
         self._io_loop.add_timeout(
                 self._io_loop.time() + delay,
                 self._background_fetch_new_users)
