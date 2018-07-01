@@ -529,7 +529,7 @@ class HADSHApp(Application):
     """
     def __init__(self, db_uri, project_id, admin_uid,
             client_id, client_secret, api_key,
-            domain, secure, thread_count):
+            domain, secure, thread_count, crawler_config):
         self._log = logging.getLogger(self.__class__.__name__)
         self._db_uri = db_uri
         # Session management connection
@@ -541,7 +541,8 @@ class HADSHApp(Application):
                 client_secret=client_secret, api_key=api_key,
                 client=AsyncHTTPClient(), log=self._log.getChild('api'))
         self._crawler = Crawler(project_id, admin_uid, get_db(db_uri),
-                self._api, self._log.getChild('crawler'))
+                self._api, self._log.getChild('crawler'),
+                config=crawler_config)
         self._pool = WorkerPool(thread_count)
         self._resizer = ImageResizer(self._log.getChild('resizer'),
                 self._pool)
@@ -597,6 +598,14 @@ def main(*args, **kwargs):
     parser.add_argument('--thread-count', dest='thread_count', type=int,
             default=8, help='Number of concurrent threads.')
 
+    # Add arguments from the crawler config
+    for key, default_value in Crawler.DEFAULT_CONFIG.items():
+        parser.add_argument(
+                '--crawler-%s' % key.replace('_','-'),
+                dest='crawler_%s' % key,
+                type=type(default_value),
+                default=default_value)
+
     args = parser.parse_args(*args, **kwargs)
 
     # Start logging
@@ -613,6 +622,12 @@ def main(*args, **kwargs):
                 'when you register at '\
                 'https://dev.hackaday.io/applications')
 
+    # Grab crawler settings
+    crawler_config = dict([
+        (key, type(default_value)(getattr(args, 'crawler_%s' % key)))
+        for (key, default_value) in Crawler.DEFAULT_CONFIG.items()
+    ])
+
     application = HADSHApp(
             project_id=args.project_id,
             admin_uid=set(args.admin_uid),
@@ -622,7 +637,8 @@ def main(*args, **kwargs):
             api_key=args.api_key,
             domain=args.domain,
             secure=args.secure,
-            thread_count=args.thread_count
+            thread_count=args.thread_count,
+            crawler_config=crawler_config
     )
     http_server = HTTPServer(application)
     http_server.listen(port=args.listen_port, address=args.listen_address)
