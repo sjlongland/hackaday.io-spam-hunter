@@ -196,18 +196,19 @@ class HackadayAPI(object):
                         raise
                     raise
                 except HTTPError as e:
-                    self._log.debug('Request:\n'
-                        '%s %s\n'
-                        'Headers: %s\n'
-                        'Response: %s\n'
-                        'Headers: %s\n'
-                        'Body:\n%s',
-                        e.response.request.method,
-                        e.response.request.url,
-                        e.response.request.headers,
-                        e.response.code,
-                        e.response.headers,
-                        response_text(e.response))
+                    if e.response is not None:
+                        self._log.debug('Request:\n'
+                            '%s %s\n'
+                            'Headers: %s\n'
+                            'Response: %s\n'
+                            'Headers: %s\n'
+                            'Body:\n%s',
+                            e.response.request.method,
+                            e.response.request.url,
+                            e.response.request.headers,
+                            e.response.code,
+                            e.response.headers,
+                            response_text(e.response))
                     if e.code == 403:
                         # Back-end is rate limiting us.  Back off an hour.
                         self._forbidden_expiry = self._io_loop.time() \
