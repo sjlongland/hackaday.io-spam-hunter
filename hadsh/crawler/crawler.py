@@ -835,41 +835,36 @@ class Crawler(object):
                     page += 1
                     continue
 
-            new_user_data = yield self._api.get_users(sortby=UserSortBy.newest,
-                    page=page, per_page=50)
-            self._log.debug('Retrieved new user page %d of %d',
-                    new_user_data.get('page',page),
-                    new_user_data.get('last_page', 0))
-            if page > 1:
-                if last_refresh is None:
-                    last_refresh = NewestUserPageRefresh(
-                        page_num=page,
-                        refresh_date=now)
-                    self._db.add(last_refresh)
-                else:
-                    last_refresh.refresh_date = now
-                self._db.commit()
+            ids = yield self._api.get_user_ids(sortby=UserSortBy.newest,
+                    page=page)
+            self._log.debug('Retrieved newest user page %d', page)
 
-            for user_data in new_user_data['users']:
-                try:
-                    (user, new) = yield self.update_user_from_data(
-                            user_data, inspect_all, defer=True,
-                            return_new=True)
-                except InvalidUser:
-                    continue
-
-                # See if the user has been manually classified or not
-                user_groups = set([g.name for g in user.groups])
-                if (self._manual_suspect.name in user_groups) or \
-                        (self._manual_legit.name in user_groups):
-                    self._log.debug('Skipping user %s due to group membership %s',
-                            user.screen_name, user_groups)
-                    continue
-
-                if return_new:
-                    users.append((user, new))
+            # Filter out the users we already have.
+            new_users = []
+            for uid in ids:
+                user = self._db.query(User).get(uid)
+                if user is None:
+                    new_users.append(uid)
+                elif return_new:
+                    users.append((user, False))
                 else:
                     users.append(user)
+
+            if new_users:
+                new_user_data = yield self._api.get_users(ids=new_users)
+
+                for user_data in new_user_data['users']:
+                    try:
+                        (user, new) = yield self.update_user_from_data(
+                                user_data, inspect_all, defer=True,
+                                return_new=True)
+                    except InvalidUser:
+                        continue
+
+                    if return_new:
+                        users.append((user, new))
+                    else:
+                        users.append(user)
             page += 1
 
         raise Return((users, page, new_user_data.get('last_page')))
