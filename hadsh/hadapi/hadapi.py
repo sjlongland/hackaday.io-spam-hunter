@@ -71,14 +71,11 @@ class HackadayAPI(object):
             '&grant_type=authorization_code'
 
     # Rate limiting
-    RQLIM_NUM=1    # requests
-    RQLIM_TIME=10  # seconds
-    RQLIM_CONCURRENT=1
+    RQLIM_TIME=30  # seconds
 
     def __init__(self, client_id, client_secret, api_key,
             api_uri=HAD_API_URI, auth_uri=HAD_AUTH_URI,
-            token_uri=HAD_TOKEN_URI, rqlim_num=RQLIM_NUM,
-            rqlim_time=RQLIM_TIME, rqlim_concurrent=RQLIM_CONCURRENT,
+            token_uri=HAD_TOKEN_URI, rqlim_time=RQLIM_TIME,
             client=None, log=None, io_loop=None):
 
         if log is None:
@@ -101,12 +98,11 @@ class HackadayAPI(object):
         self._token_uri = token_uri
 
         # Timestamps of last rqlim_num requests
-        self._last_rq = []
-        self._rqlim_num = rqlim_num
+        self._last_rq = 0.0
         self._rqlim_time = rqlim_time
 
         # Semaphore to limit concurrent access
-        self._rq_sem = Semaphore(rqlim_concurrent)
+        self._rq_sem = Semaphore(1)
 
         # If None, then no "forbidden" status is current.
         # Otherwise, this stores when the "forbidden" flag expires.
@@ -131,22 +127,12 @@ class HackadayAPI(object):
         """
         now = self._io_loop.time()
 
-        # Push the current request expiry time to the end.
-        self._last_rq.append(now + self._rqlim_time)
-
-        # Drop any that are more than rqlim_time seconds ago.
-        self._last_rq = list(filter(lambda t : t < now, self._last_rq))
-
-        # Are there rqlim_num or more requests?
-        if len(self._last_rq) < self._rqlim_num:
-            # There aren't, we can go.
+        # Figure out if we need to wait before the next request
+        delay = (self._last_rq + self._rqlim_time) - now
+        self._log.debug('Last request at %f, delay: %f', self._last_rq, delay)
+        if delay <= 0:
+            # Nope, we're clear
             return
-
-        # When does the next one expire?
-        expiry = self._last_rq[0]
-
-        # Wait until then
-        delay = expiry - now
 
         self._log.debug('Waiting %f sec for rate limit', delay)
         yield sleep(delay)
@@ -174,10 +160,11 @@ class HackadayAPI(object):
 
         try:
             yield self._rq_sem.acquire()
-            yield self._ratelimit_sleep()
             while True:
                 try:
+                    yield self._ratelimit_sleep()
                     response = yield self._client.fetch(uri, **kwargs)
+                    self._last_rq = self._io_loop.time()
                     self._log.debug('Request:\n'
                         '%s %s\n'
                         'Headers: %s\n'
