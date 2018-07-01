@@ -831,21 +831,34 @@ class Crawler(object):
         Returns the list of users on the given page and the total number of pages.
         """
         users = []
+        last_refresh = None
 
         while len(users) < 10:
             now = datetime.datetime.now(tz=pytz.utc)
             if page > 1:
                 last_refresh = self._db.query(NewestUserPageRefresh).get(page)
-                if (last_refresh is not None) and \
-                        ((now - last_refresh.refresh_date).total_seconds() \
-                            < 86400.0):
-                    # Skip this page for now
-                    page += 1
-                    continue
+                if last_refresh is not None:
+                    self._log.debug('Page %s last refreshed on %s',
+                            last_refresh.page_num, last_refresh.refresh_date)
+                    if (now - last_refresh.refresh_date).total_seconds() \
+                            < 86400.0:
+                        # Skip this page for now
+                        page += 1
+                        continue
 
             ids = yield self._api.get_user_ids(sortby=UserSortBy.newest,
                     page=page)
             self._log.debug('Retrieved newest user page %d', page)
+
+            if page > 1:
+                if last_refresh is None:
+                    last_refresh = NewestUserPageRefresh(
+                            page_num=page, refresh_date=now)
+                    self._db.add(last_refresh)
+                    self._db.commit()
+                else:
+                    last_refresh.refresh_date = now
+                    self._db.commit()
 
             # Filter out the users we already have.
             new_users = []
