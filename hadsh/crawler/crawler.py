@@ -865,6 +865,9 @@ class Crawler(object):
                         users.append((user, new))
                     else:
                         users.append(user)
+            else:
+                # No new user data
+                new_user_data = {}
             page += 1
 
         raise Return((users, page, new_user_data.get('last_page')))
