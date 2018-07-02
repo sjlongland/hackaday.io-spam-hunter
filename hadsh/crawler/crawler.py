@@ -280,6 +280,13 @@ class Crawler(object):
                 self._log.info('Link to user %s [#%d] no longer valid',
                         user.screen_name, user.user_id)
 
+                new_user = self._db.query(NewUser).get(user.user_id)
+                if new_user:
+                    try:
+                        self._db.delete(new_user)
+                    except SQLAlchemyError:
+                        self._db.expunge(new_user)
+
                 try:
                     self._db.delete(user)
                     self._db.commit()
