@@ -713,7 +713,7 @@ class Crawler(object):
                 while (page < max([self._refresh_hist_page,2])) \
                         and (page_count < 10):
                     self._log.info('Scanning for new users page %d', page)
-                    yield self.fetch_new_user_ids(
+                    page = yield self.fetch_new_user_ids(
                             page=page, inspect_all=True,
                             defer=True)
                     page_count += 1
