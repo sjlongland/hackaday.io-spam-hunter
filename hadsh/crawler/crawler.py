@@ -16,7 +16,7 @@ from ..hadapi.hadapi import UserSortBy
 from ..db.model import User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag, NewestUserPageRefresh, \
         UserWord, UserWordAdjacent, UserToken, Word, WordAdjacent, \
-        DeferredUser, Hostname, UserHostname
+        DeferredUser, Hostname, UserHostname, NewUser
 from ..wordstat import tokenise, frequency, adjacency
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import or_
@@ -61,6 +61,7 @@ class Crawler(object):
     DEFAULT_CONFIG = {
             'init_delay': 5.0,
             'new_user_fetch_interval': 900.0,
+            'new_check_interval': 5.0,
             'defer_delay': 900.0,
             'deferred_check_interval': 900.0,
             'defer_min_age': 3600.0,
@@ -702,14 +703,10 @@ class Crawler(object):
                 while (page < max([self._refresh_hist_page,2])) \
                         and (page_count < 10):
                     self._log.info('Scanning for new users page %d', page)
-                    (users, page, _) = yield self.fetch_new_users(
+                    yield self.fetch_new_user_ids(
                             page=page, inspect_all=True,
-                            defer=True, return_new=True)
+                            defer=True)
                     page_count += 1
-                    for (user, new) in users:
-                        self._log.debug('Scanned %s user %s',
-                                "new" if new else "existing",
-                                user)
             except SQLAlchemyError:
                 # SQL cock up, roll back.
                 self._db.rollback()
@@ -783,6 +780,51 @@ class Crawler(object):
                 self._background_inspect_deferred)
 
     @coroutine
+    def _background_inspect_new(self):
+        """
+        Inspect new users
+        """
+        if not self._api.is_forbidden:
+            self._log.info('Scanning new users')
+            try:
+                # Grab a handful of new users
+                ids = dict([
+                    (u.user_id, u) for u in
+                    self._db.query(NewUser).limit(50).all()])
+
+                if ids:
+                    self._log.debug('Scanning %s', list(ids.keys()))
+
+                    user_data = yield self._api.get_users(
+                            ids=list(ids.keys()), per_page=50)
+                    self._log.debug('Received new users: %s', user_data)
+                    if isinstance(user_data['users'], list):
+                        for this_user_data in user_data['users']:
+                            while True:
+                                try:
+                                    user = yield self.update_user_from_data(
+                                            this_user_data, inspect_all=True)
+                                    new_user = ids.get(user.user_id)
+                                    if new_user:
+                                        self._db.delete(new_user)
+                                    break
+                                except InvalidUser:
+                                    pass
+                                except SQLAlchemyError:
+                                    self._db.rollback()
+                            self._db.commit()
+
+                self._log.debug('Successfully fetched new users')
+            except:
+                self._log.exception('Failed to retrieve new users')
+
+        delay = self._config['new_check_interval']
+        self._log.info('Next new user scan in %.3f sec', delay)
+        self._io_loop.add_timeout(
+                self._io_loop.time() + delay,
+                self._background_inspect_new)
+
+    @coroutine
     def _background_fetch_hist_users(self):
         """
         Try to retrieve users registered earlier.
@@ -791,10 +833,10 @@ class Crawler(object):
         users = []
         if not self._api.is_forbidden:
             try:
-                (users, self._refresh_hist_page, _) = \
-                        yield self.fetch_new_users(
+                self._refresh_hist_page = \
+                        yield self.fetch_new_user_ids(
                             page=self._refresh_hist_page,
-                            defer=False, return_new=True)
+                            defer=False)
             except SQLAlchemyError:
                 # SQL cock up, roll back.
                 self._db.rollback()
@@ -820,17 +862,15 @@ class Crawler(object):
                 self._background_fetch_hist_users)
 
     @coroutine
-    def fetch_new_users(self, page=1, inspect_all=False, defer=True,
-            return_new=False):
+    def fetch_new_user_ids(self, page=1, inspect_all=False, defer=True):
         """
-        Retrieve new users from the Hackaday.io API and inspect the new arrivals.
-        Returns the list of users on the given page and the total number of pages.
+        Retrieve new users IDs not currently known from the Hackaday.io API.
         """
-        users = []
         last_refresh = None
+        num_uids = 0
 
-        while len(users) < 10:
-            now = datetime.datetime.now(tz=pytz.utc)
+        now = datetime.datetime.now(tz=pytz.utc)
+        while not num_uids:
             if page > 1:
                 last_refresh = self._db.query(NewestUserPageRefresh).get(page)
                 if last_refresh is not None:
@@ -861,35 +901,14 @@ class Crawler(object):
                     last_refresh.refresh_date = now
                 self._db.commit()
 
-            # Filter out the users we already have.
-            new_users = []
+            # Filter out the users we already have.  Create new user objects
+            # for the ones we don't have.
             for uid in ids:
-                user = self._db.query(User).get(uid)
-                if user is None:
-                    new_users.append(uid)
-                elif return_new:
-                    users.append((user, False))
-                else:
-                    users.append(user)
+                if (self._db.query(User).get(uid) is None) \
+                        and (self._db.query(NewUser).get(uid) is None):
+                    new_user = NewUser(user_id=uid)
+                    self._db.add(new_user)
+                    num_uids += 1
+            self._db.commit()
 
-            if new_users:
-                new_user_data = yield self._api.get_users(ids=new_users)
-
-                for user_data in new_user_data['users']:
-                    try:
-                        (user, new) = yield self.update_user_from_data(
-                                user_data, inspect_all, defer=True,
-                                return_new=True)
-                    except InvalidUser:
-                        continue
-
-                    if return_new:
-                        users.append((user, new))
-                    else:
-                        users.append(user)
-            else:
-                # No new user data
-                new_user_data = {}
-            page += 1
-
-        raise Return((users, page, new_user_data.get('last_page')))
+        raise Return(page)
