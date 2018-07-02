@@ -928,4 +928,8 @@ class Crawler(object):
             page += 1
             pages += 1
 
+            if not ids:
+                # No more IDs to fetch
+                break
+
         raise Return(page)
