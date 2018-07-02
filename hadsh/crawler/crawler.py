@@ -837,7 +837,7 @@ class Crawler(object):
                     self._log.debug('Page %s last refreshed on %s',
                             last_refresh.page_num, last_refresh.refresh_date)
                     if (now - last_refresh.refresh_date).total_seconds() \
-                            < 86400.0:
+                            < 2592000.0:    # 30 days
                         # Skip this page for now
                         self._log.debug('Skipping page %d', page)
                         page += 1
