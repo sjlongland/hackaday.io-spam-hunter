@@ -800,7 +800,8 @@ class Crawler(object):
                 # Grab a handful of new users
                 ids = dict([
                     (u.user_id, u) for u in
-                    self._db.query(NewUser).limit(50).all()])
+                    self._db.query(NewUser).order_by(
+                        NewUser.user_id.desc()).limit(50).all()])
 
                 if ids:
                     self._log.debug('Scanning %s', list(ids.keys()))
