@@ -724,8 +724,9 @@ class Crawler(object):
                         ': database rolled back')
             except:
                 self._log.exception('Failed to retrieve newer users')
+        else:
+            self._log.warning('API blocked: cannot retrieve newer users')
 
-        self._first_pass = True
         delay = self._config['new_user_fetch_interval']
         next_time = self._io_loop.time()
         next_time += (delay - (next_time % delay))
@@ -782,6 +783,8 @@ class Crawler(object):
                 self._log.debug('Successfully fetched deferred users')
             except:
                 self._log.exception('Failed to retrieve deferred users')
+        else:
+            self._log.warning('API blocked, cannot inspect deferred users')
 
         delay = self._config['deferred_check_interval']
         self._log.info('Next deferred user scan in %.3f sec', delay)
@@ -831,6 +834,8 @@ class Crawler(object):
                 self._log.debug('Successfully fetched new users')
             except:
                 self._log.exception('Failed to retrieve new users')
+        else:
+            self._log.warning('API blocked, cannot fetch new users')
 
         delay = self._config['new_check_interval']
         self._log.info('Next new user scan in %.3f sec', delay)
@@ -843,9 +848,9 @@ class Crawler(object):
         """
         Try to retrieve users registered earlier.
         """
-        self._log.info('Beginning historical user retrieval')
         users = []
         if not self._api.is_forbidden:
+            self._log.info('Beginning historical user retrieval')
             try:
                 self._refresh_hist_page = \
                         yield self.fetch_new_user_ids(
@@ -858,13 +863,8 @@ class Crawler(object):
                         ': database rolled back')
             except:
                 self._log.exception('Failed to retrieve older users')
-
-        # Are there new users in this list?
-        new = False
-        for (_, is_new) in users:
-            if is_new:
-                new = True
-                break
+        else:
+            self._log.warning('API blocked, cannot fetch historical users')
 
         # If we saw no new users but lots of old users, we're behind, catch up.
         delay = self._config['old_user_catchup_interval'] \
