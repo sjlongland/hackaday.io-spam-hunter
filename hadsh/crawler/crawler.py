@@ -848,7 +848,6 @@ class Crawler(object):
         """
         Try to retrieve users registered earlier.
         """
-        users = []
         if not self._api.is_forbidden:
             self._log.info('Beginning historical user retrieval')
             try:
@@ -866,10 +865,7 @@ class Crawler(object):
         else:
             self._log.warning('API blocked, cannot fetch historical users')
 
-        # If we saw no new users but lots of old users, we're behind, catch up.
-        delay = self._config['old_user_catchup_interval'] \
-                if users and (not new) \
-                else self._config['old_user_fetch_interval']
+        delay = self._config['old_user_fetch_interval']
         self._log.info('Next historical user fetch in %.3f sec', delay)
         self._io_loop.add_timeout(
                 self._io_loop.time() + delay,
