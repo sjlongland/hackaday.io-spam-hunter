@@ -121,6 +121,9 @@ class Crawler(object):
         self._io_loop.add_timeout(
                 self._io_loop.time() + self._config['init_delay'],
                 self._background_inspect_deferred)
+        self._io_loop.add_timeout(
+                self._io_loop.time() + self._config['init_delay'],
+                self._background_inspect_new)
 
         # Event to indicate when new users have been added
         self.new_user_event = Event()
