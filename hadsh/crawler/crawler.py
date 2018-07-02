@@ -913,5 +913,6 @@ class Crawler(object):
                     self._db.add(new_user)
                     num_uids += 1
             self._db.commit()
+            page += 1
 
         raise Return(page)
