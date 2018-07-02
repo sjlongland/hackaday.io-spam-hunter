@@ -178,6 +178,15 @@ class NewestUserPageRefresh(Base):
     refresh_date    = Column(DateTime(timezone=True))
 
 
+class NewUser(Base):
+    """
+    A record of a new user that is to be inspected.
+    """
+    __tablename__   = 'new_user'
+
+    user_id         = Column(BigInteger, primary_key=True)
+
+
 class Hostname(Base):
     """
     A hostname that appears in the links of user profiles.
