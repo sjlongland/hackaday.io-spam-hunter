@@ -810,6 +810,9 @@ class Crawler(object):
                             ids=list(ids.keys()), per_page=50)
                     self._log.debug('Received new users: %s', user_data)
                     if isinstance(user_data['users'], list):
+                        user_data['users'].sort(
+                                key=lambda u : u.get('id') or 0,
+                                reverse=True)
                         for this_user_data in user_data['users']:
                             while True:
                                 try:
