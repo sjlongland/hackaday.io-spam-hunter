@@ -871,9 +871,10 @@ class Crawler(object):
         """
         last_refresh = None
         num_uids = 0
+        pages = 0
 
         now = datetime.datetime.now(tz=pytz.utc)
-        while not num_uids:
+        while (num_uids < 10) and (pages < 10):
             if page > 1:
                 last_refresh = self._db.query(NewestUserPageRefresh).get(page)
                 if last_refresh is not None:
@@ -914,5 +915,6 @@ class Crawler(object):
                     num_uids += 1
             self._db.commit()
             page += 1
+            pages += 1
 
         raise Return(page)
