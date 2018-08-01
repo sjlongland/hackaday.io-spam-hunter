@@ -365,14 +365,22 @@ class Crawler(object):
                             # Count the link title up
                             tally(link['title'])
 
-                            # Count up the hostname/domain frequencies
-                            full_hostname = urlparse(link['url']).hostname.split('.')
-                            while len(full_hostname) > 1:
-                                hostname = '.'.join(full_hostname)
-                                user_host_freq[hostname] = \
-                                        user_host_freq.get(hostname, 0) + 1
-                                # Pop off the first bit to count the parent domain
-                                full_hostname.pop(0)
+                            try:
+                                # Count up the hostname/domain frequencies
+                                full_hostname = urlparse(link['url']).hostname.split('.')
+                                while len(full_hostname) > 1:
+                                    hostname = '.'.join(full_hostname)
+                                    user_host_freq[hostname] = \
+                                            user_host_freq.get(hostname, 0) + 1
+                                    # Pop off the first bit to count the parent domain
+                                    full_hostname.pop(0)
+                            except:
+                                self._log.warning(
+                                    'Failed to count up domain frequency for '
+                                    'user %s [#%d] link %s <%s>',
+                                    user_data['screen_name'],
+                                    user_data['id'],
+                                    link['title'], link['url'])
 
                             # Do we have the link already?
                             l = self._db.query(UserLink).filter(
