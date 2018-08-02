@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import re
 
 from tornado.httpclient import HTTPError
-from tornado.gen import coroutine, Return
+from tornado.gen import coroutine, Return, sleep
 from tornado.ioloop import IOLoop
 from tornado.locks import Event
 
@@ -900,6 +900,7 @@ class Crawler(object):
                         # Skip this page for now
                         self._log.debug('Skipping page %d', page)
                         page += 1
+                        yield sleep(0.001)
                         continue
 
             self._log.debug('Retrieving newest user page %d', page)
