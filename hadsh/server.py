@@ -224,6 +224,8 @@ class NewcomerDataHandler(AuthRequestHandler):
                         'url':          user.url,
                         'avatar_id':    user.avatar_id,
                         'created':      (user.created or user.last_update).isoformat(),
+                        'had_created':  user.had_created.isoformat() \
+                                        if user.had_created is not None else None,
                         'last_update':  user.last_update.isoformat() \
                                         if user.last_update is not None else None,
                         'links':        list(map(_dump_link, user.links)),
