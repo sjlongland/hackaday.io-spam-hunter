@@ -165,7 +165,7 @@ var getNextPage = function() {
 						userBox.appendChild(profile_score_gauge);
 
 						var profile_created = document.createElement('div');
-						profile_created.innerHTML = user.created;
+						profile_created.innerHTML = user.had_created || user.created;
 						userBox.appendChild(profile_created);
 
 						var profile_groups = document.createElement('div');
