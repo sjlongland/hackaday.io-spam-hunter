@@ -39,17 +39,17 @@ URI_WHITELIST = (
         # Google Plus
         re.compile(r'^https?://plus.google.com/'),
         # Linked In
-        re.compile(r'^https?://([a-z]{2}|www)\.linkedin\.com/in/[^/]+$'),
+        re.compile(r'^https?://([a-z]{2}|www)\.linkedin\.com/in/[^/]+(|/.*)$'),
         # Github
-        re.compile(r'^https?://github.com/[^/]+$'),
+        re.compile(r'^https?://github.com/[^/]+(|/.*)$'),
         # Twitter
-        re.compile(r'^https?://twitter.com/[^/]+$'),
+        re.compile(r'^https?://(mobile\.|www\.|)twitter.com/[^/]+(|/.*)$'),
         # Youtube
-        re.compile(r'^https?://www.youtube.com/channel/'),
+        re.compile(r'^https?://(www.|)youtube.com/channel/'),
         # Hackaday.com
-        re.compile(r'^https?://hackaday.com'),
+        re.compile(r'^https?://hackaday.com(|/.*)$'),
         # Hackaday.io
-        re.compile(r'^https?://hackaday.io'),
+        re.compile(r'^https?://hackaday.io(|/.*)$'),
 )
 
 class InvalidUser(ValueError):
