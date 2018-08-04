@@ -654,7 +654,7 @@ class Crawler(object):
                 self._auto_legit.users.append(user)
 
             self._db.commit()
-            self._log.debug('Finished inspecting %s', user_data)
+            self._log.audit('Finished inspecting %s', user_data)
         except:
             self._log.error('Failed to process user data %r',
                     user_data, exc_info=1)
