@@ -18,7 +18,7 @@ class ImageResizer(object):
     @coroutine
     def resize(self, avatar, width, height):
         log = self._log.getChild('avatar[%d]' % avatar.avatar_id)
-        log.debug('Resizing to bounding box %sx%s', width, height)
+        log.audit('Resizing to bounding box %sx%s', width, height)
         future = Future()
 
         if (width is None) and (height is None):
@@ -27,22 +27,22 @@ class ImageResizer(object):
         # Handing the value back to the coroutine
         def _on_done(result):
             if isinstance(result, tuple):
-                log.debug('Passing back exception')
+                log.audit('Passing back exception')
                 future.set_exc_info(result)
             else:
-                log.debug('Passing back result')
+                log.audit('Passing back result')
                 future.set_result(result)
 
         # What to do in the thread pool
         def _do_resize(image_data, image_format, width, height):
             try:
-                log.debug('Opening image, format %s', image_format)
+                log.audit('Opening image, format %s', image_format)
                 image = Image.open(BytesIO(image_data))
 
                 # Get the aspect ratio
                 raw_width, raw_height = image.size
                 ratio = float(raw_width) / float(raw_height)
-                log.debug('Raw size: %dx%d, ratio %f',
+                log.audit('Raw size: %dx%d, ratio %f',
                         raw_width, raw_height, ratio)
 
                 if (ratio >= 1.0) or (height is None):
@@ -53,7 +53,7 @@ class ImageResizer(object):
                     width = int(height * ratio)
 
                 # Scale
-                log.debug('Scaling to %dx%d', width, height)
+                log.audit('Scaling to %dx%d', width, height)
                 image = image.resize((width, height), Image.LANCZOS)
 
                 # Write out result
@@ -63,7 +63,7 @@ class ImageResizer(object):
                     pil_format = 'PNG'
 
                 out_buffer = BytesIO()
-                log.debug('Saving output as %s', pil_format)
+                log.audit('Saving output as %s', pil_format)
                 image.save(out_buffer, pil_format)
                 self._io_loop.add_callback(_on_done, out_buffer.getvalue())
             except:
