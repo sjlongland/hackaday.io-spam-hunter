@@ -2,7 +2,6 @@
 
 import re
 import json
-import logging
 
 from tornado.httpclient import AsyncHTTPClient, HTTPError
 from tornado.ioloop import IOLoop
@@ -13,6 +12,7 @@ from socket import gaierror
 from errno import EAGAIN
 
 from ..util import decode_body
+from .. import extdlog
 
 try:
     from urllib import parse as urlparse
@@ -79,7 +79,7 @@ class HackadayAPI(object):
             client=None, log=None, io_loop=None):
 
         if log is None:
-            log = logging.getLogger(self.__class__.__module__)
+            log = extdlog.getLogger(self.__class__.__module__)
 
         if io_loop is None:
             io_loop = IOLoop.current()
@@ -129,14 +129,14 @@ class HackadayAPI(object):
 
         # Figure out if we need to wait before the next request
         delay = (self._last_rq + self._rqlim_time) - now
-        self._log.debug('Last request at %f, delay: %f', self._last_rq, delay)
+        self._log.trace('Last request at %f, delay: %f', self._last_rq, delay)
         if delay <= 0:
             # Nope, we're clear
             return
 
         self._log.debug('Waiting %f sec for rate limit', delay)
         yield sleep(delay)
-        self._log.debug('Resuming operations')
+        self._log.trace('Resuming operations')
 
     def _decode(self, response, default_encoding='UTF-8'):
         """
@@ -165,7 +165,7 @@ class HackadayAPI(object):
                     yield self._ratelimit_sleep()
                     response = yield self._client.fetch(uri, **kwargs)
                     self._last_rq = self._io_loop.time()
-                    self._log.debug('Request:\n'
+                    self._log.audit('Request:\n'
                         '%s %s\n'
                         'Headers: %s\n'
                         'Response: %s\n'
@@ -184,7 +184,7 @@ class HackadayAPI(object):
                     raise
                 except HTTPError as e:
                     if e.response is not None:
-                        self._log.debug('Request:\n'
+                        self._log.audit('Request:\n'
                             '%s %s\n'
                             'Headers: %s\n'
                             'Response: %s\n'
@@ -224,7 +224,7 @@ class HackadayAPI(object):
         if api_key:
             query.setdefault('api_key', self._api_key)
 
-        self._log.debug('Query arguments: %r', query)
+        self._log.audit('Query arguments: %r', query)
         encode_kv = lambda k, v : '%s=%s' % (k, urlparse.quote_plus(str(v)))
         def encode_item(item):
             (key, value) = item
@@ -239,7 +239,7 @@ class HackadayAPI(object):
         if not uri.startswith('http'):
             uri = self._api_uri + uri
 
-        self._log.debug('%s %r', kwargs.get('method','GET'), uri)
+        self._log.audit('%s %r', kwargs.get('method','GET'), uri)
         response = yield self.api_fetch(uri, **kwargs)
 
         # If we get here, then our service is back.
