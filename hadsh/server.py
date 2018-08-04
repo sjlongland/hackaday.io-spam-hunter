@@ -26,6 +26,7 @@ from .db.db import get_db, User, Group, Session, UserDetail, \
 from .util import decode_body
 from sqlalchemy import or_
 from sqlalchemy.exc import InvalidRequestError
+from . import extdlog
 
 
 class AuthRequestHandler(RequestHandler):
@@ -112,7 +113,7 @@ class AvatarHandler(AuthRequestHandler):
 
             avatar_id = int(avatar_id)
             log = self.application._log.getChild('avatar[%d]' % avatar_id)
-            log.debug('Retrieving from database')
+            log.audit('Retrieving from database')
             avatar = db.query(Avatar).get(avatar_id)
             if avatar is None:
                 self.set_status(404)
@@ -427,7 +428,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
                         follow_word = db.query(Word).get(
                                 uwa.following_id)
 
-                        log.debug('New word adjacency: %s %s',
+                        log.audit('New word adjacency: %s %s',
                                 proc_word, follow_word)
                         wa = WordAdjacent(proceeding_id=proc_word.word_id,
                                 following_id=follow_word.word_id,
@@ -479,9 +480,9 @@ class CallbackHandler(RequestHandler):
             # Retrieve the code
             try:
                 code = self.get_query_argument('code', strip=False)
-                log.debug('Code is %s, retrieving token', code)
+                log.audit('Code is %s, retrieving token', code)
                 oauth_data = yield self.application._api.get_token(code)
-                log.debug('OAuth response %s', oauth_data)
+                log.audit('OAuth response %s', oauth_data)
 
                 try:
                     token = oauth_data['access_token']
