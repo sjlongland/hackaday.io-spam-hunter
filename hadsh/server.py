@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import uuid
 import datetime
 import pytz
@@ -533,7 +532,7 @@ class HADSHApp(Application):
     def __init__(self, db_uri, project_id, admin_uid,
             client_id, client_secret, api_key, api_rq_interval,
             domain, secure, thread_count, crawler_config):
-        self._log = logging.getLogger(self.__class__.__name__)
+        self._log = extdlog.getLogger(self.__class__.__name__)
         self._db_uri = db_uri
         # Session management connection
         self._session_db = get_db(db_uri)
@@ -616,7 +615,7 @@ def main(*args, **kwargs):
     args = parser.parse_args(*args, **kwargs)
 
     # Start logging
-    logging.basicConfig(level=args.log_level,
+    extdlog.basicConfig(level=args.log_level,
             format='%(asctime)s %(levelname)10s '\
                     '%(name)16s %(process)d/%(threadName)s: %(message)s')
 
