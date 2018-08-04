@@ -6,6 +6,10 @@ Add TRACE and AUDIT levels to the standard Python logging module if not present.
 
 import logging
 
+# Import some useful functions from logging
+basicConfig = logging.basicConfig
+getLogger = logging.getLogger
+
 # Import logging levels from logging so we can access them all in one place.
 CRITICAL = logging.CRITICAL
 ERROR = logging.ERROR
