@@ -1,4 +1,3 @@
-import logging
 import datetime
 import pytz
 from socket import gaierror
@@ -20,6 +19,7 @@ from ..db.model import User, Group, Session, UserDetail, \
 from ..wordstat import tokenise, frequency, adjacency
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import or_
+from .. import extdlog
 
 
 # Patterns to look for:
@@ -81,11 +81,11 @@ class Crawler(object):
         self._db = db
         self._api = api
 
-        log.debug('Given config is %s', config)
+        log.trace('Given config is %s', config)
         self._config = self.DEFAULT_CONFIG.copy()
         self._config.update(config or {})
 
-        log.debug('Running config is %s',
+        log.trace('Running config is %s',
                 self._config)
 
         # Oldest page refreshed
@@ -157,7 +157,7 @@ class Crawler(object):
                 team_data = yield self._api.get_project_team(
                         self._project_id, sortby=UserSortBy.influence,
                         page=page, per_page=50)
-                self._log.debug('Retrieved team member page %d of %d',
+                self._log.trace('Retrieved team member page %d of %d',
                         team_data.get('page',page),
                         team_data.get('last_page',page_cnt))
                 members_data.extend(team_data['team'])
@@ -170,7 +170,7 @@ class Crawler(object):
                     fetch_uids = extras[:50]
                     team_data = yield self._api.get_users(ids=fetch_uids,
                             sortby=UserSortBy.influence, page=page, per_page=50)
-                    self._log.debug('Retrieved additional members: %s', fetch_uids)
+                    self._log.trace('Retrieved additional members: %s', fetch_uids)
                     members_data.extend([{'user': u} for u in team_data['users']])
                     extras = extras[50:]
                 self._admin_uid_scanned = True
@@ -192,18 +192,18 @@ class Crawler(object):
 
             # Add any new members
             for user_id in (set(members.keys()) - existing):
-                self._log.debug('Adding user ID %d to admin group', user_id)
+                self._log.trace('Adding user ID %d to admin group', user_id)
                 self._admin.users.append(members[user_id])
                 existing.add(user_id)
 
             # Remove any old members
             for user_id in (existing - set(members.keys())):
                 if user_id in self._admin_uid:
-                    self._log.debug('%d is given via command line, not removing',
+                    self._log.trace('%d is given via command line, not removing',
                             user_id)
                     continue
 
-                self._log.debug('Removing user ID %d from admin group', user_id)
+                self._log.trace('Removing user ID %d from admin group', user_id)
                 self._admin.users.remove(
                         self._db.query(User).get(user_id))
 
@@ -236,7 +236,7 @@ class Crawler(object):
 
         if not avatar.avatar_type:
             # We don't have the avatar yet
-            self._log.debug('Retrieving avatar at %s',
+            self._log.trace('Retrieving avatar at %s',
                     avatar.url)
             avatar_res = yield self._api.api_fetch(
                     avatar.url)
@@ -252,7 +252,7 @@ class Crawler(object):
         Inspect the user, see if they're worth investigating.
         """
         if user_data['id'] in self._deleted_users:
-            self._log.debug('User %d is deleted', user_data['id'])
+            self._log.trace('User %d is deleted', user_data['id'])
             return
 
         try:
@@ -262,7 +262,7 @@ class Crawler(object):
             # Has the user been classified?
             user_groups = set([g.name for g in user.groups])
             classified = ('legit' in user_groups) or ('suspect' in user_groups)
-            self._log.debug('User %s [#%d] is in groups %s (classified %s)',
+            self._log.trace('User %s [#%d] is in groups %s (classified %s)',
                     user.screen_name, user.user_id, user_groups, classified)
 
             # Is the link valid?
@@ -348,7 +348,7 @@ class Crawler(object):
                 while pg_idx <= pg_cnt:
                     link_res = yield self._api.get_user_links(user.user_id,
                             page=pg_idx, per_page=50)
-                    self._log.debug('Retrieved user %s link page %d of %d',
+                    self._log.trace('Retrieved user %s link page %d of %d',
                             user,
                             link_res.get('page',pg_idx),
                             link_res.get('last_page',pg_cnt))
@@ -429,7 +429,7 @@ class Crawler(object):
                             prj_res = yield self._api.get_user_projects(
                                     user.user_id,
                                     page=pg_idx, per_page=50)
-                            self._log.debug('Projects for %s: %s',
+                            self._log.audit('Projects for %s: %s',
                                     user, prj_res)
 
                             raw_projects = prj_res.get('projects')
@@ -458,7 +458,7 @@ class Crawler(object):
                     while pg_idx <= pg_cnt:
                         page_res = yield self._api.get_user_pages(user.user_id,
                                 page=pg_idx, per_page=50)
-                        self._log.debug('Pages for %s: %s',
+                        self._log.audit('Pages for %s: %s',
                                 user, page_res)
 
                         raw_pages = page_res.get('pages')
@@ -504,7 +504,7 @@ class Crawler(object):
                     h = self._db.query(Hostname).filter(
                             Hostname.hostname==hostname).one_or_none()
                     if h is None:
-                        self._log.debug('New hostname: %s', hostname)
+                        self._log.audit('New hostname: %s', hostname)
                         h = Hostname(hostname=hostname, score=0, count=0)
                         self._db.add(h)
                     hostnames[hostname] = h
@@ -515,7 +515,7 @@ class Crawler(object):
                     w = self._db.query(Word).filter(
                             Word.word==word).one_or_none()
                     if w is None:
-                        self._log.debug('New word: %s', word)
+                        self._log.audit('New word: %s', word)
                         w = Word(word=word, score=0, count=0)
                         self._db.add(w)
                     words[word] = w
@@ -666,7 +666,7 @@ class Crawler(object):
         """
         Update a user in the database from data retrieved via the API.
         """
-        self._log.debug('Inspecting user data: %s', user_data)
+        self._log.audit('Inspecting user data: %s', user_data)
         avatar = self.get_avatar(user_data['image_url'])
 
         # Look up the user in the database
@@ -761,10 +761,10 @@ class Crawler(object):
                                     DeferredUser.inspect_time).limit(50).all()]
 
                 if ids:
-                    self._log.debug('Scanning %s', ids)
+                    self._log.trace('Scanning %s', ids)
 
                     user_data = yield self._api.get_users(ids=ids, per_page=50)
-                    self._log.debug('Received deferred users: %s', user_data)
+                    self._log.audit('Received deferred users: %s', user_data)
                     if isinstance(user_data['users'], list):
                         for this_user_data in user_data['users']:
                             while True:
@@ -819,7 +819,7 @@ class Crawler(object):
 
                     user_data = yield self._api.get_users(
                             ids=list(ids.keys()), per_page=50)
-                    self._log.debug('Received new users: %s', user_data)
+                    self._log.audit('Received new users: %s', user_data)
                     if isinstance(user_data['users'], list):
                         user_data['users'].sort(
                                 key=lambda u : u.get('id') or 0,
@@ -893,20 +893,20 @@ class Crawler(object):
             if page > 1:
                 last_refresh = self._db.query(NewestUserPageRefresh).get(page)
                 if last_refresh is not None:
-                    self._log.debug('Page %s last refreshed on %s',
+                    self._log.audit('Page %s last refreshed on %s',
                             last_refresh.page_num, last_refresh.refresh_date)
                     if (now - last_refresh.refresh_date).total_seconds() \
                             < 2592000.0:    # 30 days
                         # Skip this page for now
-                        self._log.debug('Skipping page %d', page)
+                        self._log.audit('Skipping page %d', page)
                         page += 1
                         yield sleep(0.001)
                         continue
 
-            self._log.debug('Retrieving newest user page %d', page)
+            self._log.trace('Retrieving newest user page %d', page)
             ids = yield self._api.get_user_ids(sortby=UserSortBy.newest,
                     page=page)
-            self._log.debug('Retrieved newest user page %d', page)
+            self._log.trace('Retrieved newest user page %d', page)
 
             if page > 1:
                 if last_refresh is None:
