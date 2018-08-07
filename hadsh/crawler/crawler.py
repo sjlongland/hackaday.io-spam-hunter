@@ -52,7 +52,12 @@ URI_WHITELIST = (
         re.compile(r'^https?://hackaday.io(|/.*)$'),
 )
 
+
 class InvalidUser(ValueError):
+    pass
+
+
+class NoUsersReturned(ValueError):
     pass
 
 
@@ -714,26 +719,23 @@ class Crawler(object):
         """
         Try to retrieve users newer than our current set.
         """
-        if not self._api.is_forbidden:
-            page = 1
-            page_count = 0
-            try:
-                while (page < max([self._refresh_hist_page,2])) \
-                        and (page_count < 10):
-                    self._log.info('Scanning for new users page %d', page)
-                    page = yield self.fetch_new_user_ids(
-                            page=page, inspect_all=True,
-                            defer=True)
-                    page_count += 1
-            except SQLAlchemyError:
-                # SQL cock up, roll back.
-                self._db.rollback()
-                self._log.exception('Failed to retrieve newer users'\
-                        ': database rolled back')
-            except:
-                self._log.exception('Failed to retrieve newer users')
-        else:
-            self._log.warning('API blocked: cannot retrieve newer users')
+        page = 1
+        page_count = 0
+        try:
+            while (page < max([self._refresh_hist_page,2])) \
+                    and (page_count < 10):
+                self._log.info('Scanning for new users page %d', page)
+                page = yield self.fetch_new_user_ids(
+                        page=page, inspect_all=True,
+                        defer=True)
+                page_count += 1
+        except SQLAlchemyError:
+            # SQL cock up, roll back.
+            self._db.rollback()
+            self._log.exception('Failed to retrieve newer users'\
+                    ': database rolled back')
+        except:
+            self._log.exception('Failed to retrieve newer users')
 
         delay = self._config['new_user_fetch_interval']
         next_time = self._io_loop.time()
@@ -843,7 +845,7 @@ class Crawler(object):
             except:
                 self._log.exception('Failed to retrieve new users')
         else:
-            self._log.warning('API blocked, cannot fetch new users')
+            self._log.warning('API blocked, cannot inspect new users')
 
         delay = self._config['new_check_interval']
         self._log.info('Next new user scan in %.3f sec', delay)
@@ -856,22 +858,19 @@ class Crawler(object):
         """
         Try to retrieve users registered earlier.
         """
-        if not self._api.is_forbidden:
-            self._log.info('Beginning historical user retrieval')
-            try:
-                self._refresh_hist_page = \
-                        yield self.fetch_new_user_ids(
-                            page=self._refresh_hist_page,
-                            defer=False)
-            except SQLAlchemyError:
-                # SQL cock up, roll back.
-                self._db.rollback()
-                self._log.exception('Failed to retrieve older users'\
-                        ': database rolled back')
-            except:
-                self._log.exception('Failed to retrieve older users')
-        else:
-            self._log.warning('API blocked, cannot fetch historical users')
+        self._log.info('Beginning historical user retrieval')
+        try:
+            self._refresh_hist_page = \
+                    yield self.fetch_new_user_ids(
+                        page=self._refresh_hist_page,
+                        defer=False)
+        except SQLAlchemyError:
+            # SQL cock up, roll back.
+            self._db.rollback()
+            self._log.exception('Failed to retrieve older users'\
+                    ': database rolled back')
+        except:
+            self._log.exception('Failed to retrieve older users')
 
         delay = self._config['old_user_fetch_interval']
         self._log.info('Next historical user fetch in %.3f sec', delay)
@@ -907,6 +906,10 @@ class Crawler(object):
             ids = yield self._api.get_user_ids(sortby=UserSortBy.newest,
                     page=page)
             self._log.trace('Retrieved newest user page %d', page)
+
+            if not ids:
+                # Nothing returned, so stop here
+                raise NoUsersReturned()
 
             if page > 1:
                 if last_refresh is None:
