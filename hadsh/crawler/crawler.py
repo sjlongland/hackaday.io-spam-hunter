@@ -75,6 +75,7 @@ class Crawler(object):
             'old_user_fetch_interval': 300.0,
             'old_user_fetch_interval_lastpage': 604800.0,
             'admin_user_fetch_interval': 86400.0,
+            'api_blocked_delay': 86400.0,
     }
 
     def __init__(self, project_id, admin_uid, db, api, log,
@@ -752,6 +753,7 @@ class Crawler(object):
         Inspect previously deferred users
         """
         if not self._api.is_forbidden:
+            delay = self._config['deferred_check_interval']
             self._log.info('Scanning deferred users')
             try:
                 # Grab a handful of deferred users
@@ -795,8 +797,8 @@ class Crawler(object):
                 self._log.exception('Failed to retrieve deferred users')
         else:
             self._log.warning('API blocked, cannot inspect deferred users')
+            delay = self._config['api_blocked_delay']
 
-        delay = self._config['deferred_check_interval']
         self._log.info('Next deferred user scan in %.3f sec', delay)
         self._io_loop.add_timeout(
                 self._io_loop.time() + delay,
@@ -808,6 +810,7 @@ class Crawler(object):
         Inspect new users
         """
         if not self._api.is_forbidden:
+            delay = self._config['new_check_interval']
             self._log.info('Scanning new users')
             try:
                 # Grab a handful of new users
@@ -845,9 +848,9 @@ class Crawler(object):
             except:
                 self._log.exception('Failed to retrieve new users')
         else:
+            delay = self._config['api_blocked_delay']
             self._log.warning('API blocked, cannot inspect new users')
 
-        delay = self._config['new_check_interval']
         self._log.info('Next new user scan in %.3f sec', delay)
         self._io_loop.add_timeout(
                 self._io_loop.time() + delay,
