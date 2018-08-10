@@ -73,7 +73,7 @@ class Crawler(object):
             'defer_max_age': 2419200.0,
             'defer_max_count': 5,
             'old_user_fetch_interval': 300.0,
-            'old_user_catchup_interval': 60.0,
+            'old_user_fetch_interval_lastpage': 604800.0,
             'admin_user_fetch_interval': 86400.0,
     }
 
@@ -859,6 +859,7 @@ class Crawler(object):
         Try to retrieve users registered earlier.
         """
         self._log.info('Beginning historical user retrieval')
+        delay = self._config['old_user_fetch_interval']
         try:
             self._refresh_hist_page = \
                     yield self.fetch_new_user_ids(
@@ -869,10 +870,12 @@ class Crawler(object):
             self._db.rollback()
             self._log.exception('Failed to retrieve older users'\
                     ': database rolled back')
+        except NoUsersReturned:
+            self._log.info('Last user page reached')
+            delay = self._config['old_user_fetch_interval_lastpage']
         except:
             self._log.exception('Failed to retrieve older users')
 
-        delay = self._config['old_user_fetch_interval']
         self._log.info('Next historical user fetch in %.3f sec', delay)
         self._io_loop.add_timeout(
                 self._io_loop.time() + delay,
