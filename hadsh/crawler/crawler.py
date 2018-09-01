@@ -281,7 +281,7 @@ class Crawler(object):
                     except gaierror:
                         continue
             except HTTPError as e:
-                if e.code != 404:
+                if e.code not in (404, 410):
                     raise
                 self._log.info('Link to user %s [#%d] no longer valid',
                         user.screen_name, user.user_id)
