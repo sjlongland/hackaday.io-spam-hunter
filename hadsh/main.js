@@ -20,21 +20,24 @@ var htmlEscape = function(str) {
         .replace(/>/g, '&gt;');
 };
 
+var setup_xhr = function(rq, resolve, reject) {
+	rq.onreadystatechange = function() {
+		if (rq.readyState == 4) {
+			if (rq.status === 200) {
+				resolve(rq);
+			} else {
+				var err = new Error('Request failed');
+				err.rq = rq;
+				reject(err);
+			}
+		}
+	}
+}
+
 var get = function(uri) {
 	return new Promise(function (resolve, reject) {
 		var rq = new XMLHttpRequest();
-		rq.onreadystatechange = function() {
-			if (rq.readyState == 4) {
-				if (rq.status === 200) {
-					resolve(rq);
-				} else {
-					var err = new Error('Request failed');
-					err.rq = rq;
-					reject(err);
-				}
-			}
-		}
-
+		setup_xhr(rq, resolve, reject);
 		rq.open("GET", uri, true);
 		rq.send();
 	});
@@ -44,6 +47,20 @@ var getJSON = function(uri) {
 	return get(uri).then(function (rq) {
 		return JSON.parse(rq.responseText);
 	});
+};
+
+var post = function(uri, content_type, data) {
+	return new Promise(function (resolve, reject) {
+		var rq = new XMLHttpRequest();
+		setup_xhr(rq, resolve, reject);
+		rq.open('POST', uri);
+		rq.setRequestHeader("Content-type", content_type);
+		rq.send(data);
+	});
+};
+
+var postJSON = function(uri, data) {
+	return post(uri, 'application/json', JSON.stringify(data));
 };
 
 var scoreColour = function (score) {
@@ -205,18 +222,14 @@ var getNextPage = function() {
 				var classify_legit = document.createElement('button');
 				classify_legit.innerHTML = 'Legit';
 				var do_classify = function(mass_update) {
-					var rq = new XMLHttpRequest();
 					rm_auto();
-					rq.open('POST', '/classify/' + user.id);
-					rq.setRequestHeader("Content-type", 'application/json');
-					rq.send(JSON.stringify("legit"));
-					rq.onreadystatechange = function() {
-						if ((this.readyState === 4) && (this.status === 200)) {
-							setTimeout(function () {
-								textbox.removeChild(userBox);
-							}, ((mass_update === true) ? 500 : 10000));
-						}
-					};
+					postJSON('/classify/' + user.id,
+						"legit"
+					).then(function() {
+						setTimeout(function () {
+							textbox.removeChild(userBox);
+						}, ((mass_update === true) ? 500 : 10000));
+					});
 					profile_groups.removeChild(classify_legit);
 				};
 				if (group_set.auto_legit && (!user.pending)) {
@@ -230,18 +243,14 @@ var getNextPage = function() {
 				var classify_suspect = document.createElement('button');
 				classify_suspect.innerHTML = 'Suspect';
 				classify_suspect.onclick = function() {
-					var rq = new XMLHttpRequest();
 					rm_auto();
-					rq.open('POST', '/classify/' + user.id);
-					rq.setRequestHeader("Content-type", 'application/json');
-					rq.send(JSON.stringify("suspect"));
-					rq.onreadystatechange = function() {
-						if ((this.readyState === 4) && (this.status === 200)) {
-							setTimeout(function () {
-								textbox.removeChild(userBox);
-							}, 10000);
-						}
-					};
+					postJSON('/classify/' + user.id,
+						"suspect"
+					).then(function() {
+						setTimeout(function () {
+							textbox.removeChild(userBox);
+						}, 10000);
+					});
 					profile_groups.removeChild(classify_suspect);
 				};
 				profile_groups.appendChild(classify_suspect);
@@ -250,7 +259,6 @@ var getNextPage = function() {
 			var defer_classify = document.createElement('button');
 			defer_classify.innerHTML = 'Defer';
 			defer_classify.onclick = function() {
-				var rq = new XMLHttpRequest();
 				rm_auto();
 				textbox.removeChild(userBox);
 			};
