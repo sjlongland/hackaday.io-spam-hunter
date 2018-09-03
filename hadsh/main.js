@@ -334,6 +334,7 @@ var getNextPage = function() {
 
 								hostname_tt.innerHTML = htmlEscape(hostname);
 								hostname_span.appendChild(hostname_tt);
+								hostname_span.classList.add('word');
 								hostname_span.title = stat.user_count
 										+ ' occurances; score: '
 										+ score;
@@ -380,6 +381,7 @@ var getNextPage = function() {
 
 								word_tt.innerHTML = htmlEscape(word);
 								word_span.appendChild(word_tt);
+								word_span.classList.add('word');
 								word_span.title = stat.user_count
 										+ ' occurances; score: '
 										+ score;
@@ -425,6 +427,7 @@ var getNextPage = function() {
 										+ ' &rarr; '
 										+ htmlEscape(word_adj.following);
 								adj_span.appendChild(adj_tt);
+								adj_span.classList.add('word');
 								adj_span.title = word_adj.user_count
 										+ ' occurances; score: '
 										+ score;
