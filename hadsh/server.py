@@ -5,6 +5,7 @@ import uuid
 import datetime
 import pytz
 import json
+import functools
 
 from tornado.web import Application, RequestHandler, \
         RedirectHandler, MissingArgumentError
@@ -136,7 +137,205 @@ class AvatarHandler(AuthRequestHandler):
             db.close()
 
 
-class NewcomerDataHandler(AuthRequestHandler):
+class WordHandler(AuthRequestHandler):
+    @coroutine
+    def get(self, word_id):
+        db = self.application._db
+        try:
+            # Are we logged in?
+            session = self._get_session_or_redirect()
+            if session is None:
+                return
+
+            w = db.query(Word).get(word_id)
+            self.set_status(200)
+            self.set_header('Content-Type', 'application/json')
+            self.write(json.dumps({
+                'id': w.word_id,
+                'word': w.word,
+                'score': w.score,
+                'count': w.count
+            }))
+        finally:
+            db.close()
+
+
+class WordAdjacencyHandler(AuthRequestHandler):
+    @coroutine
+    def get(self, wa_id):
+        db = self.application._db
+        try:
+            # Are we logged in?
+            session = self._get_session_or_redirect()
+            if session is None:
+                return
+
+            wa = db.query(WordAdjacent).get(wa_id)
+            self.set_status(200)
+            self.set_header('Content-Type', 'application/json')
+            self.write(json.dumps({
+                'proceeding_id': wa.proceeding_id,
+                'proceeding': wa.proceeding.word,
+                'following_id': wa.following_id,
+                'following': wa.following.word,
+                'score': wa.score,
+                'count': wa.count
+            }))
+        finally:
+            db.close()
+
+
+class HostnameHandler(AuthRequestHandler):
+    @coroutine
+    def get(self, hostname_id):
+        db = self.application._db
+        try:
+            # Are we logged in?
+            session = self._get_session_or_redirect()
+            if session is None:
+                return
+
+            h = db.query(Hostname).get(hostname_id)
+            self.set_status(200)
+            self.set_header('Content-Type', 'application/json')
+            self.write(json.dumps({
+                'hostname_id': h.hostname_id,
+                'hostname': h.hostname,
+                'score': h.score,
+                'count': h.count
+            }))
+        finally:
+            db.close()
+
+
+class UserHandler(AuthRequestHandler):
+    @coroutine
+    def get(self, user_id):
+        db = self.application._db
+
+        try:
+            # Are we logged in?
+            session = self._get_session_or_redirect()
+            if session is None:
+                return
+
+            self.set_header('Content-Type', 'application/json')
+            self.set_header('Cache-Control',
+                    'no-cache, no-store, must-revalidate')
+
+            user = db.query(User).get(user_id)
+            if user is None:
+                self.set_status(404)
+                self.write(json.dumps({
+                    'id': user_id
+                }))
+            else:
+                self.set_status(200)
+                self.write(json.dumps(self._dump_user(user)))
+        finally:
+            db.close()
+
+    @staticmethod
+    def _dump_user(db, user):
+        # Return JSON data
+        def _dump_link(link):
+            return {
+                    'title':        link.title,
+                    'url':          link.url
+            }
+
+        user_words = {}
+        user_hostnames = {}
+        user_adj = []
+
+        du = db.query(DeferredUser).get(user.user_id)
+        if (du is None) or (du.inspections >= 5):
+            pending = False
+            inspections = None
+            next_inspection = None
+        else:
+            pending = True
+            inspections = du.inspections
+            next_inspection = du.inspect_time.isoformat()
+
+        data = {
+                'id':           user.user_id,
+                'screen_name':  user.screen_name,
+                'url':          user.url,
+                'avatar_id':    user.avatar_id,
+                'created':      (user.created or user.last_update).isoformat(),
+                'had_created':  user.had_created.isoformat() \
+                                if user.had_created is not None else None,
+                'last_update':  user.last_update.isoformat() \
+                                if user.last_update is not None else None,
+                'links':        list(map(_dump_link, user.links)),
+                'hostnames':    user_hostnames,
+                'groups':       [
+                    g.name for g in user.groups
+                ],
+                'tags':         [
+                    t.tag for t in user.tags
+                ],
+                'tokens':       dict([
+                    (t.token, t.count) for t in user.tokens
+                ]),
+                'words':        user_words,
+                'word_adj':     user_adj,
+                'pending':      pending,
+                'inspections':  inspections,
+                'next_inspection': next_inspection
+        }
+
+        for uh in user.hostnames:
+            h = db.query(Hostname).get(uh.hostname_id)
+            user_hostnames[h.hostname] = {
+                    'user_count': uh.count,
+                    'site_count': h.count,
+                    'site_score': h.score,
+            }
+
+        for uw in user.words:
+            w = db.query(Word).get(uw.word_id)
+            user_words[w.word] = {
+                    'user_count': uw.count,
+                    'site_count': w.count,
+                    'site_score': w.score,
+            }
+
+        for uwa in user.adj_words:
+            pw = db.query(Word).get(uwa.proceeding_id)
+            fw = db.query(Word).get(uwa.following_id)
+            wa = db.query(WordAdjacent).get(
+                    (uwa.proceeding_id, uwa.following_id))
+
+            if wa is not None:
+                wa_count = wa.count
+                wa_score = wa.score
+            else:
+                wa_count = 0
+                wa_score = 0
+
+            user_adj.append({
+                'proceeding': pw.word,
+                'following': fw.word,
+                'user_count': uwa.count,
+                'site_count': wa_count,
+                'site_score': wa_score,
+            })
+
+        detail = user.detail
+        if detail is not None:
+            data.update({
+                'about_me': detail.about_me,
+                'who_am_i': detail.who_am_i,
+                'location': detail.location,
+                'projects': detail.projects,
+                'what_i_would_like_to_do': detail.what_i_would_like_to_do,
+            })
+        return data
+
+
+class UserBrowserHandler(AuthRequestHandler):
     @coroutine
     def get(self):
         db = self.application._db
@@ -167,17 +366,20 @@ class NewcomerDataHandler(AuthRequestHandler):
             except MissingArgumentError:
                 after_user_id = None
 
+            try:
+                groups = tuple(self.get_query_argument('groups').split(' '))
+            except MissingArgumentError:
+                groups = self.DEFAULT_GROUPS
+
             log = self.application._log.getChild(\
-                    'newcomer_data[%s < user_id < %s]' \
-                    % (before_user_id, after_user_id))
+                    '%s[%s < user_id < %s]' \
+                    % (self.__class__.__name__, before_user_id, after_user_id))
 
             new_users = []
             while len(new_users) == 0:
                 # Retrieve users from the database
-                query = db.query(User).join(\
-                        User.groups).filter(or_(\
-                        Group.name == 'auto_suspect',
-                        Group.name == 'auto_legit'))
+                query = db.query(User).join(User.groups).filter(\
+                        Group.name.in_(groups))
                 if before_user_id is not None:
                     query = query.filter(User.user_id < before_user_id)
                 if after_user_id is not None:
@@ -196,114 +398,33 @@ class NewcomerDataHandler(AuthRequestHandler):
                     except TimeoutError:
                         break
 
-            # Return JSON data
-            def _dump_link(link):
-                return {
-                        'title':        link.title,
-                        'url':          link.url
-                }
-
-            def _dump_user(user):
-                user_words = {}
-                user_hostnames = {}
-                user_adj = []
-
-                du = db.query(DeferredUser).get(user.user_id)
-                if (du is None) or (du.inspections >= 5):
-                    pending = False
-                    inspections = None
-                    next_inspection = None
-                else:
-                    pending = True
-                    inspections = du.inspections
-                    next_inspection = du.inspect_time.isoformat()
-
-                data = {
-                        'id':           user.user_id,
-                        'screen_name':  user.screen_name,
-                        'url':          user.url,
-                        'avatar_id':    user.avatar_id,
-                        'created':      (user.created or user.last_update).isoformat(),
-                        'had_created':  user.had_created.isoformat() \
-                                        if user.had_created is not None else None,
-                        'last_update':  user.last_update.isoformat() \
-                                        if user.last_update is not None else None,
-                        'links':        list(map(_dump_link, user.links)),
-                        'hostnames':    user_hostnames,
-                        'groups':       [
-                            g.name for g in user.groups
-                        ],
-                        'tags':         [
-                            t.tag for t in user.tags
-                        ],
-                        'tokens':       dict([
-                            (t.token, t.count) for t in user.tokens
-                        ]),
-                        'words':        user_words,
-                        'word_adj':     user_adj,
-                        'pending':      pending,
-                        'inspections':  inspections,
-                        'next_inspection': next_inspection
-                }
-
-                for uh in user.hostnames:
-                    h = db.query(Hostname).get(uh.hostname_id)
-                    user_hostnames[h.hostname] = {
-                            'user_count': uh.count,
-                            'site_count': h.count,
-                            'site_score': h.score,
-                    }
-
-                for uw in user.words:
-                    w = db.query(Word).get(uw.word_id)
-                    user_words[w.word] = {
-                            'user_count': uw.count,
-                            'site_count': w.count,
-                            'site_score': w.score,
-                    }
-
-                for uwa in user.adj_words:
-                    pw = db.query(Word).get(uwa.proceeding_id)
-                    fw = db.query(Word).get(uwa.following_id)
-                    wa = db.query(WordAdjacent).get(
-                            (uwa.proceeding_id, uwa.following_id))
-
-                    if wa is not None:
-                        wa_count = wa.count
-                        wa_score = wa.score
-                    else:
-                        wa_count = 0
-                        wa_score = 0
-
-                    user_adj.append({
-                        'proceeding': pw.word,
-                        'following': fw.word,
-                        'user_count': uwa.count,
-                        'site_count': wa_count,
-                        'site_score': wa_score,
-                    })
-
-                detail = user.detail
-                if detail is not None:
-                    data.update({
-                        'about_me': detail.about_me,
-                        'who_am_i': detail.who_am_i,
-                        'location': detail.location,
-                        'projects': detail.projects,
-                        'what_i_would_like_to_do': detail.what_i_would_like_to_do,
-                    })
-                return data
-
             self.set_status(200)
             self.set_header('Content-Type', 'application/json')
             self.set_header('Cache-Control',
                     'no-cache, no-store, must-revalidate')
             self.write(json.dumps({
                     'page': page,
-                    'users': list(map(_dump_user, new_users))
+                    'users': list(map(functools.partial(
+                        UserHandler._dump_user, db), new_users))
             }))
         finally:
             db.close()
+
+
+class NewcomerDataHandler(UserBrowserHandler):
+    DEFAULT_GROUPS = ('auto_legit', 'auto_suspect')
+
+
+class LegitUserDataHandler(UserBrowserHandler):
+    DEFAULT_GROUPS = ('legit',)
+
+
+class SuspectUserDataHandler(UserBrowserHandler):
+    DEFAULT_GROUPS = ('suspect',)
+
+
+class AdminUserDataHandler(UserBrowserHandler):
+    DEFAULT_GROUPS = ('admin',)
 
 
 class ClassifyHandler(AuthAdminRequestHandler):
@@ -525,6 +646,7 @@ class CallbackHandler(RequestHandler):
         finally:
             db.close()
 
+
 class HADSHApp(Application):
     """
     Hackaday.io Spambot Hunter application.
@@ -556,9 +678,16 @@ class HADSHApp(Application):
         super(HADSHApp, self).__init__([
             (r"/", RootHandler),
             (r"/avatar/([0-9]+)", AvatarHandler),
+            (r"/user/([0-9]+)", UserHandler),
+            (r"/word/([0-9]+)", WordHandler),
+            (r"/wordadj/([0-9]+)", WordAdjacencyHandler),
+            (r"/hostname/([0-9]+)", HostnameHandler),
             (r"/callback", CallbackHandler),
             (r"/classify/([0-9]+)", ClassifyHandler),
             (r"/data/newcomers.json", NewcomerDataHandler),
+            (r"/data/legit.json", LegitUserDataHandler),
+            (r"/data/suspect.json", SuspectUserDataHandler),
+            (r"/data/admin.json", AdminUserDataHandler),
             (r"/authorize", RedirectHandler, {
                 "url": self._api.auth_uri
             }),
