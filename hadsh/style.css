@@ -1,0 +1,54 @@
+body {
+	color: #0c0;
+	font-family: monospace;
+	background-color: #010;
+}
+
+a {
+	color: #0c0;
+}
+
+a:hover {
+	color: #0f0;
+}
+
+button {
+	font-family: monospace;
+	background-color: #030;
+	color: #0c0;
+	padding: 1em;
+	border: 1px solid #0c0;
+}
+button:hover {
+	background-color: #060;
+	color: #0f0;
+}
+
+.profile {
+	border: 1px solid black;
+	padding: 2em;
+}
+
+.profile_field_name {
+	font-weight: bold;
+}
+
+.avatar_box {
+	width: 100px;
+	height: 100px;
+}
+
+.score_gauge {
+	height: 32px;
+}
+
+.score_gauge_base {
+	display: table-row;
+	width: 320px;
+	border: 1px solid #0f0;
+}
+
+.score_gauge_indication {
+	display: table-cell;
+	background: #060;
+}
