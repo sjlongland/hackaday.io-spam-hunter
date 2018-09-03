@@ -108,16 +108,14 @@ var getNextPage = function() {
 						displayed++;
 
 						var userBox = document.createElement('div');
-						userBox.style.border = '1px solid black';
-						userBox.style.padding = '2em';
+						userBox.classList.add('profile');
 
 						var avatarBox = document.createElement('div');
 						var avatar = document.createElement('img');
 						avatar.src = '/avatar/' + user.avatar_id
 							+ '?width=100&height=100';
+						avatarBox.classList.add('avatar_box');
 						avatarBox.appendChild(avatar);
-						avatarBox.style.width = '100px';
-						avatarBox.style.height = '100px';
 						userBox.appendChild(avatarBox);
 
 						var profile_link = document.createElement('a');
@@ -144,23 +142,19 @@ var getNextPage = function() {
 						userBox.appendChild(profile_score);
 
 						var profile_score_gauge = document.createElement('div');
-						profile_score_gauge.style.display = 'table-row';
-						profile_score_gauge.style.height = '32px';
-						profile_score_gauge.style.width = '320px';
-						profile_score_gauge.style.border = '1px solid black';
+						profile_score_gauge.classList.add('score_gauge');
+						profile_score_gauge.classList.add('score_gauge_base');
 						var profile_score_gauge_left = document.createElement('div');
-						profile_score_gauge_left.style.display = 'table-cell';
-						profile_score_gauge_left.style.height = '32px';
-						profile_score_gauge_left.style.background = '#ccc';
+						profile_score_gauge_left.classList.add('score_gauge');
+						profile_score_gauge_left.classList.add('score_gauge_indication');
 						profile_score_gauge.appendChild(profile_score_gauge_left);
 						var profile_score_gauge_bar = document.createElement('div');
-						profile_score_gauge_bar.style.display = 'table-cell';
-						profile_score_gauge_bar.style.height = '32px';
+						profile_score_gauge_bar.classList.add('score_gauge');
+						profile_score_gauge_bar.classList.add('score_gauge_indication');
 						profile_score_gauge.appendChild(profile_score_gauge_bar);
 						var profile_score_gauge_right = document.createElement('div');
-						profile_score_gauge_right.style.display = 'table-cell';
-						profile_score_gauge_right.style.height = '32px';
-						profile_score_gauge_right.style.background = '#ccc';
+						profile_score_gauge_right.classList.add('score_gauge');
+						profile_score_gauge_right.classList.add('score_gauge_indication');
 						profile_score_gauge.appendChild(profile_score_gauge_right);
 						userBox.appendChild(profile_score_gauge);
 
@@ -467,13 +461,13 @@ var getNextPage = function() {
 						profile_score.innerHTML = 'Score: ' + user_score;
 
 						if (user_score < 0.0) {
-							profile_score_gauge_left.style.width = (16 * (10.0 + user_score)) + 'px';
-							profile_score_gauge_bar.style.width = (16 * (-user_score)) + 'px';
+							profile_score_gauge_left.style.width = (16 * (10.0 + (2*user_score))) + 'px';
+							profile_score_gauge_bar.style.width = (16 * (-(2*user_score))) + 'px';
 							profile_score_gauge_right.style.width = '160px';
 						} else if (user_score > 0.0) {
 							profile_score_gauge_left.style.width = '160px';
-							profile_score_gauge_bar.style.width = (16 * (user_score)) + 'px';
-							profile_score_gauge_right.style.width = (16 * (10.0 - user_score)) + 'px';
+							profile_score_gauge_bar.style.width = (16 * (2*user_score)) + 'px';
+							profile_score_gauge_right.style.width = (16 * (10.0 - (2*user_score))) + 'px';
 						} else {
 							profile_score_gauge_left.style.width = '155px';
 							profile_score_gauge_bar.style.width = '10px';
