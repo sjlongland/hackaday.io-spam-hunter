@@ -1,7 +1,23 @@
+"use strict";
 
 /* Window state */
 var textbox = null;
 var busy = false;
+
+/*! All users currently being managed */
+var users = {};
+
+/*! All words being managed */
+var words = {};
+
+/*! Word Adjacencies being managed */
+var wordadj = {};
+
+/*! Hostnames being managed */
+var hostnames = {};
+
+/*! Groups being managed */
+var groups = {};
 
 var auto_mark = {};
 var mass_mark_legit = [];
@@ -20,13 +36,17 @@ var htmlEscape = function(str) {
         .replace(/>/g, '&gt;');
 };
 
-var setup_xhr = function(rq, resolve, reject) {
+/*!
+ * Configure a XMLHttpRequest with a call-back function
+ * for use with Promises.
+ */
+const setup_xhr = function(rq, resolve, reject) {
 	rq.onreadystatechange = function() {
 		if (rq.readyState == 4) {
 			if (rq.status === 200) {
 				resolve(rq);
 			} else {
-				var err = new Error('Request failed');
+				const err = new Error('Request failed');
 				err.rq = rq;
 				reject(err);
 			}
@@ -34,42 +54,564 @@ var setup_xhr = function(rq, resolve, reject) {
 	}
 }
 
-var get = function(uri) {
+/*!
+ * Perform a generic HTTP request
+ */
+const promise_http = function(uri, method, body_ct, body) {
 	return new Promise(function (resolve, reject) {
-		var rq = new XMLHttpRequest();
+		const rq = new XMLHttpRequest();
 		setup_xhr(rq, resolve, reject);
-		rq.open("GET", uri, true);
-		rq.send();
+		rq.open(method || 'GET', uri, true);
+		if (body_ct && body) {
+			rq.setRequestHeader("Content-type", body_ct);
+			rq.send(body);
+		} else {
+			rq.send();
+		}
 	});
 };
 
-var getJSON = function(uri) {
-	return get(uri).then(function (rq) {
-		return JSON.parse(rq.responseText);
+/*!
+ * Retrieve JSON via HTTP using Promises
+ */
+const get_json = function(uri) {
+	return promise_http(uri, 'GET').then(function (res) {
+		return JSON.parse(res.responseText);
 	});
 };
 
-var post = function(uri, content_type, data) {
-	return new Promise(function (resolve, reject) {
-		var rq = new XMLHttpRequest();
-		setup_xhr(rq, resolve, reject);
-		rq.open('POST', uri);
-		rq.setRequestHeader("Content-type", content_type);
-		rq.send(data);
+/*!
+ * Send JSON via HTTP using Promises
+ */
+const post_json = function(uri, data) {
+	return promise_http(uri, 'POST',
+		'application/json', JSON.stringify(data)
+	).then(function (res) {
+		if (res.responseText)
+			return JSON.parse(res.responseText)
 	});
 };
 
-var postJSON = function(uri, data) {
-	return post(uri, 'application/json', JSON.stringify(data));
+/*!
+ * A mathematical set
+ */
+const Set = function() {
+	const self = this;
+	this._elements = {};
+	([].slice.apply(arguments)).forEach((e) => {
+		self._elements[e] = true;
+	});
 };
 
-var scoreColour = function (score) {
+Set.prototype.has = function(e) {
+	return this._elements.hasOwnProperty(e);
+};
+
+Set.prototype.add = function() {
+	const self = this;
+	([].slice.apply(arguments)).forEach((e) => {
+		self._elements[e] = true;
+	});
+};
+
+Set.prototype.union = function() {
+	const self = this;
+	let res = self.clone();
+	([].slice.apply(arguments)).forEach((s) => {
+		res.add.apply(s.elements());
+	});
+	return res;
+};
+
+Set.prototype.rm = function() {
+	const self = this;
+	([].slice.apply(arguments)).forEach((e) => {
+		if (self._elements.hasOwnProperty(e))
+			delete self.elements[e];
+	});
+};
+
+Set.prototype.elements = function() {
+	return Object.keys(this._elements);
+};
+
+Set.prototype.clone = function() {
+	const self = this;
+	let clone = new Set();
+	clone.add.apply(self.elements());
+	return clone;
+};
+
+const ObjectSet = function() {
+	const self = this;
+	let args = ([].slice.apply(arguments));
+	this._class = args.shift();
+	this._collection = args.shift();
+	this._key_fn = args.shift();
+	this._obj_key = (e) => {
+		if (!(e instanceof self._class))
+			throw new Error('Incorrect argument type');
+		return self._key_fn(e);
+	};
+
+	Set.apply(this, args.map(self._obj_key));
+}
+
+ObjectSet.prototype = Object.create(Set.prototype);
+
+ObjectSet.prototype.has = function(e) {
+	const key = this._obj_key(e);
+
+	if (!this._collection.hasOwnProperty(key)) {
+		Set.prototype.rm.call(this, key);
+		return false;
+	}
+
+	return Set.call(this, key);
+};
+
+ObjectSet.prototype.add = function() {
+	const self = this,
+		args = [].slice.apply(arguments);
+	Set.prototype.add.apply(self,
+		args.map((e) => {
+			const key = self._obj_key(e);
+			if (!self._collection.hasOwnProperty(key))
+				throw new Error('Invalid instance for set: '
+					+ key);
+			return key;
+		}));
+};
+
+ObjectSet.prototype.rm = function() {
+	const self = this,
+		args = [].slice.apply(arguments);
+	Set.prototype.rm.apply(self, args.map(self._obj_key));
+};
+
+ObjectSet.prototype.elements = function() {
+	const self = this;
+	return Object.keys(this._elements).filter((key) => {
+		if (!self._collection.hasOwnProperty(key)) {
+			Set.prototype.rm.call(self, key);
+			return false;
+		}
+		return true;
+	}).map((key) => {
+		return self._collection[key];
+	});
+};
+
+ObjectSet.prototype.clone = function() {
+	const self = this;
+	let clone = new ObjectSet(self._class,
+		self._collection, self._key_fn);
+	clone.add.apply(self.elements());
+	return clone;
+};
+
+const UserSet = function() {
+	let args = ([].slice.apply(arguments));
+	args.unshift((user) => {
+		return user.id;
+	});
+	args.unshift(users);
+	args.unshift(User);
+	ObjectSet.apply(this, args);
+};
+UserSet.prototype = Object.create(ObjectSet.prototype);
+
+const WordSet = function() {
+	let args = ([].slice.apply(arguments));
+	args.unshift((word) => {
+		return word.id;
+	});
+	args.unshift(words);
+	args.unshift(Word);
+	ObjectSet.apply(this, args);
+};
+
+WordSet.prototype = Object.create(ObjectSet.prototype);
+
+const WordAdjSet = function() {
+	let args = ([].slice.apply(arguments));
+	args.unshift((wa) => {
+		return wa.key;
+	});
+	args.unshift(wordadj);
+	args.unshift(WordAdj);
+	ObjectSet.apply(this, args);
+};
+
+WordAdjSet.prototype = Object.create(ObjectSet.prototype);
+
+const HostnameSet = function() {
+	let args = ([].slice.apply(arguments));
+	args.unshift((h) => {
+		return h.id;
+	});
+	args.unshift(hostnames);
+	args.unshift(Hostname);
+	ObjectSet.apply(this, args);
+};
+
+HostnameSet.prototype = Object.create(ObjectSet.prototype);
+
+const GroupSet = function() {
+	let args = ([].slice.apply(arguments));
+	args.unshift((g) => {
+		return g.name;
+	});
+	args.unshift(groups);
+	args.unshift(Group);
+	ObjectSet.apply(this, args);
+};
+
+GroupSet.prototype = Object.create(ObjectSet.prototype);
+
+/*!
+ * A scored object.
+ */
+const ScoredObject = function(score, count) {
+	this.score = score;
+	this.count = count;
+	this.users = new UserSet();
+};
+
+ScoredObject.prototype.update_score = function(score, count) {
+	const self = this;
+	self.score = score;
+	self.count = count;
+
+	self.users.elements().forEach((u) => {
+		u.update_score();
+	});
+};
+
+/*!
+ * A word used by one or more users.
+ */
+const Word = function(id, word, score, count) {
+	if (words.hasOwnProperty(id))
+		throw new Error('Existing word');
+
+	words[id] = this;
+
+	this.id = id;
+	this.word = word;
+	this.wordadj = new WordAdjSet();
+	ScoredObject.call(this, score, count);
+};
+Word.prototype = Object.create(ScoredObject.prototype);
+
+Word.from_data = function(word, data) {
+	let w = words[data.id];
+	if (w) {
+		w.update_score(
+			data.score || data.site_score,
+			data.count || data.site_count);
+	} else {
+		w = new Word(data.id, word,
+			data.score || data.site_score,
+			data.count || data.site_count);
+	}
+	return w;
+};
+
+Word.from_id_name = function(id, word) {
+	let w = words[id];
+	if (!w) {
+		w = new Word(id, word);
+	}
+	return w;
+};
+
+Word.prototype.destroy = function() {
+	const self = this;
+
+	delete words[self.id];
+
+	self.users.elements().forEach((u) => {
+		u.words.rm(self);
+	});
+	self.wordadj.elements().forEach((wa) => {
+		wa.destroy();
+	});
+};
+
+Word.prototype.update_score = function(score, count) {
+	const self = this;
+	self.score = score;
+	self.count = count;
+
+	self.users.elements().forEach((u) => {
+		u.update_score();
+	});
+};
+
+/*!
+ * A pair of words that are adjacent.
+ */
+const WordAdj = function(proceeding, following, score, count) {
+	const key = WordAdj._key_from_ids(proceeding.id, following.id);
+
+	if (wordadj.hasOwnProperty(key))
+		throw new Error('Existing word adjacency');
+
+	wordadj[key] = this;
+
+	this.proceeding_id = proceeding.id;
+	this.following_id = following.id;
+	this.key = key;
+	this.score = score;
+	this.count = count;
+	this.users = new UserSet();
+
+	proceeding.wordadj.add(this);
+	following.wordadj.add(this);
+	ScoredObject.call(this, score, count);
+};
+WordAdj.prototype = Object.create(ScoredObject.prototype);
+
+WordAdj._key_from_ids = function(proceeding_id, following_id) {
+	return JSON.stringify([proceeding_id, following_id]);
+};
+
+WordAdj.from_data = function(data) {
+	const key = WordAdj._key_from_ids(data.proceeding_id,
+					data.following_id);
+	let wa = words[key];
+	if (wa) {
+		wa.update_score(
+			data.score || data.site_score,
+			data.count || data.site_count);
+	} else {
+		wa = new WordAdj(
+			Word.from_id_name(data.proceeding_id),
+			Word.from_id_name(data.following_id),
+			data.score || data.site_score,
+			data.count || data.site_count);
+	}
+	return wa;
+};
+
+WordAdj.prototype.update_score = function(score, count) {
+	const self = this;
+	self.score = score;
+	self.count = count;
+
+	self.users.elements().forEach((u) => {
+		u.update_score();
+	});
+};
+
+WordAdj.prototype.destroy = function() {
+	const self = this;
+
+	delete wordadj[self.key];
+
+	self.users.elements().forEach((u) => {
+		u.wordadj.rm(self);
+	});
+
+	if (words.hasOwnProperty(self.proceeding_id))
+		words[self.proceeding_id].wordadj.rm(self);
+
+	if (words.hasOwnProperty(self.following_id))
+		words[self.following_id].wordadj.rm(self);
+};
+
+/*!
+ * A hostname used by one or more users.
+ */
+const Hostname = function(id, hostname, score, count) {
+	if (hostnames.hasOwnProperty(id))
+		throw new Error('Existing hostname');
+
+	hostnames[id] = this;
+
+	this.id = id;
+	this.hostname = hostname;
+	ScoredObject.call(this, score, count);
+};
+Hostname.prototype = Object.create(ScoredObject.prototype);
+
+Hostname.from_data = function(hostname, data) {
+	let h = hostnames[data.id];
+	if (h) {
+		h.update_score(
+			data.score || data.site_score,
+			data.count || data.site_count);
+	} else {
+		h = new Hostname(data.id, hostname,
+			data.score || data.site_score,
+			data.count || data.site_count);
+	}
+	return h;
+};
+
+Hostname.from_id_name = function(id, hostname) {
+	let h = hostnames[id];
+	if (!h) {
+		h = new Hostname(id, hostname);
+	}
+	return h;
+};
+
+Hostname.prototype.destroy = function() {
+	const self = this;
+
+	delete hostnames[self.id];
+
+	self.users.elements().forEach((u) => {
+		u.hostnames.rm(self);
+	});
+};
+
+/*!
+ * A group of users
+ */
+const Group = function(name) {
+	if (groups.hasOwnProperty(name))
+		throw new Error('Existing group');
+
+	groups[name] = this;
+
+	this.name = name;
+	this.members = new UserSet();
+};
+
+Group.get = function(name) {
+	let g = groups[name];
+	if (!g) {
+		g = new Group(name);
+	}
+	return g;
+};
+
+/*!
+ * A user returned by the API
+ */
+const User = function(data) {
+	const self = this;
+
+	if (users.hasOwnProperty(data.id))
+		throw new Error('Existing user');
+
+	users[data.id] = this;
+
+	self.id = data.id;
+	self.groups = new GroupSet();
+	self.hostnames = new HostnameSet();
+	self.words = new WordSet();
+	self.wordadj = new WordAdjSet();
+	self.update(data);
+};
+
+User.from_data = function(data) {
+	let u = users[data.id];
+	if (u)
+		u.update(data);
+	else
+		u = new User(data);
+	return u;
+};
+
+User.prototype.update_score = function() {
+	/* TODO */
+};
+
+User.prototype.update = function(data) {
+	const self = this;
+
+	if (data.id !== self.id)
+		throw new Error('Mismatched user ID');
+
+	self.screen_name = data.screen_name;
+	self.location = data.location;
+	self.about_me = data.about_me;
+	self.who_am_i = data.who_am_i;
+	self.tags = data.tags;
+	self.links = data.links;
+	self.avatar_id = data.avatar_id;
+	self.created = data.created;
+	self.had_created = data.had_created;
+	self.last_update = data.last_update;
+	self.tokens = data.tokens;
+	self.next_inspection = data.next_inspection;
+	self.inspections = data.inspections;
+	self.pending = data.pending;
+	self.url = data.url;
+
+	let in_group = {};
+	data.groups.forEach((name) => {
+		const g = Group.get(name);
+		in_group[name] = true;
+		g.members.add(self);
+		self.groups.add(g);
+	});
+	self.groups.elements().forEach((g) => {
+		if (!in_group[g.name]) {
+			self.groups.rm(g);
+			g.members.rm(self);
+		}
+	});
+
+	let seen_hostnames = {};
+	Object.keys(data.hostnames).forEach((hostname) => {
+		const hd = data.hostnames[hostname];
+		const h = Hostname.from_data(hostname, hd);
+		seen_hostnames[h.id] = true;
+		h.users.add(self);
+		self.hostnames.add(h);
+	});
+	self.hostnames.elements().forEach((h) => {
+		if (!seen_hostnames[h.id]) {
+			self.hostnames.rm(h);
+			h.users.rm(self);
+		}
+	});
+
+	let seen_word = {};
+	Object.keys(data.words).forEach((word) => {
+		const wd = data.words[word];
+		const w = Word.from_data(word, wd);
+		seen_word[w.id] = true;
+		w.users.add(self);
+		self.words.add(w);
+	});
+	self.words.elements().forEach((w) => {
+		if (!seen_word[w.id]) {
+			self.words.rm(w);
+			w.users.rm(self);
+		}
+	});
+
+	let seen_wordadj = {};
+	data.word_adj.forEach((wordadj) => {
+		const wa = WordAdj.from_data(wordadj);
+		seen_wordadj[wa.key] = true;
+		wa.users.add(self);
+		self.wordadj.add(wa);
+	});
+	self.wordadj.elements().forEach((wa) => {
+		if (!seen_wordadj[wa.key]) {
+			self.wordadj.rm(wa);
+			wa.users.rm(self);
+		}
+	});
+};
+
+/*!
+ * Generate a style colour based on the score.
+ */
+const scoreColour = function (score) {
 	var red = Math.round(((score > 0) ? (1.0 - score) : 1.0)*255);
 	var grn = Math.round(((score < 0) ? (score + 1.0) : 1.0)*255);
 	return 'rgb(' + red + ', ' + grn + ', 0)';
 };
 
-var getNextPage = function() {
+const getNextPage = function() {
 	busy = true;
 	var loading_msg = document.createElement('pre');
 	var spinner = '-';
@@ -127,13 +669,22 @@ var getNextPage = function() {
 	if (oldest_uid !== null)
 		uri += "?before_user_id=" + oldest_uid;
 
-	getJSON(uri).then(function (data) {
+	get_json(uri).then(function (data) {
 		// Typical action to be performed when
 		// the document is ready:
 		textbox.removeChild(loading_msg);
 
 		found += data.users.length;
 		data.users.forEach(function (user) {
+			try {
+				let u = User.from_data(user);
+			} catch (err) {
+				console.log('Failed to create user: '
+					+ err.message
+					+ '\n'
+					+ err.stack);
+			}
+
 			if ((newest_uid === null)
 				|| (newest_uid < user.id))
 				newest_uid = user.id;
@@ -223,7 +774,7 @@ var getNextPage = function() {
 				classify_legit.innerHTML = 'Legit';
 				var do_classify = function(mass_update) {
 					rm_auto();
-					postJSON('/classify/' + user.id,
+					post_json('/classify/' + user.id,
 						"legit"
 					).then(function() {
 						setTimeout(function () {
@@ -244,7 +795,7 @@ var getNextPage = function() {
 				classify_suspect.innerHTML = 'Suspect';
 				classify_suspect.onclick = function() {
 					rm_auto();
-					postJSON('/classify/' + user.id,
+					post_json('/classify/' + user.id,
 						"suspect"
 					).then(function() {
 						setTimeout(function () {
@@ -521,8 +1072,6 @@ var getNextPage = function() {
 		busy = false;
 		console.log('Error ' + err.rq.status + ' retrieving data');
 	});
-	rq.open("GET", uri, true);
-	rq.send();
 };
 
 var main = function() {
