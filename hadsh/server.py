@@ -289,6 +289,7 @@ class UserHandler(AuthRequestHandler):
         for uh in user.hostnames:
             h = db.query(Hostname).get(uh.hostname_id)
             user_hostnames[h.hostname] = {
+                    'id': h.hostname_id,
                     'user_count': uh.count,
                     'site_count': h.count,
                     'site_score': h.score,
@@ -297,6 +298,7 @@ class UserHandler(AuthRequestHandler):
         for uw in user.words:
             w = db.query(Word).get(uw.word_id)
             user_words[w.word] = {
+                    'id': w.word_id,
                     'user_count': uw.count,
                     'site_count': w.count,
                     'site_score': w.score,
@@ -317,7 +319,9 @@ class UserHandler(AuthRequestHandler):
 
             user_adj.append({
                 'proceeding': pw.word,
+                'proceeding_id': uwa.proceeding_id,
                 'following': fw.word,
+                'following_id': uwa.following_id,
                 'user_count': uwa.count,
                 'site_count': wa_count,
                 'site_score': wa_score,
