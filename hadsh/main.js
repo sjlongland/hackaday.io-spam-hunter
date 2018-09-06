@@ -1,9 +1,5 @@
 "use strict";
 
-/* Window state */
-var textbox = null;
-var busy = false;
-
 /*! All users currently being managed */
 var users = {};
 
@@ -19,12 +15,22 @@ var hostnames = {};
 /*! Groups being managed */
 var groups = {};
 
-var auto_mark = {};
-var mass_mark_legit = [];
-var mass_mark_btn = null;
+/* Pagination and source */
+var source = '/data/newcomers.json',
+	newest_uid = null,
+	oldest_uid = null;
 
-var newest_uid = null;
-var oldest_uid = null;
+/* UI state */
+var busy = false;
+
+/* UI panes and controls */
+var title_pane = null,
+	user_pane = null,
+	status_pane = null,
+	user_uis = [];
+
+/* Pending user actions */
+var user_actions = {};
 
 /* Credit: https://stackoverflow.com/a/7124052 */
 var htmlEscape = function(str) {
@@ -34,6 +40,17 @@ var htmlEscape = function(str) {
         .replace(/'/g, '&#39;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
+};
+
+/*!
+ * Clear the given DOM element of children.  Return those children.
+ */
+const clear_element = function(element) {
+	const children = [].slice.apply(element.childNodes);
+	children.forEach((c) => {
+		element.removeChild(c);
+	});
+	return children;
 };
 
 /*!
@@ -140,6 +157,10 @@ Set.prototype.clone = function() {
 	let clone = new Set();
 	clone.add.apply(self.elements());
 	return clone;
+};
+
+Set.prototype.size = function() {
+	return Object.keys(this._elements).length;
 };
 
 const ObjectSet = function() {
@@ -273,18 +294,39 @@ GroupSet.prototype = Object.create(ObjectSet.prototype);
  * A scored object.
  */
 const ScoredObject = function(score, count) {
-	this.score = score;
-	this.count = count;
 	this.users = new UserSet();
+	this.ui = {};
+	this.update_score(score, count);
+};
+
+ScoredObject.sortByScore = function(a, b) {
+	if (a.normalised_score < b.normalised_score)
+		return -1;
+	if (a.normalised_score > b.normalised_score)
+		return 1;
+	return 0;
+};
+
+ScoredObject.prototype._get_normalised_score = function() {
+	if (this.count === 0)
+		return 0;
+
+	return (Math.round((100 * this.score)
+		/ this.count)
+		/ 100.0);
 };
 
 ScoredObject.prototype.update_score = function(score, count) {
 	const self = this;
 	self.score = score;
 	self.count = count;
+	self.normalised_score = self._get_normalised_score();
 
 	self.users.elements().forEach((u) => {
 		u.update_score();
+	});
+	Object.keys(self.ui).forEach((id) => {
+		self.ui[id].update(self);
 	});
 };
 
@@ -339,16 +381,6 @@ Word.prototype.destroy = function() {
 	});
 };
 
-Word.prototype.update_score = function(score, count) {
-	const self = this;
-	self.score = score;
-	self.count = count;
-
-	self.users.elements().forEach((u) => {
-		u.update_score();
-	});
-};
-
 /*!
  * A pair of words that are adjacent.
  */
@@ -380,7 +412,7 @@ WordAdj._key_from_ids = function(proceeding_id, following_id) {
 WordAdj.from_data = function(data) {
 	const key = WordAdj._key_from_ids(data.proceeding_id,
 					data.following_id);
-	let wa = words[key];
+	let wa = wordadj[key];
 	if (wa) {
 		wa.update_score(
 			data.score || data.site_score,
@@ -395,14 +427,12 @@ WordAdj.from_data = function(data) {
 	return wa;
 };
 
-WordAdj.prototype.update_score = function(score, count) {
-	const self = this;
-	self.score = score;
-	self.count = count;
+WordAdj.prototype.proceeding = function() {
+	return words[this.proceeding_id];
+};
 
-	self.users.elements().forEach((u) => {
-		u.update_score();
-	});
+WordAdj.prototype.following = function() {
+	return words[this.following_id];
 };
 
 WordAdj.prototype.destroy = function() {
@@ -506,6 +536,10 @@ const User = function(data) {
 	self.words = new WordSet();
 	self.wordadj = new WordAdjSet();
 	self.update(data);
+
+	self.ui = null;
+	self._action = null;
+	self._score = null;
 };
 
 User.from_data = function(data) {
@@ -517,8 +551,92 @@ User.from_data = function(data) {
 	return u;
 };
 
+User.prototype._calc_score = function() {
+	let user_score = [];
+
+	this.hostnames.elements().forEach((hostname) => {
+		user_score.push(hostname.normalised_score);
+	});
+
+	this.words.elements().forEach((word) => {
+		user_score.push(word.normalised_score);
+	});
+
+	this.wordadj.elements().forEach((wordadj) => {
+		user_score.push(wordadj.normalised_score);
+	});
+
+	/* Compute user score */
+	if (user_score.length) {
+		return Math.round(100*user_score.sort(function (a, b) {
+			if (a < b)
+				return -1;
+			else if (a > b)
+				return 1;
+			return 0;
+		}).slice(0, 5).reduce(function (a, b) {
+			return a + b;
+		})) / 100;
+	} else {
+		return 0.0;
+	}
+};
+
+User.prototype.action = function() {
+	return this._action;
+};
+
+User.prototype.set_action = function(action) {
+	if (this._action === action)
+		return;
+
+	if ((action === 'suspect')
+			|| (action === null)
+			|| (action === 'legit')) {
+		this._action = action;
+		if (action === null) {
+			if (user_actions.hasOwnProperty(this.id))
+				delete user_actions[this.id];
+		} else {
+			user_actions[this.id] = action;
+		}
+
+		update_pending_actions();
+	} else {
+		throw new Error('Invalid action');
+	}
+};
+
+User.prototype.refresh = function() {
+	return get_json('/user/' + this.id).then((data) => {
+		return this.update(data);
+	});
+};
+
+User.prototype.commit = function() {
+	if (this._action === null)
+		return Promise.resolve();
+	else
+		return post_json(
+			'/classify/' + this.id,
+			this._action
+		).then(() => {
+			return this.update();
+		});
+};
+
+User.prototype.score = function() {
+	if (this._score === null) {
+		this._score = this._calc_score();
+	}
+	return this._score;
+};
+
 User.prototype.update_score = function() {
-	/* TODO */
+	this._score = null;
+	if (this.ui) {
+		this.ui.refresh();
+	}
 };
 
 User.prototype.update = function(data) {
@@ -527,10 +645,12 @@ User.prototype.update = function(data) {
 	if (data.id !== self.id)
 		throw new Error('Mismatched user ID');
 
+	self.ui = null;
 	self.screen_name = data.screen_name;
 	self.location = data.location;
 	self.about_me = data.about_me;
 	self.who_am_i = data.who_am_i;
+	self.what_i_would_like_to_do = data.what_i_would_like_to_do;
 	self.tags = data.tags;
 	self.links = data.links;
 	self.avatar_id = data.avatar_id;
@@ -561,7 +681,7 @@ User.prototype.update = function(data) {
 	Object.keys(data.hostnames).forEach((hostname) => {
 		const hd = data.hostnames[hostname];
 		const h = Hostname.from_data(hostname, hd);
-		seen_hostnames[h.id] = true;
+		seen_hostnames[h.id] = hd.user_count || 0;
 		h.users.add(self);
 		self.hostnames.add(h);
 	});
@@ -571,12 +691,13 @@ User.prototype.update = function(data) {
 			h.users.rm(self);
 		}
 	});
+	self.hostname_count = seen_hostnames;
 
 	let seen_word = {};
 	Object.keys(data.words).forEach((word) => {
 		const wd = data.words[word];
 		const w = Word.from_data(word, wd);
-		seen_word[w.id] = true;
+		seen_word[w.id] = wd.user_count || 0;
 		w.users.add(self);
 		self.words.add(w);
 	});
@@ -586,11 +707,12 @@ User.prototype.update = function(data) {
 			w.users.rm(self);
 		}
 	});
+	self.word_count = seen_word;
 
 	let seen_wordadj = {};
 	data.word_adj.forEach((wordadj) => {
 		const wa = WordAdj.from_data(wordadj);
-		seen_wordadj[wa.key] = true;
+		seen_wordadj[wa.key] = wa.user_count;
 		wa.users.add(self);
 		self.wordadj.add(wa);
 	});
@@ -600,489 +722,810 @@ User.prototype.update = function(data) {
 			wa.users.rm(self);
 		}
 	});
+	self.wordadj_count = seen_wordadj;
+};
+
+/*!
+ * DOM Element helper
+ */
+const DOMElement = function(type, properties) {
+	const self = this;
+	this.element = document.createElement(type);
+	if (properties) {
+		Object.keys(properties).forEach((p) => {
+			const val = properties[p];
+			const set_fn = self['set_' + p];
+
+			if ((typeof set_fn) === 'function')
+				set_fn.call(self, val, p);
+			else
+				self.element[p] = val;
+		});
+	}
+};
+
+DOMElement.prototype.set_classes = function(classes) {
+	const self = this;
+	let seen = new Set();
+	classes.forEach((c) => {
+		self.element.classList.add(c);
+		seen.add(c);
+	});
+	[].slice.apply(self.element.classList).forEach((c) => {
+		if (!seen.has(c))
+			self.element.classList.remove(c);
+	});
+};
+
+DOMElement.prototype.add_children = function() {
+	const self = this;
+	const args = [].slice.apply(arguments);
+
+	let pos = 'end', target = null, is_target = false;
+
+	const res = args.map((c) => {
+		if ((typeof c) === 'string') {
+			/*
+			 * Position hint.  If this is 'before',
+			 * this will be followed up by another element.
+			 */
+			pos = c;
+			is_target = (c === 'before');
+			return null;
+		}
+
+		const e = (c instanceof DOMElement) ? c.element : c;
+		if (is_target) {
+			target = e;
+			is_target = false;
+			return null;
+		}
+
+		switch (pos) {
+		case 'start':
+			if (self.element.childNodes.length) {
+				/* Subsequent insertions will happen here */
+				target = self.element.childNodes[0];
+				pos = 'before';
+				self.element.insertBefore(e, target);
+			} else {
+				/* This is the only element */
+				self.element.appendChild(e);
+				pos = 'end';
+			}
+			break;
+		case 'before':
+			self.element.insertBefore(e, target);
+			break;
+		case 'end':
+		default:
+			self.element.appendChild(e);
+		}
+		return c;
+	}).filter((c) => {
+		return c !== null;
+	});
+	if (args.length === 1) {
+		return res[0];
+	} else {
+		return res;
+	}
+};
+
+DOMElement.prototype.add_text = function(text) {
+	return this.add_children(
+		document.createTextNode(text)
+	);
+};
+
+DOMElement.prototype.add_new_child = function(type, properties) {
+	return this.add_children(new DOMElement(type, properties));
+};
+
+DOMElement.prototype.remove_children = function() {
+	const self = this;
+	const args = [].slice.apply(arguments);
+	args.forEach((c) => {
+		self.element.removeChild(
+			(c instanceof DOMElement)
+			? c.element
+			: c
+		);
+	});
+};
+
+DOMElement.prototype.clear = function() {
+	const self = this;
+	self.remove_children.apply(self,
+		[].slice.apply(self.element.childNodes));
+};
+
+DOMElement.prototype.destroy = function() {
+	this.clear();
+	this.element.parentElement.removeChild(this.element);
+};
+
+/*!
+ * Score gauge UI control
+ */
+const ScoreGauge = function(score) {
+	this.gaugeBox = new DOMElement('div', {
+		classes: ['score_gauge', 'score_gauge_base']
+	});
+	this.gaugeLeft = this.gaugeBox.add_new_child('div', {
+		classes: ['score_gauge', 'score_gauge_indication']
+	});
+	this.gaugeBar = this.gaugeBox.add_new_child('div', {
+		classes: ['score_gauge', 'score_gauge_indication']
+	});
+	this.gaugeRight = this.gaugeBox.add_new_child('div', {
+		classes: ['score_gauge', 'score_gauge_indication']
+	});
+
+	this.set(score);
+};
+
+ScoreGauge.prototype.set = function(score) {
+	if (score < 0.0) {
+		this.gaugeLeft.element.style.width = (16 * (10.0 + (2*score))) + 'px';
+		this.gaugeBar.element.style.width = (16 * (-(2*score))) + 'px';
+		this.gaugeRight.element.style.width = '160px';
+	} else if (score > 0.0) {
+		this.gaugeLeft.element.style.width = '160px';
+		this.gaugeBar.element.style.width = (16 * (2*score)) + 'px';
+		this.gaugeRight.element.style.width = (16 * (10.0 - (2*score))) + 'px';
+	} else {
+		this.gaugeLeft.element.style.width = '155px';
+		this.gaugeBar.element.style.width = '10px';
+		this.gaugeRight.element.style.width = '155px';
+	}
+	this.gaugeBar.element.style.backgroundColor = scoreColour(score)
+};
+
+/*!
+ * Scored Object UI element
+ */
+const ScoredObjectUI = function(oid, user_count) {
+	const self = this;
+	self.id = oid;
+	self.user_count = user_count;
+	const obj = self._get_obj();
+	if (!obj)
+		throw new Error('Invalid object');
+
+	self.ui_id = ScoredObjectUI.next_id;
+	ScoredObjectUI.next_id++;
+	obj.ui[self.ui_id] = self;
+
+	this.element = new DOMElement('span', {
+		title: self._get_title(obj),
+		classes: ['word']
+	});
+	this.element.add_text(self._get_text(obj));
+	this._update_colour(obj);
+};
+ScoredObjectUI.next_id = 0;
+
+ScoredObjectUI.prototype._update_colour = function(obj) {
+	this.element.element.style.backgroundColor =
+		scoreColour(obj.normalised_score);
+};
+
+ScoredObjectUI.prototype._get_title = function(obj) {
+	const self = this;
+	return (self.user_count + ' occurrances; '
+		+ ((obj.count > 0)
+			? ('score ' + obj.normalised_score)
+			: 'NEW'));
+};
+
+ScoredObjectUI.prototype.update = function(obj) {
+	const self = this;
+	if (obj === undefined)
+		obj = self._get_obj();
+
+	self.element.element.title = self._get_title(obj);
+	self._update_colour(obj);
+};
+
+ScoredObjectUI.prototype.destroy = function() {
+	const self = this;
+
+	try {
+		const obj = self._get_obj();
+		if (obj)
+			delete obj.ui[self.ui_id];
+	} catch (err) {
+		/* Never mind */
+	}
+
+	self.element.destroy();
+};
+
+const HostnameUI = function(id, user_count) {
+	ScoredObjectUI.call(this, id, user_count);
+};
+HostnameUI.prototype = Object.create(ScoredObjectUI.prototype);
+HostnameUI.prototype._get_text = function(obj) {
+	return obj.hostname;
+};
+HostnameUI.prototype._get_obj = function() {
+	return hostnames[this.id];
+};
+
+const WordUI = function(id, user_count) {
+	ScoredObjectUI.call(this, id, user_count);
+};
+WordUI.prototype = Object.create(ScoredObjectUI.prototype);
+WordUI.prototype._get_text = function(obj) {
+	return obj.word;
+};
+WordUI.prototype._get_obj = function() {
+	return words[this.id];
+};
+
+const WordAdjUI = function(key, user_count) {
+	ScoredObjectUI.call(this, key, user_count);
+};
+WordAdjUI.prototype = Object.create(ScoredObjectUI.prototype);
+WordAdjUI.prototype._get_text = function(obj) {
+	return obj.proceeding().word + '→' + obj.following().word;
+};
+WordAdjUI.prototype._get_obj = function() {
+	return wordadj[this.id];
+};
+
+/*!
+ * UI control for a single user
+ */
+const UserUI = function(uid) {
+	const self = this;
+
+	self.uid = uid;
+	const user = users[uid];
+
+	if (user === undefined)
+		throw new Error('Unknown user');
+
+	user.ui = self;
+	self.auto_classify = true;
+
+	/* Build the core elements */
+	self.element = new DOMElement('div', {
+		classes: ['profile']
+	});
+
+	self.avatarImg = self.element.add_new_child('div', {
+		classes: ['avatar_box']
+	}).add_new_child('img', {
+		src: '/avatar/' + user.avatar_id
+			+ '?width=300&height=300',
+		classes: ['avatar']
+	});
+
+	let profile_box = self.element.add_new_child('div');
+	self.profileLink = profile_box.add_new_child('a', {
+		href: user.url
+	});
+
+	self.profileName = self.profileLink.add_new_child('tt');
+	self.profileName.add_text(
+		user.screen_name
+	);
+
+	self.profileLink.add_text(' [#' + uid + ']');
+
+	self.statusField = self.element.add_new_child('div');
+	if (user.pending)
+		self.statusField.add_text(
+			'Re-inspection pending '
+			+ user.next_inspection
+			+ '; '
+			+ user.inspections
+			+ ' inspections.');
+
+	let score_text_box = self.element.add_new_child('div');
+	let score = user.score();
+
+	score_text_box.add_text('Score: ');
+	self.scoreField = score_text_box.add_text(score);
+
+	self.scoreGauge = new ScoreGauge(score);
+	self.element.add_children(self.scoreGauge.gaugeBox);
+
+	let group_box = self.element.add_new_child('div');
+	group_box.add_new_child('div').add_text('Groups: ');
+	self.groupField = group_box.add_new_child('ul');
+	self._update_groups(user);
+
+	let classify_ctl = self.element.add_new_child('div');
+	let classify_frm = classify_ctl.add_new_child('form');
+
+	self.classifySuspectBtn = classify_frm.add_new_child('input', {
+		id: 'u' + uid + 'ClassifySuspectBtn',
+		type: 'radio',
+		value: 'suspect',
+		name: 'classification',
+		checked: false,
+		onchange: () => {
+			if (!self.classifySuspectBtn.element.checked)
+				return;
+			self.auto_classify = false;
+			self.set_action('suspect');
+		}
+	});
+	classify_frm.add_new_child('label', {
+		htmlFor: self.classifySuspectBtn.element.id
+	}).add_text('Suspect');
+
+	self.classifyNoneBtn = classify_frm.add_new_child('input', {
+		id: 'u' + uid + 'ClassifyNeutralBtn',
+		type: 'radio',
+		value: 'neutral',
+		name: 'classification',
+		checked: false,
+		onchange: () => {
+			if (!self.classifyNoneBtn.element.checked)
+				return;
+			self.auto_classify = false;
+			self.set_action(null);
+		}
+	});
+	classify_frm.add_new_child('label', {
+		htmlFor: self.classifyNoneBtn.element.id
+	}).add_text('Neutral');
+
+	self.classifyLegitBtn = classify_frm.add_new_child('input', {
+		id: 'u' + uid + 'ClassifyLegitBtn',
+		type: 'radio',
+		value: 'legit',
+		name: 'classification',
+		checked: false,
+		onchange: () => {
+			if (!self.classifyLegitBtn.element.checked)
+				return;
+			self.auto_classify = false;
+			self.set_action('legit');
+		}
+	});
+	classify_frm.add_new_child('label', {
+		htmlFor: self.classifyLegitBtn.element.id
+	}).add_text('Legit');
+
+	classify_ctl.add_new_child('button', {
+		onclick: () => {
+			self.destroy();
+		}
+	}).add_text('Hide');
+
+	self._update_classification(user);
+
+	let tags_box = self.element.add_new_child('div');
+	tags_box.add_new_child('span').add_text('Tags: ');
+	self.tagsField = tags_box.add_new_child('span');
+	self._update_tags(user);
+
+	let location_box = self.element.add_new_child('div');
+	location_box.add_new_child('span').add_text('Location: ');
+	self.locationField = location_box.add_new_child('span');
+	self.locationField.add_text(user.location);
+
+	let about_me_box = self.element.add_new_child('div');
+	about_me_box.add_new_child('span').add_text('About Me: ');
+	self.aboutMeField = about_me_box.add_new_child('span');
+	self.aboutMeField.add_text(user.about_me);
+
+	let who_am_i_box = self.element.add_new_child('div');
+	who_am_i_box.add_new_child('span').add_text('Who Am I: ');
+	self.whoAmIField = who_am_i_box.add_new_child('span');
+	self.whoAmIField.add_text(user.who_am_i);
+
+	let what_i_would_like_to_do_box = self.element.add_new_child('div');
+	what_i_would_like_to_do_box.add_new_child('span').add_text(
+		'What I Would Like To Do: ');
+	self.whatIWouldLikeToDoField =
+		what_i_would_like_to_do_box.add_new_child('span');
+	self.whatIWouldLikeToDoField.add_text(user.what_i_would_like_to_do);
+
+	let links_box = self.element.add_new_child('div');
+	links_box.add_new_child('div').add_text('Links:');
+	self.linksField = links_box.add_new_child('ul');
+	self._update_links(user);
+
+	let tokens_box = self.element.add_new_child('div');
+	tokens_box.add_new_child('span').add_text('Tokens:');
+	self.tokensField = tokens_box.add_new_child('ul');
+	self._update_tokens(user);
+
+	let hostnames_box = self.element.add_new_child('div');
+	hostnames_box.add_new_child('div').add_text('Hostnames:');
+	self.hostnamesField = hostnames_box.add_new_child('div');
+	self._hostnames = [];
+	self._update_hostnames(user);
+
+	let words_box = self.element.add_new_child('div');
+	words_box.add_new_child('div').add_text('Words:');
+	self.wordsField = words_box.add_new_child('div');
+	self._words = [];
+	self._update_words(user);
+
+	let wordadj_box = self.element.add_new_child('div');
+	wordadj_box.add_new_child('div').add_text('Word Adjacencies:');
+	self.wordAdjField = wordadj_box.add_new_child('div');
+	self._wordadj = [];
+	self._update_wordadj(user);
+};
+
+UserUI.prototype._get_user = function() {
+	return users[this.uid];
+};
+
+UserUI.prototype.set_action = function(action) {
+	const self = this,
+		user = self._get_user();
+	if (!user)
+		return;
+	
+	if (user.action() === action)
+		return;
+
+	user.set_action(action);
+	if (action === 'legit') {
+		self.classifyLegitBtn.element.checked = true;
+		self.classifySuspectBtn.element.checked = false;
+		self.classifyNoneBtn.element.checked = false;
+	} else if (action === 'suspect') {
+		self.classifySuspectBtn.element.checked = true;
+		self.classifyLegitBtn.element.checked = false;
+		self.classifyNoneBtn.element.checked = false;
+	} else {
+		self.classifyNoneBtn.element.checked = true;
+		self.classifyLegitBtn.element.checked = false;
+		self.classifySuspectBtn.element.checked = false;
+	}
+};
+
+UserUI.prototype._update_classification = function(user) {
+	const self = this;
+	if (!self.auto_classify)
+		return;
+
+	if (!user.pending && user.groups.has(Group.get('auto_legit'))) {
+		self.set_action('legit');
+	}
+};
+
+UserUI.prototype._update_groups = function(user) {
+	const self = this;
+	self.groupField.clear();
+	user.groups.elements().forEach((g) => {
+		self.groupField.add_new_child('li').add_text(g.name);
+	});
+};
+
+UserUI.prototype._update_tags = function(user) {
+	const self = this;
+	self.tagsField.clear();
+	user.tags.forEach((t) => {
+		self.tagsField.add_new_child('li').add_text(t);
+	});
+};
+
+UserUI.prototype._update_links = function(user) {
+	const self = this;
+	self.linksField.clear();
+	user.links.forEach(function (link) {
+		let link_tag = self.linksField.add_new_child(
+			'li').add_new_child('a', {
+				href: link.url
+			});
+		link_tag.add_text(link.title);
+		link_tag.add_new_child('tt').add_text(
+			' <' + htmlEscape(link.url) + '>');
+	});
+};
+
+UserUI.prototype._update_tokens = function(user) {
+	const self = this;
+	self.tokensField.clear();
+	Object.keys(user.tokens).forEach(function (token) {
+		let item = self.tokensField.add_new_child('li');
+		item.add_new_child('tt').add_text(htmlEscape(token));
+
+		item.add_text(' ' + user.tokens[token] + ' instances');
+	});
+};
+
+UserUI.prototype._update_hostnames = function(user) {
+	const self = this;
+
+	self._hostnames.forEach((h) => {
+		h.destroy();
+	});
+
+	self._hostnames = user.hostnames.elements().sort(
+		ScoredObject.sortByScore
+	).map(function (h) {
+		return new HostnameUI(h.id, user.hostname_count[h.id] || 0);
+	});
+	self.hostnamesField.add_children.apply(self.hostnamesField,
+		self._hostnames.map((ui) => {
+			return ui.element;
+		}));
+};
+
+UserUI.prototype._update_words = function(user) {
+	const self = this;
+
+	self._words.forEach((w) => {
+		w.destroy();
+	});
+
+	self._words = user.words.elements().sort(
+		ScoredObject.sortByScore
+	).map(function (w) {
+		return new WordUI(w.id, user.word_count[w.id] || 0);
+	});
+	self.wordsField.add_children.apply(self.wordsField,
+		self._words.map((ui) => {
+			return ui.element;
+		}));
+};
+
+UserUI.prototype._update_wordadj = function(user) {
+	const self = this;
+
+	self._wordadj.forEach((w) => {
+		w.destroy();
+	});
+
+	self._wordadj = user.wordadj.elements().sort(
+		ScoredObject.sortByScore
+	).map(function (wa) {
+		return new WordAdjUI(wa.key, user.word_count[wa.key] || 0);
+	});
+	self.wordAdjField.add_children.apply(self.wordAdjField,
+		self._wordadj.map((ui) => {
+			return ui.element;
+		}));
+};
+
+UserUI.prototype.destroy = function() {
+	const self = this;
+	this.destroy = () => {};
+
+	const user = self._get_user();
+	if (user)
+		user.ui = null;
+
+	self._hostnames.forEach((h) => {
+		h.destroy();
+	});
+
+	self._words.forEach((w) => {
+		w.destroy();
+	});
+
+	self._wordadj.forEach((wa) => {
+		wa.destroy();
+	});
+
+	self.element.destroy();
+};
+
+UserUI.prototype.refresh = function() {
+	const self = this;
+	const user = self._get_user();
+	if (!user)
+		throw new Error('Unknown user');
+
+	self.avatarImg.src = '/avatar/' + user.avatar_id
+			+ '?width=300&height=300';
+	self.profileLink.href = user.url;
+	self.profileName.clear();
+	self.profileName.add_text(user.screen_name);
+
+	self.statusField.clear();
+	if (user.pending)
+		self.statusField.add_text(
+			'Re-inspection pending '
+			+ user.next_inspection
+			+ '; '
+			+ user.inspections
+			+ ' inspections.');
+
+	const score = user.score();
+
+	self.scoreField.data = score;
+	self.scoreGauge.set(score);
+
+	self._update_groups(user);
+	self._update_tags(user);
+	self._update_links(user);
+	self._update_tokens(user);
+	self._update_hostnames(user);
+	self._update_words(user);
+	self._update_wordadj(user);
 };
 
 /*!
  * Generate a style colour based on the score.
  */
 const scoreColour = function (score) {
+	if ((typeof score) !== 'number')
+		throw new Error('Unexpected data type: ' + (typeof score));
 	var red = Math.round(((score > 0) ? (1.0 - score) : 1.0)*255);
 	var grn = Math.round(((score < 0) ? (score + 1.0) : 1.0)*255);
 	return 'rgb(' + red + ', ' + grn + ', 0)';
 };
 
-const getNextPage = function() {
-	busy = true;
-	var loading_msg = document.createElement('pre');
-	var spinner = '-';
-	var dots = '';
-	textbox.appendChild(loading_msg);
-	mass_mark_legit = Object.keys(auto_mark);
+/*!
+ * Generate a loading spinner
+ */
+const Spinner = function (message, delay) {
+	this.message = message;
+	this._dots = '';
+	this._spinner = '-';
+	this.element = document.createTextNode(this.getSpinnerText());
+	this.delay = delay || 250;
+	this.timeout = null;
+};
 
-	if (mass_mark_btn !== null) {
-		textbox.removeChild(mass_mark_btn);
+Spinner.prototype.getSpinnerText = function() {
+	return this.message + (this._dots || '') + this._spinner;
+};
+
+Spinner.prototype.nextState = function() {
+	switch (this._spinner) {
+	case '-':	this._spinner = '\\';	break;
+	case '\\':	this._spinner = '|'; break;
+	case '|':	this._spinner = '/'; break;
+	default:
+			this._spinner = '-';
+			this._dots += '.';
+			break;
 	}
+};
 
-	if (mass_mark_legit.length > 0) {
-		mass_mark_btn = document.createElement('button');
-		mass_mark_btn.innerHTML = ('Mark above '
-			+ mass_mark_legit.length
-			+ ' auto_legit accounts as legit');
-		mass_mark_btn.onclick = function() {
-			mass_mark_legit.forEach(function (uid) {
-				auto_mark[uid](true);
-			});
-			textbox.removeChild(mass_mark_btn);
-			mass_mark_btn = null;
-			window.scrollTo(0,0);
-		};
-		textbox.appendChild(mass_mark_btn);
+Spinner.prototype.update = function() {
+	this.element.data = this.getSpinnerText();
+	this.nextState();
+};
+
+Spinner.prototype.start = function() {
+	const self = this;
+	if (self.timeout !== null)
+		throw new Error('Already running');
+	self.timeout = setTimeout(self._go.bind(self), self.delay);
+};
+
+Spinner.prototype.stop = function() {
+	const self = this;
+	if (self.timeout !== null) {
+		clearTimeout(self.timeout);
+		self.timeout = null;
 	}
+};
 
-	var nextSpinner = function() {
-		if (busy) {
-			window.setTimeout(nextSpinner, 250);
-		}
+Spinner.prototype._go = function() {
+	const self = this;
+	self.update();
+	self.timeout = setTimeout(self._go.bind(self), self.delay);
+}
 
-		switch (spinner) {
-		case '-':	spinner = '\\';	break;
-		case '\\':	spinner = '|'; break;
-		case '|':	spinner = '/'; break;
-		default:
-				spinner = '-';
-				dots += '.';
-				break;
-		}
+const selectSource = function(src) {
+	/* Clear out the old state */
+	newest_uid = null;
+	oldest_uid = null;
+	
+	while (user_uis.length)
+		user_uis.pop().destroy();
 
-		loading_msg.innerHTML = 'Loading'
-			+ ((oldest_uid !== null)
-				? (' users older than #' + oldest_uid)
-				: (' most recent users'))
-			+ dots + spinner;
-	};
-	nextSpinner();
+	/* Switch sources */
+	source = src;
+	getNextPage();
+};
 
-	var found = 0;
-	var displayed = 0;
+const getNextPage = function(reverse) {
+	var uri = source;
 
-	var uri = "/data/newcomers.json";
-	if (oldest_uid !== null)
+	let spinner = new Spinner('Loading user accounts');
+	status_pane.clear();
+	status_pane.add_children(spinner.element);
+
+	if (reverse && (newest_uid !== null)) {
+		spinner.message += ' after UID #' + newest_uid;
+		uri += "?after_user_id=" + newest_uid;
+	} else if (oldest_uid !== null) {
+		spinner.message += ' before UID #' + oldest_uid;
 		uri += "?before_user_id=" + oldest_uid;
+	}
+	spinner.start();
+	busy = true;
 
 	get_json(uri).then(function (data) {
-		// Typical action to be performed when
-		// the document is ready:
-		textbox.removeChild(loading_msg);
+		spinner.stop();
+		status_pane.clear();
+		busy = false;
 
-		found += data.users.length;
-		data.users.forEach(function (user) {
-			try {
-				let u = User.from_data(user);
-			} catch (err) {
-				console.log('Failed to create user: '
-					+ err.message
-					+ '\n'
-					+ err.stack);
-			}
+		let widgets = data.users.map(function (user) {
+			let u = User.from_data(user);
 
 			if ((newest_uid === null)
-				|| (newest_uid < user.id))
-				newest_uid = user.id;
+				|| (newest_uid < u.id))
+				newest_uid = u.id;
 
 			if ((oldest_uid === null)
-				|| (oldest_uid > user.id))
-				oldest_uid = user.id;
+				|| (oldest_uid > u.id))
+				oldest_uid = u.id;
 
-			/* Hide if there's nothing to inspect */
-			if (user.pending && (Object.keys(user.words).length === 0)) {
-				return
-			}
-			displayed++;
-
-			var userBox = document.createElement('div');
-			userBox.classList.add('profile');
-
-			var avatarBox = document.createElement('div');
-			var avatar = document.createElement('img');
-			avatar.src = '/avatar/' + user.avatar_id
-				+ '?width=100&height=100';
-			avatarBox.classList.add('avatar_box');
-			avatarBox.appendChild(avatar);
-			userBox.appendChild(avatarBox);
-
-			var profile_link = document.createElement('a');
-			profile_link.href = user.url;
-			var profile_name = document.createElement('tt');
-			profile_name.innerHTML = user.screen_name;
-			profile_link.appendChild(profile_name);
-			userBox.appendChild(profile_link);
-
-			var profile_uid = document.createTextNode(' ' + user.id);
-			userBox.appendChild(profile_uid);
-
-			if (user.pending) {
-				userBox.appendChild(
-					document.createTextNode(' Re-inspection pending ('
-						+ user.next_inspection
-						+ '; '
-						+ user.inspections
-						+ ' inspections)')
-				);
-			}
-
-			var profile_score = document.createElement('div');
-			userBox.appendChild(profile_score);
-
-			var profile_score_gauge = document.createElement('div');
-			profile_score_gauge.classList.add('score_gauge');
-			profile_score_gauge.classList.add('score_gauge_base');
-			var profile_score_gauge_left = document.createElement('div');
-			profile_score_gauge_left.classList.add('score_gauge');
-			profile_score_gauge_left.classList.add('score_gauge_indication');
-			profile_score_gauge.appendChild(profile_score_gauge_left);
-			var profile_score_gauge_bar = document.createElement('div');
-			profile_score_gauge_bar.classList.add('score_gauge');
-			profile_score_gauge_bar.classList.add('score_gauge_indication');
-			profile_score_gauge.appendChild(profile_score_gauge_bar);
-			var profile_score_gauge_right = document.createElement('div');
-			profile_score_gauge_right.classList.add('score_gauge');
-			profile_score_gauge_right.classList.add('score_gauge_indication');
-			profile_score_gauge.appendChild(profile_score_gauge_right);
-			userBox.appendChild(profile_score_gauge);
-
-			var profile_created = document.createElement('div');
-			profile_created.innerHTML = user.had_created || user.created;
-			userBox.appendChild(profile_created);
-
-			var profile_groups = document.createElement('div');
-			var group_set = {};
-			user.groups.forEach(function (group) {
-				var group_label = document.createElement('tt');
-				group_label.innerHTML = group;
-				profile_groups.appendChild(group_label);
-				group_set[group] = true;
-			});
-
-			var rm_auto = function() {
-				if (auto_mark[user.id] !== undefined) {
-					delete auto_mark[user.id];
-				}
-			};
-
-			if (!group_set.legit) {
-				var classify_legit = document.createElement('button');
-				classify_legit.innerHTML = 'Legit';
-				var do_classify = function(mass_update) {
-					rm_auto();
-					post_json('/classify/' + user.id,
-						"legit"
-					).then(function() {
-						setTimeout(function () {
-							textbox.removeChild(userBox);
-						}, ((mass_update === true) ? 500 : 10000));
-					});
-					profile_groups.removeChild(classify_legit);
-				};
-				if (group_set.auto_legit && (!user.pending)) {
-					auto_mark[user.id] = do_classify;
-				}
-
-				classify_legit.onclick = do_classify;
-				profile_groups.appendChild(classify_legit);
-			}
-			if (!group_set.suspect) {
-				var classify_suspect = document.createElement('button');
-				classify_suspect.innerHTML = 'Suspect';
-				classify_suspect.onclick = function() {
-					rm_auto();
-					post_json('/classify/' + user.id,
-						"suspect"
-					).then(function() {
-						setTimeout(function () {
-							textbox.removeChild(userBox);
-						}, 10000);
-					});
-					profile_groups.removeChild(classify_suspect);
-				};
-				profile_groups.appendChild(classify_suspect);
-			}
-
-			var defer_classify = document.createElement('button');
-			defer_classify.innerHTML = 'Defer';
-			defer_classify.onclick = function() {
-				rm_auto();
-				textbox.removeChild(userBox);
-			};
-			profile_groups.appendChild(defer_classify);
-
-			userBox.appendChild(profile_groups);
-
-			var profile_tags = document.createElement('div');
-			user.tags.forEach(function (tag) {
-				var tag_label = document.createElement('tt');
-				tag_label.innerHTML = tag;
-				profile_tags.appendChild(tag_label);
-			});
-			userBox.appendChild(profile_tags);
-
-			if (user.location) {
-				var profile_location = document.createElement('div');
-				profile_location.innerHTML = user.location;
-				userBox.appendChild(profile_location);
-			}
-
-			if (user.about_me) {
-				var profile_about_me = document.createElement('div');
-				profile_about_me.innerHTML = user.about_me;
-				userBox.appendChild(profile_about_me);
-			}
-
-			if (user.who_am_i) {
-				var profile_who_am_i = document.createElement('div');
-				profile_who_am_i.innerHTML = user.who_am_i;
-				userBox.appendChild(profile_who_am_i);
-			}
-
-			if (user.projects) {
-				var profile_projects = document.createElement('div');
-				profile_projects.innerHTML = user.projects + ' project(s)';
-				userBox.appendChild(profile_projects);
-			}
-
-			if (user.what_i_would_like_to_do) {
-				var profile_what_i_would_like_to_do = document.createElement('div');
-				profile_what_i_would_like_to_do.innerHTML = user.what_i_would_like_to_do;
-				userBox.appendChild(profile_what_i_would_like_to_do);
-			}
-
-			var links = document.createElement('ul');
-			user.links.forEach(function (link) {
-				var link_tag = document.createElement('a');
-				link_tag.href = link.url;
-				link_tag.appendChild(document.createTextNode(link.title + ' '));
-				var link_tt = document.createElement('tt');
-				link_tt.appendChild(document.createTextNode(
-					'<' + htmlEscape(link.url) + '>'));
-				link_tag.appendChild(link_tt);
-
-				var link_item = document.createElement('li');
-				link_item.appendChild(link_tag);
-				links.appendChild(link_item);
-			});
-			userBox.appendChild(links);
-
-			if (user.tokens && Object.keys(user.tokens).length) {
-				var profile_tokens = document.createElement('ul');
-				Object.keys(user.tokens).forEach(function (token) {
-					var token_li = document.createElement('li');
-					var token_tt = document.createElement('tt');
-					token_tt.innerHTML = htmlEscape(token);
-					token_li.appendChild(token_tt);
-					token_li.appendChild(document.createTextNode(' ' + user.tokens[token] + ' instances'));
-					profile_tokens.appendChild(token_li);
-				});
-				userBox.appendChild(profile_tokens);
-			}
-
-			/* Compute the user's score */
-			var user_score = [];
-			var first;
-			if (user.hostnames && Object.keys(user.hostnames).length) {
-				var profile_hostnames = document.createElement('div');
-				first = false;
-				var hostnames = Object.keys(user.hostnames).map(function (hostname) {
-					var stat = user.hostnames[hostname];
-					var score = 0.0;
-					if (stat.site_count > 0) {
-						score = Math.round((stat.site_score * 100)
-							/ stat.site_count) / 100;
-						user_score.push(score);
-					}
-					stat.hostname = hostname;
-					stat.norm_score = score;
-					return stat;
-				});
-				hostnames.sort(function (a, b) {
-					if (a.norm_score < b.norm_score)
-						return -1;
-					else if (a.norm_score > b.norm_score)
-						return 1;
-					return 0;
-				});
-				hostnames.forEach(function (stat) {
-					var hostname = stat.hostname;
-					var hostname_span = document.createElement('span');
-					var hostname_tt = document.createElement('tt');
-					var score = stat.norm_score;
-
-					hostname_tt.innerHTML = htmlEscape(hostname);
-					hostname_span.appendChild(hostname_tt);
-					hostname_span.classList.add('word');
-					hostname_span.title = stat.user_count
-						+ ' occurances; score: '
-						+ score;
-					hostname_span.style.backgroundColor = scoreColour(score);
-					if (first) {
-						profile_hostnames.appendChild(
-							document.createTextNode(' ')
-						);
-					} else {
-						first = true;
-					}
-					profile_hostnames.appendChild(hostname_span);
-				});
-				userBox.appendChild(profile_hostnames);
-			}
-
-			if (user.words && Object.keys(user.words).length) {
-				var profile_words = document.createElement('div');
-				first = false;
-				var words = Object.keys(user.words).map(function (word) {
-					var stat = user.words[word];
-					var score = 0.0;
-					if (stat.site_count > 0) {
-						score = Math.round((stat.site_score * 100)
-							/ stat.site_count) / 100;
-						user_score.push(score);
-					}
-					stat.word = word;
-					stat.norm_score = score;
-					return stat;
-				});
-				words.sort(function (a, b) {
-					if (a.norm_score < b.norm_score)
-						return -1;
-					else if (a.norm_score > b.norm_score)
-						return 1;
-					return 0;
-				});
-				words.forEach(function (stat) {
-					var word = stat.word;
-					var word_span = document.createElement('span');
-					var word_tt = document.createElement('tt');
-					var score = stat.norm_score;
-
-					word_tt.innerHTML = htmlEscape(word);
-					word_span.appendChild(word_tt);
-					word_span.classList.add('word');
-					word_span.title = stat.user_count
-						+ ' occurances; score: '
-						+ score;
-					word_span.style.backgroundColor = scoreColour(score);
-					if (first) {
-						profile_words.appendChild(
-							document.createTextNode(' ')
-						);
-					} else {
-						first = true;
-					}
-					profile_words.appendChild(word_span);
-				});
-				userBox.appendChild(profile_words);
-			}
-
-			if (user.word_adj && user.word_adj.length) {
-				var profile_word_adj = document.createElement('div');
-				first = false;
-				var word_adjs = user.word_adj.map(function (word_adj) {
-					var score = 0.0;
-					if (word_adj.site_count > 0) {
-						score = Math.round((word_adj.site_score * 100)
-							/ word_adj.site_count) / 100;
-						user_score.push(score);
-					}
-					word_adj.norm_score = score;
-					return word_adj;
-				});
-				word_adjs.sort(function (a, b) {
-					if (a.norm_score < b.norm_score)
-						return -1;
-					else if (a.norm_score > b.norm_score)
-						return 1;
-					return 0;
-				});
-				word_adjs.forEach(function (word_adj) {
-					var adj_span = document.createElement('span');
-					var adj_tt = document.createElement('tt');
-					var score = word_adj.norm_score;
-
-					adj_tt.innerHTML = htmlEscape(word_adj.proceeding)
-						+ ' &rarr; '
-						+ htmlEscape(word_adj.following);
-					adj_span.appendChild(adj_tt);
-					adj_span.classList.add('word');
-					adj_span.title = word_adj.user_count
-						+ ' occurances; score: '
-						+ score;
-					if (first) {
-						profile_word_adj.appendChild(
-							document.createTextNode(' ')
-						);
-					} else {
-						first = true;
-					}
-
-					profile_word_adj.appendChild(adj_span);
-
-					/* Derive span colour */
-					adj_span.style.backgroundColor = scoreColour(score);
-				});
-				userBox.appendChild(profile_word_adj);
-			}
-
-			/* Compute user score */
-			if (user_score.length) {
-				user_score = Math.round(100*user_score.sort(function (a, b) {
-					if (a < b)
-						return -1;
-					else if (a > b)
-						return 1;
-					return 0;
-				}).slice(0, 5).reduce(function (a, b) {
-					return a + b;
-				})) / 100;
-			} else {
-				user_score = 0.0;
-			}
-			profile_score.innerHTML = 'Score: ' + user_score;
-
-			if (user_score < 0.0) {
-				profile_score_gauge_left.style.width = (16 * (10.0 + (2*user_score))) + 'px';
-				profile_score_gauge_bar.style.width = (16 * (-(2*user_score))) + 'px';
-				profile_score_gauge_right.style.width = '160px';
-			} else if (user_score > 0.0) {
-				profile_score_gauge_left.style.width = '160px';
-				profile_score_gauge_bar.style.width = (16 * (2*user_score)) + 'px';
-				profile_score_gauge_right.style.width = (16 * (10.0 - (2*user_score))) + 'px';
-			} else {
-				profile_score_gauge_left.style.width = '155px';
-				profile_score_gauge_bar.style.width = '10px';
-				profile_score_gauge_right.style.width = '155px';
-			}
-			profile_score_gauge_bar.style.backgroundColor = scoreColour(user_score);
-
-			textbox.appendChild(userBox);
+			let uui = new UserUI(u.id);
+			user_uis.push(uui);
+			return uui.element;
 		});
 
-		if (found && !displayed) {
-			setTimeout(getNextPage, 10);
-		}
-		busy = false;
+		widgets.unshift((reverse) ? 'start' : 'end');
+		user_pane.add_children.apply(user_pane, widgets);
 	}).catch(function (err) {
+		spinner.stop();
+		status_pane.clear();
+		status_pane.add_text('Failed to fetch users: ' + err.message);
 		busy = false;
-		console.log('Error ' + err.rq.status + ' retrieving data');
+		console.log(err);
 	});
 };
 
-var main = function() {
-	window.onscroll = function(ev) {
-		if ((window.innerHeight + window.scrollY)
-			>= document.body.offsetHeight) {
-			if (!busy)
-				getNextPage();
-		}
-	};
+/*! Update the listings of pending actions. */
+const update_pending_actions = function() {
+	if (!busy) {
+		let legit = 0, suspect = 0;
+		Object.keys(user_actions).forEach((uid) => {
+			const action = user_actions[uid];
+			if (action === 'legit')
+				legit++;
+			else if (action === 'suspect')
+				suspect++;
+		});
 
-	textbox = document.getElementById('recent');
+		status_pane.clear();
+		if (legit || suspect) {
+			status_pane.add_text('Pending operations: '
+				+ legit + ' legit users, '
+				+ suspect + ' suspect users.');
+			status_pane.add_new_child('button', {
+				onclick: () => {
+					alert('TODO');
+				}
+			}).add_text('Commit');
+		}
+	}
+};
+
+const main = function() {
+	clear_element(document.body);
+
+	title_pane = new DOMElement('div', {
+		classes: ['title_pane']
+	});
+	status_pane = new DOMElement('div', {
+		classes: ['status_pane']
+	});
+	user_pane = new DOMElement('div', {
+		classes: ['user_pane'],
+		onscroll: function(ev) {
+			if (busy)
+				return;
+
+			if (this.scrollTop === this.scrollTopMax) {
+				getNextPage(false);
+			} else if (this.scrollTop === 0) {
+				getNextPage(true);
+			}
+		}
+	});
+
+	document.body.appendChild(title_pane.element);
+	document.body.appendChild(user_pane.element);
+	document.body.appendChild(status_pane.element);
 	getNextPage();
 };

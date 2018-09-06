@@ -34,8 +34,10 @@ button:hover {
 }
 
 .avatar_box {
-	width: 100px;
-	height: 100px;
+	width: 300px;
+	height: 300px;
+	float: left;
+	margin-right: 2em;
 }
 
 .score_gauge {
@@ -55,7 +57,35 @@ button:hover {
 
 .word {
 	padding: 0.2em;
+	margin: 0.2em;
 	color: #000;
 	line-height: 2.0;
 	white-space: nowrap;
+}
+
+.user_pane {
+	position: absolute;
+	overflow: auto;
+	left: 0px;
+	right: 0px;
+	top: 10em;
+	bottom: 5em;
+}
+
+.title_pane {
+	position: absolute;
+	overflow: none;
+	left: 0px;
+	right: 0px;
+	height: 10em;
+	top: 0px;
+}
+
+.status_pane {
+	position: absolute;
+	overflow: none;
+	left: 0px;
+	right: 0px;
+	height: 5em;
+	bottom: 0px;
 }
