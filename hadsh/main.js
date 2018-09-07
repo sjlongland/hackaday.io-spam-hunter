@@ -616,14 +616,20 @@ User.prototype.refresh = function() {
 };
 
 User.prototype.commit = function() {
-	if (this._action === null)
+	const self = this;
+
+	if (self._action === null)
 		return Promise.resolve();
 	else
 		return post_json(
-			'/classify/' + this.id,
-			this._action
+			'/classify/' + self.id,
+			self._action
 		).then(() => {
-			return this.update();
+			return self.refresh();
+		}).then(() => {
+			if (user_actions[self.id] === self._action) {
+				self.set_action(null);
+			}
 		});
 };
 
@@ -1654,7 +1660,7 @@ const update_pending_actions = function() {
 				+ listing.join(', ') + '.');
 			status_pane.add_new_child('button', {
 				onclick: () => {
-					alert('TODO');
+					commitPending();
 				}
 			}).add_text('Commit');
 		}
@@ -1730,6 +1736,81 @@ const selectNext = function() {
 	}
 };
 
+const commitPending = function() {
+	let failures = 0;
+	let spinner = new Spinner('Committing actions');
+	const total = Object.keys(user_actions).length;
+
+	status_pane.clear();
+	status_pane.add_children(spinner.element);
+	spinner.start();
+	busy = true;
+
+	const update_spinner_msg = function() {
+		const remain = Object.keys(user_actions).length - failures,
+			done = total - remain;
+
+		let comments = [];
+		if (done)
+			comments.push(done + ' of ' + total + ' done');
+		if (failures)
+			comments.push(failures + ' failed');
+
+		spinner.message = 'Committing actions';
+		if (comments.length)
+			spinner.message += ' (' + comments.join(', ') + ')';
+	};
+
+	update_spinner_msg();
+
+	let promises = Object.keys(user_actions).map((uid) => {
+		const action = user_actions[uid],
+			user = users[uid],
+			user_ui = user_uis.find((ui) => {
+				return (ui.uid === uid);
+			});
+
+		if (user !== undefined) {
+			return user.commit().then(() => {
+				update_spinner_msg();
+				return new Promise((resolve, reject) => {
+					setTimeout(resolve, 3000);
+				});
+			}).then(() => {
+				if (user_ui)
+					user_ui.hide();
+			}).catch((err) => {
+				console.log('Failed to commit #'
+					+ uid
+					+ ': '
+					+ err.message
+					+ '\n'
+					+ err.stack);
+				failures++;
+				update_spinner_msg();
+			});
+		} else {
+			return Promise.resolve();
+		}
+	});
+
+	Promise.all(promises).then(() => {
+		busy = false;
+		spinner.stop();
+		update_pending_actions();
+		if (user_uis.length === 0)
+			return getNextPage();
+	}).catch((err) => {
+		busy = false;
+		spinner.stop();
+		update_pending_actions();
+		console.log('Failed to commit: '
+			+ err.message
+			+ '\n'
+			+ err.stack);
+	});
+};
+
 const main = function() {
 	clear_element(document.body);
 
@@ -1791,6 +1872,9 @@ const main = function() {
 			if (ui) {
 				ui.set_action('legit');
 			}
+			ev.preventDefault();
+		} else if (ev.key === 'c') {
+			commitPending();
 			ev.preventDefault();
 		}
 	});
