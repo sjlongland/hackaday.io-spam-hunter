@@ -1030,14 +1030,6 @@ const UserUI = function(uid) {
 	/* Build the core elements */
 	self.element = new DOMElement('div', {
 		classes: ['profile'],
-		onmouseover: () => {
-			if (selected_uid !== self.uid)
-				self.select(false);
-		},
-		onmouseout: () => {
-			if (selected_uid === self.uid)
-				self.deselect();
-		},
 		onclick: () => {
 			if (selected_uid !== self.uid)
 				self.select(false);
