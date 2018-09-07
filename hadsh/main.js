@@ -1494,10 +1494,16 @@ const update_pending_actions = function() {
 		});
 
 		status_pane.clear();
+
 		if (legit || suspect) {
+			let listing = [];
+			if (legit)
+				listing.push(legit + ' legit users');
+			if (suspect)
+				listing.push(suspect + ' suspect users');
+
 			status_pane.add_text('Pending operations: '
-				+ legit + ' legit users, '
-				+ suspect + ' suspect users.');
+				+ listing.join(', ') + '.');
 			status_pane.add_new_child('button', {
 				onclick: () => {
 					alert('TODO');
