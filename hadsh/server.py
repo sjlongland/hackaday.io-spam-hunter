@@ -231,7 +231,7 @@ class UserHandler(AuthRequestHandler):
                 }))
             else:
                 self.set_status(200)
-                self.write(json.dumps(self._dump_user(user)))
+                self.write(json.dumps(self._dump_user(db, user)))
         finally:
             db.close()
 
