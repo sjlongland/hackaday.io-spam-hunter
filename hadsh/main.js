@@ -1030,8 +1030,17 @@ const UserUI = function(uid) {
 	/* Build the core elements */
 	self.element = new DOMElement('div', {
 		classes: ['profile'],
+		onmouseover: () => {
+			if (selected_uid !== self.uid)
+				self.select(false);
+		},
+		onmouseout: () => {
+			if (selected_uid === self.uid)
+				self.deselect();
+		},
 		onclick: () => {
-			self.select();
+			if (selected_uid !== self.uid)
+				self.select(false);
 		}
 	});
 
@@ -1434,7 +1443,10 @@ UserUI.prototype.hide = function() {
 	this.destroy();
 }
 
-UserUI.prototype.select = function() {
+UserUI.prototype.select = function(scroll) {
+	if (scroll === undefined)
+		scroll = true;
+
 	if (selected_uid !== null) {
 		let other_ui = user_uis.find((ui) => {
 			return (ui.uid === selected_uid);
@@ -1446,7 +1458,8 @@ UserUI.prototype.select = function() {
 
 	selected_uid = this.uid;
 	this.element.add_classes('profile_selected');
-	this.element.element.scrollIntoView();
+	if (scroll)
+		this.element.element.scrollIntoView();
 };
 
 UserUI.prototype.deselect = function() {
