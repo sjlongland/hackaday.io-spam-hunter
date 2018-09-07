@@ -27,7 +27,9 @@ var busy = false;
 var title_pane = null,
 	user_pane = null,
 	status_pane = null,
-	user_uis = [];
+	user_uis = [],
+	selected_uid = null,
+	prev_selected_uid = null;
 
 /* Pending user actions */
 var user_actions = {};
@@ -1021,7 +1023,10 @@ const UserUI = function(uid) {
 
 	/* Build the core elements */
 	self.element = new DOMElement('div', {
-		classes: ['profile']
+		classes: ['profile'],
+		onclick: () => {
+			self.select();
+		}
 	});
 
 	self.avatarImg = self.element.add_new_child('div', {
@@ -1080,6 +1085,9 @@ const UserUI = function(uid) {
 		onchange: () => {
 			if (!self.classifySuspectBtn.element.checked)
 				return;
+
+			selected_uid = self.uid;
+
 			self.auto_classify = false;
 			self.set_action('suspect');
 		}
@@ -1100,6 +1108,9 @@ const UserUI = function(uid) {
 		onchange: () => {
 			if (!self.classifyNoneBtn.element.checked)
 				return;
+
+			selected_uid = self.uid;
+
 			self.auto_classify = false;
 			self.set_action(null);
 		}
@@ -1120,6 +1131,9 @@ const UserUI = function(uid) {
 		onchange: () => {
 			if (!self.classifyLegitBtn.element.checked)
 				return;
+
+			selected_uid = self.uid;
+
 			self.auto_classify = false;
 			self.set_action('legit');
 		}
@@ -1133,8 +1147,7 @@ const UserUI = function(uid) {
 	classify_frm.add_text(' ');
 	classify_frm.add_new_child('button', {
 		onclick: () => {
-			self.set_action(null);
-			self.destroy();
+			self.hide();
 		}
 	}).add_text('Hide');
 
@@ -1401,6 +1414,41 @@ UserUI.prototype.destroy = function() {
 	self.element.destroy();
 };
 
+UserUI.prototype.hide = function() {
+	if (selected_uid === this.uid) {
+		/* Select another UID */
+		if (prev_selected_uid < this.uid) {
+			selectPrev();
+		} else {
+			selectNext();
+		}
+	}
+
+	this.set_action(null);
+	this.destroy();
+}
+
+UserUI.prototype.select = function() {
+	if (selected_uid !== null) {
+		let other_ui = user_uis.find((ui) => {
+			return (ui.uid === selected_uid);
+		});
+		if (other_ui) {
+			other_ui.deselect();
+		}
+	}
+
+	selected_uid = this.uid;
+	this.element.element.scrollIntoView();
+};
+
+UserUI.prototype.deselect = function() {
+	if (selected_uid === this.uid) {
+		selected_uid = null;
+		prev_selected_uid = this.uid;
+	}
+};
+
 UserUI.prototype.refresh = function() {
 	const self = this;
 	const user = self._get_user();
@@ -1531,7 +1579,7 @@ const getNextPage = function(reverse) {
 	spinner.start();
 	busy = true;
 
-	get_json(uri).then(function (data) {
+	return get_json(uri).then(function (data) {
 		spinner.stop();
 		status_pane.clear();
 		busy = false;
@@ -1552,8 +1600,21 @@ const getNextPage = function(reverse) {
 			return uui.element;
 		});
 
+		user_uis.sort((a, b) => {
+			if (a.uid < b.uid)
+				return -1;
+			else if (a.uid > b.uid)
+				return 1;
+			return 0;
+		});
+
 		widgets.unshift((reverse) ? 'start' : 'end');
 		user_pane.add_children.apply(user_pane, widgets);
+		user_pane.element.focus();
+
+		if ((selected_uid === null) && (user_uis.length)) {
+			user_uis[(reverse) ? 0 : (user_uis.length-1)].select();
+		}
 
 		update_pending_actions();
 	}).catch(function (err) {
@@ -1563,6 +1624,7 @@ const getNextPage = function(reverse) {
 		busy = false;
 		console.log(err);
 
+		user_pane.element.focus();
 		setTimeout(update_pending_actions, 10000);
 	});
 };
@@ -1599,17 +1661,89 @@ const update_pending_actions = function() {
 	}
 };
 
+const getUserUI = function(uid) {
+	if (uid === undefined)
+		uid = selected_uid;
+	if (uid === null)
+		return;
+
+	return user_uis.find((ui) => {
+		return (ui.uid === uid);
+	}) || null;
+};
+
+const findPrevUser = function() {
+	if (selected_uid !== null) {
+		let candidates = user_uis.filter((ui) => {
+			return (ui.uid > selected_uid);
+		});
+
+		if (candidates.length) {
+			return candidates[0];
+		}
+	} else if (user_uis.length) {
+		return user_uis[0];
+	} else {
+		return null;
+	}
+};
+
+const findNextUser = function() {
+	if (selected_uid !== null) {
+		let candidates = user_uis.filter((ui) => {
+			return (ui.uid < selected_uid);
+		});
+
+		if (candidates.length) {
+			return candidates[candidates.length-1];
+		}
+	} else if (user_uis.length) {
+		return user_uis[user_uis.length-1];
+	} else {
+		return null;
+	}
+};
+
+const selectPrev = function() {
+	let ui = findPrevUser();
+	if (ui) {
+		ui.select();
+	} else {
+		getNextPage(true).then(() => {
+			ui = findPrevUser();
+			if (ui)
+				ui.select();
+		});
+	}
+};
+
+const selectNext = function() {
+	let ui = findNextUser();
+	if (ui) {
+		ui.select();
+	} else {
+		getNextPage(false).then(() => {
+			ui = findNextUser();
+			if (ui)
+				ui.select();
+		});
+	}
+};
+
 const main = function() {
 	clear_element(document.body);
 
 	title_pane = new DOMElement('div', {
+		tabIndex: 2,
 		classes: ['title_pane']
 	});
 	status_pane = new DOMElement('div', {
+		tabIndex: 1,
 		classes: ['status_pane']
 	});
 	user_pane = new DOMElement('div', {
 		classes: ['user_pane'],
+		tabIndex: 0,
 		onscroll: function(ev) {
 			if (busy)
 				return;
@@ -1625,5 +1759,41 @@ const main = function() {
 	document.body.appendChild(title_pane.element);
 	document.body.appendChild(user_pane.element);
 	document.body.appendChild(status_pane.element);
+
+	user_pane.element.focus();
+	user_pane.element.addEventListener('keypress', (ev) => {
+		if (ev.key === 'b') {
+			selectPrev();
+			ev.preventDefault();
+		} else if (ev.key === 'n') {
+			selectNext();
+			ev.preventDefault();
+		} else if (ev.key === 'h') {
+			let ui = getUserUI();
+			if (ui) {
+				ui.hide();
+			}
+			ev.preventDefault();
+		} else if (ev.key === 'u') {
+			let ui = getUserUI();
+			if (ui) {
+				ui.set_action(null);
+			}
+			ev.preventDefault();
+		} else if (ev.key === 's') {
+			let ui = getUserUI();
+			if (ui) {
+				ui.set_action('suspect');
+			}
+			ev.preventDefault();
+		} else if (ev.key === 'l') {
+			let ui = getUserUI();
+			if (ui) {
+				ui.set_action('legit');
+			}
+			ev.preventDefault();
+		}
+	});
+
 	getNextPage();
 };
