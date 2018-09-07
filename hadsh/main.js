@@ -1838,6 +1838,32 @@ const commitPending = function() {
 const main = function() {
 	clear_element(document.body);
 
+	if (location.hash) {
+		location.hash.substring(1).split('&').forEach((arg) => {
+			try {
+				const parts = arg.split('=', 2);
+				const name = parts[0];
+				const value = decodeURIComponent(parts[1]);
+
+				switch(name) {
+				case 'newest_uid':
+					newest_uid = parseInt(value);
+					break;
+				case 'oldest_uid':
+					oldest_uid = parseInt(value);
+					break;
+				case 'source':
+					source = value;
+					break;
+				}
+			} catch (err) {
+				console.log('Failed to decode ' + arg
+					+ ': ' + err.message + '\n'
+					+ err.stack);
+			}
+		});
+	}
+
 	title_pane = new DOMElement('div', {
 		tabIndex: 2,
 		classes: ['title_pane']
