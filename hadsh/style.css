@@ -16,7 +16,10 @@ button {
 	font-family: monospace;
 	background-color: #030;
 	color: #0c0;
-	padding: 1em;
+	padding-left: 1em;
+	padding-right: 1em;
+	padding-top: 0.2em;
+	padding-bottom: 0.2em;
 	border: 1px solid #0c0;
 }
 button:hover {
@@ -60,6 +63,24 @@ button:hover {
 	color: #000;
 	line-height: 2.0;
 	white-space: nowrap;
+}
+
+.classify_op {
+	color: #0c0;
+	background-color: #020;
+	padding-left: 1em;
+	padding-right: 1em;
+	padding-top: 0.2em;
+	padding-bottom: 0.2em;
+}
+
+.classify_op_selected {
+	color: #0f0;
+	background-color: #060;
+}
+
+.classify_op_selected label {
+	text-decoration: underline;
 }
 
 .user_pane {

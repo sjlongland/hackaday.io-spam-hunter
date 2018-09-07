@@ -834,6 +834,34 @@ DOMElement.prototype.remove_children = function() {
 	});
 };
 
+DOMElement.prototype.rm_classes = function() {
+	const self = this;
+	[].slice.apply(arguments).forEach((c) => {
+		if (self.element.classList.contains(c))
+			self.element.classList.remove(c);
+	});
+};
+
+DOMElement.prototype.add_classes = function() {
+	const self = this;
+	[].slice.apply(arguments).forEach((c) => {
+		if (!self.element.classList.contains(c))
+			self.element.classList.add(c);
+	});
+};
+
+DOMElement.prototype.swap_class = function(rm_class, add_class) {
+	if (rm_class instanceof Array)
+		this.rm_classes.apply(this, rm_class);
+	else
+		this.rm_classes(rm_class);
+
+	if (add_class instanceof Array)
+		this.add_classes.apply(this, add_class);
+	else
+		this.add_classes(add_class);
+};
+
 DOMElement.prototype.clear = function() {
 	const self = this;
 	self.remove_children.apply(self,
@@ -1048,6 +1076,7 @@ const UserUI = function(uid) {
 		value: 'suspect',
 		name: 'classification',
 		checked: false,
+		classes: ['classify_op'],
 		onchange: () => {
 			if (!self.classifySuspectBtn.element.checked)
 				return;
@@ -1055,16 +1084,19 @@ const UserUI = function(uid) {
 			self.set_action('suspect');
 		}
 	});
-	classify_frm.add_new_child('label', {
-		htmlFor: self.classifySuspectBtn.element.id
-	}).add_text('Suspect');
+	self.classifySuspectLbl = classify_frm.add_new_child('label', {
+		htmlFor: self.classifySuspectBtn.element.id,
+		classes: ['classify_op']
+	});
+	self.classifySuspectLbl.add_text('Suspect');
 
 	self.classifyNoneBtn = classify_frm.add_new_child('input', {
 		id: 'u' + uid + 'ClassifyNeutralBtn',
 		type: 'radio',
 		value: 'neutral',
 		name: 'classification',
-		checked: false,
+		checked: true,
+		classes: ['classify_op', 'classify_op_selected'],
 		onchange: () => {
 			if (!self.classifyNoneBtn.element.checked)
 				return;
@@ -1072,9 +1104,11 @@ const UserUI = function(uid) {
 			self.set_action(null);
 		}
 	});
-	classify_frm.add_new_child('label', {
-		htmlFor: self.classifyNoneBtn.element.id
-	}).add_text('Neutral');
+	self.classifyNoneLbl = classify_frm.add_new_child('label', {
+		htmlFor: self.classifyNoneBtn.element.id,
+		classes: ['classify_op', 'classify_op_selected']
+	});
+	self.classifyNoneLbl.add_text('Neutral');
 
 	self.classifyLegitBtn = classify_frm.add_new_child('input', {
 		id: 'u' + uid + 'ClassifyLegitBtn',
@@ -1082,6 +1116,7 @@ const UserUI = function(uid) {
 		value: 'legit',
 		name: 'classification',
 		checked: false,
+		classes: ['classify_op'],
 		onchange: () => {
 			if (!self.classifyLegitBtn.element.checked)
 				return;
@@ -1089,12 +1124,16 @@ const UserUI = function(uid) {
 			self.set_action('legit');
 		}
 	});
-	classify_frm.add_new_child('label', {
-		htmlFor: self.classifyLegitBtn.element.id
-	}).add_text('Legit');
+	self.classifyLegitLbl = classify_frm.add_new_child('label', {
+		htmlFor: self.classifyLegitBtn.element.id,
+		classes: ['classify_op']
+	});
+	self.classifyLegitLbl.add_text('Legit');
 
-	classify_ctl.add_new_child('button', {
+	classify_frm.add_text(' ');
+	classify_frm.add_new_child('button', {
 		onclick: () => {
+			self.set_action(null);
 			self.destroy();
 		}
 	}).add_text('Hide');
@@ -1175,14 +1214,61 @@ UserUI.prototype.set_action = function(action) {
 		self.classifyLegitBtn.element.checked = true;
 		self.classifySuspectBtn.element.checked = false;
 		self.classifyNoneBtn.element.checked = false;
+
+		[
+			self.classifySuspectBtn,
+			self.classifySuspectLbl,
+			self.classifyNoneBtn,
+			self.classifyNoneLbl
+		].forEach((e) => {
+			e.rm_classes('classify_op_selected');
+		});
+		[
+			self.classifyLegitBtn,
+			self.classifyLegitLbl
+		].forEach((e) => {
+			e.add_classes('classify_op_selected');
+		});
 	} else if (action === 'suspect') {
 		self.classifySuspectBtn.element.checked = true;
 		self.classifyLegitBtn.element.checked = false;
 		self.classifyNoneBtn.element.checked = false;
+
+
+		[
+			self.classifyLegitBtn,
+			self.classifyLegitLbl,
+			self.classifyNoneBtn,
+			self.classifyNoneLbl
+		].forEach((e) => {
+			e.rm_classes('classify_op_selected');
+		});
+		[
+			self.classifySuspectBtn,
+			self.classifySuspectLbl
+		].forEach((e) => {
+			e.add_classes('classify_op_selected');
+		});
 	} else {
 		self.classifyNoneBtn.element.checked = true;
 		self.classifyLegitBtn.element.checked = false;
 		self.classifySuspectBtn.element.checked = false;
+
+
+		[
+			self.classifySuspectBtn,
+			self.classifySuspectLbl,
+			self.classifyLegitBtn,
+			self.classifyLegitLbl
+		].forEach((e) => {
+			e.rm_classes('classify_op_selected');
+		});
+		[
+			self.classifyNoneBtn,
+			self.classifyNoneLbl
+		].forEach((e) => {
+			e.add_classes('classify_op_selected');
+		});
 	}
 };
 
