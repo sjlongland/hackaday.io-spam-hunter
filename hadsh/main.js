@@ -1468,12 +1468,16 @@ const getNextPage = function(reverse) {
 
 		widgets.unshift((reverse) ? 'start' : 'end');
 		user_pane.add_children.apply(user_pane, widgets);
+
+		update_pending_actions();
 	}).catch(function (err) {
 		spinner.stop();
 		status_pane.clear();
 		status_pane.add_text('Failed to fetch users: ' + err.message);
 		busy = false;
 		console.log(err);
+
+		setTimeout(update_pending_actions, 10000);
 	});
 };
 
