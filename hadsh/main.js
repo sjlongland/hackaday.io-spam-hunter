@@ -1013,6 +1013,25 @@ WordAdjUI.prototype._get_obj = function() {
 	return wordadj[this.id];
 };
 
+const google_translate_uri = function(text) {
+	return ('https://translate.google.com/#auto|en|'
+		+ encodeURIComponent(text));
+};
+
+const make_translation_link = function(parent, src) {
+	parent.add_text(' ');
+	let link = parent.add_new_child('a', {
+		href: google_translate_uri(src.element.textContent),
+		target: '_blank'
+	});
+	link.add_new_child('sub').add_text('[Translate]');
+	link.update = () => {
+		link.element.href =
+			google_translate_uri(src.element.textContent);
+	};
+	return link;
+};
+
 /*!
  * UI control for a single user
  */
@@ -1058,6 +1077,9 @@ const UserUI = function(uid) {
 	self.profileName.element.innerHTML = user.screen_name;
 
 	self.profileLink.add_text(' [#' + uid + ']');
+
+	self.profileTranslateLink = make_translation_link(
+		profile_box, self.profileName);
 
 	self.statusField = self.element.add_new_child('div');
 	if (user.pending)
@@ -1184,15 +1206,24 @@ const UserUI = function(uid) {
 	self.locationField = location_box.add_new_child('span');
 	self.locationField.element.innerHTML = user.location;
 
+	self.locationTranslateLink = make_translation_link(
+		location_box, self.locationField);
+
 	let about_me_box = self.element.add_new_child('div');
 	about_me_box.add_new_child('span').add_text('About Me: ');
 	self.aboutMeField = about_me_box.add_new_child('span');
 	self.aboutMeField.element.innerHTML = user.about_me;
 
+	self.aboutMeTranslateLink = make_translation_link(
+		about_me_box, self.aboutMeField);
+
 	let who_am_i_box = self.element.add_new_child('div');
 	who_am_i_box.add_new_child('span').add_text('Who Am I: ');
 	self.whoAmIField = who_am_i_box.add_new_child('span');
 	self.whoAmIField.element.innerHTML = user.who_am_i;
+
+	self.whoAmITranslateLink = make_translation_link(
+		who_am_i_box, self.whoAmIField);
 
 	let what_i_would_like_to_do_box = self.element.add_new_child('div');
 	what_i_would_like_to_do_box.add_new_child('span').add_text(
@@ -1201,6 +1232,9 @@ const UserUI = function(uid) {
 		what_i_would_like_to_do_box.add_new_child('span');
 	self.whatIWouldLikeToDoField.element.innerHTML =
 		user.what_i_would_like_to_do;
+
+	self.whatIWouldLikeToDoTranslateLink = make_translation_link(
+		what_i_would_like_to_do_box, self.whatIWouldLikeToDoField);
 
 	let project_box = self.element.add_new_child('div');
 	project_box.add_text('Projects: ');
@@ -1500,11 +1534,16 @@ UserUI.prototype.refresh = function() {
 			+ '?width=300&height=300';
 	self.profileLink.href = user.url;
 	self.locationField.element.innerHTML = user.location;
+	self.locationTranslateLink.update();
 	self.aboutMeField.element.innerHTML = user.about_me;
+	self.aboutMeTranslateLink.update();
 	self.profileName.element.innerHTML = user.screen_name;
+	self.profileTranslateLink.update();
 	self.whoAmIField.element.innerHTML = user.who_am_i;
+	self.whoAmITranslateLink.update();
 	self.whatIWouldLikeToDoField.element.innerHTML =
 		user.what_i_would_like_to_do;
+	self.whatIWouldLikeToDoTranslateLink.update();
 	self.projectsField.data = user.projects;
 
 	self.statusField.clear();
