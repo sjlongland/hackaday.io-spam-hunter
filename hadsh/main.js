@@ -1237,6 +1237,15 @@ UserUI.prototype._update_tokens = function(user) {
 	});
 };
 
+UserUI.prototype._add_to_field = function(field, elements) {
+	field.add_children.apply(field,
+		elements.map((ui) => {
+			return ui.element;
+		}).reduce((acc, cur, idx, src) => {
+			return acc.concat(cur, document.createTextNode(' '))
+		}, []));
+};
+
 UserUI.prototype._update_hostnames = function(user) {
 	const self = this;
 
@@ -1249,10 +1258,8 @@ UserUI.prototype._update_hostnames = function(user) {
 	).map(function (h) {
 		return new HostnameUI(h.id, user.hostname_count[h.id] || 0);
 	});
-	self.hostnamesField.add_children.apply(self.hostnamesField,
-		self._hostnames.map((ui) => {
-			return ui.element;
-		}));
+
+	self._add_to_field(self.hostnamesField, self._hostnames);
 };
 
 UserUI.prototype._update_words = function(user) {
@@ -1267,10 +1274,7 @@ UserUI.prototype._update_words = function(user) {
 	).map(function (w) {
 		return new WordUI(w.id, user.word_count[w.id] || 0);
 	});
-	self.wordsField.add_children.apply(self.wordsField,
-		self._words.map((ui) => {
-			return ui.element;
-		}));
+	self._add_to_field(self.wordsField, self._words);
 };
 
 UserUI.prototype._update_wordadj = function(user) {
@@ -1285,10 +1289,7 @@ UserUI.prototype._update_wordadj = function(user) {
 	).map(function (wa) {
 		return new WordAdjUI(wa.key, user.word_count[wa.key] || 0);
 	});
-	self.wordAdjField.add_children.apply(self.wordAdjField,
-		self._wordadj.map((ui) => {
-			return ui.element;
-		}));
+	self._add_to_field(self.wordAdjField, self._wordadj);
 };
 
 UserUI.prototype.destroy = function() {
