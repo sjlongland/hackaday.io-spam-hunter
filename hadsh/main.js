@@ -661,6 +661,7 @@ User.prototype.update = function(data) {
 	self.what_i_would_like_to_do = data.what_i_would_like_to_do;
 	self.tags = data.tags;
 	self.links = data.links;
+	self.projects = data.projects;
 	self.avatar_id = data.avatar_id;
 	self.created = data.created;
 	self.had_created = data.had_created;
@@ -1201,6 +1202,10 @@ const UserUI = function(uid) {
 	self.whatIWouldLikeToDoField.element.innerHTML =
 		user.what_i_would_like_to_do;
 
+	let project_box = self.element.add_new_child('div');
+	project_box.add_text('Projects: ');
+	self.projectsField = project_box.add_text(user.projects);
+
 	let links_box = self.element.add_new_child('div');
 	links_box.add_new_child('div').add_text('Links:');
 	self.linksField = links_box.add_new_child('ul');
@@ -1500,6 +1505,7 @@ UserUI.prototype.refresh = function() {
 	self.whoAmIField.element.innerHTML = user.who_am_i;
 	self.whatIWouldLikeToDoField.element.innerHTML =
 		user.what_i_would_like_to_do;
+	self.projectsField.data = user.projects;
 
 	self.statusField.clear();
 	if (user.pending)
