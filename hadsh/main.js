@@ -1773,9 +1773,9 @@ const selectNext = function() {
 };
 
 const commitPending = function() {
-	let failures = 0;
-	let spinner = new Spinner('Committing actions');
 	const total = Object.keys(user_actions).length;
+	let failures = 0;
+	let spinner = new Spinner('Committing actions (' + total + ' to do)');
 
 	status_pane.clear();
 	status_pane.add_children(spinner.element);
