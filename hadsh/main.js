@@ -1791,7 +1791,7 @@ const commitPending = function() {
 		const action = user_actions[uid],
 			user = users[uid],
 			user_ui = user_uis.find((ui) => {
-				return (ui.uid === uid);
+				return (ui.uid == uid);
 			});
 
 		if (user !== undefined) {
