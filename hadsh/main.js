@@ -1050,9 +1050,7 @@ const UserUI = function(uid) {
 	});
 
 	self.profileName = self.profileLink.add_new_child('tt');
-	self.profileName.add_text(
-		user.screen_name
-	);
+	self.profileName.element.innerHTML = user.screen_name;
 
 	self.profileLink.add_text(' [#' + uid + ']');
 
@@ -1181,24 +1179,25 @@ const UserUI = function(uid) {
 	let location_box = self.element.add_new_child('div');
 	location_box.add_new_child('span').add_text('Location: ');
 	self.locationField = location_box.add_new_child('span');
-	self.locationField.add_text(user.location);
+	self.locationField.element.innerHTML = user.location;
 
 	let about_me_box = self.element.add_new_child('div');
 	about_me_box.add_new_child('span').add_text('About Me: ');
 	self.aboutMeField = about_me_box.add_new_child('span');
-	self.aboutMeField.add_text(user.about_me);
+	self.aboutMeField.element.innerHTML = user.about_me;
 
 	let who_am_i_box = self.element.add_new_child('div');
 	who_am_i_box.add_new_child('span').add_text('Who Am I: ');
 	self.whoAmIField = who_am_i_box.add_new_child('span');
-	self.whoAmIField.add_text(user.who_am_i);
+	self.whoAmIField.element.innerHTML = user.who_am_i;
 
 	let what_i_would_like_to_do_box = self.element.add_new_child('div');
 	what_i_would_like_to_do_box.add_new_child('span').add_text(
 		'What I Would Like To Do: ');
 	self.whatIWouldLikeToDoField =
 		what_i_would_like_to_do_box.add_new_child('span');
-	self.whatIWouldLikeToDoField.add_text(user.what_i_would_like_to_do);
+	self.whatIWouldLikeToDoField.element.innerHTML =
+		user.what_i_would_like_to_do;
 
 	let links_box = self.element.add_new_child('div');
 	links_box.add_new_child('div').add_text('Links:');
@@ -1484,8 +1483,12 @@ UserUI.prototype.refresh = function() {
 	self.avatarImg.src = '/avatar/' + user.avatar_id
 			+ '?width=300&height=300';
 	self.profileLink.href = user.url;
-	self.profileName.clear();
-	self.profileName.add_text(user.screen_name);
+	self.locationField.element.innerHTML = user.location;
+	self.aboutMeField.element.innerHTML = user.about_me;
+	self.profileName.element.innerHTML = user.screen_name;
+	self.whoAmIField.element.innerHTML = user.who_am_i;
+	self.whatIWouldLikeToDoField.element.innerHTML =
+		user.what_i_would_like_to_do;
 
 	self.statusField.clear();
 	if (user.pending)
