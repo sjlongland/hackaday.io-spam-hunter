@@ -842,7 +842,8 @@ DOMElement.prototype.clear = function() {
 
 DOMElement.prototype.destroy = function() {
 	this.clear();
-	this.element.parentElement.removeChild(this.element);
+	if (this.element.parentElement)
+		this.element.parentElement.removeChild(this.element);
 };
 
 /*!
