@@ -1797,6 +1797,8 @@ const commitPending = function() {
 		spinner.message = 'Committing actions';
 		if (comments.length)
 			spinner.message += ' (' + comments.join(', ') + ')';
+		else
+			spinner.message += ' (' + total + ' to do)';
 	};
 
 	update_spinner_msg();
