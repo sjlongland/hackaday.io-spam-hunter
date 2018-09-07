@@ -1031,7 +1031,8 @@ const UserUI = function(uid) {
 	self.element = new DOMElement('div', {
 		classes: ['profile'],
 		onmouseover: () => {
-			self._update_classification();
+			if (!busy)
+				self._update_classification();
 		},
 		onclick: () => {
 			if (selected_uid !== self.uid)
@@ -1467,7 +1468,8 @@ UserUI.prototype.select = function(scroll) {
 		}
 	}
 
-	this._update_classification();
+	if (!busy)
+		this._update_classification();
 
 	selected_uid = this.uid;
 	this.element.add_classes('profile_selected');
