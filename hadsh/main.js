@@ -190,7 +190,7 @@ ObjectSet.prototype.has = function(e) {
 		return false;
 	}
 
-	return Set.call(this, key);
+	return Set.prototype.has.call(this, key);
 };
 
 ObjectSet.prototype.add = function() {
