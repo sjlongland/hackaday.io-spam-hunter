@@ -1030,6 +1030,9 @@ const UserUI = function(uid) {
 	/* Build the core elements */
 	self.element = new DOMElement('div', {
 		classes: ['profile'],
+		onmouseover: () => {
+			self._update_classification();
+		},
 		onclick: () => {
 			if (selected_uid !== self.uid)
 				self.select(false);
@@ -1169,8 +1172,6 @@ const UserUI = function(uid) {
 		}
 	}).add_text('Hide');
 
-	self._update_classification(user);
-
 	let tags_box = self.element.add_new_child('div');
 	tags_box.add_new_child('span').add_text('Tags: ');
 	self.tagsField = tags_box.add_new_child('span');
@@ -1308,6 +1309,12 @@ UserUI.prototype._update_classification = function(user) {
 	const self = this;
 	if (!self.auto_classify)
 		return;
+
+	if (user === undefined) {
+		user = this._get_user();
+		if (!user)
+			this.destroy();
+	}
 
 	if (!user.pending && user.groups.has(Group.get('auto_legit'))) {
 		self.set_action('legit');
@@ -1459,6 +1466,8 @@ UserUI.prototype.select = function(scroll) {
 			other_ui.deselect();
 		}
 	}
+
+	this._update_classification();
 
 	selected_uid = this.uid;
 	this.element.add_classes('profile_selected');
