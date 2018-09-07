@@ -1445,6 +1445,7 @@ UserUI.prototype.select = function() {
 	}
 
 	selected_uid = this.uid;
+	this.element.add_classes('profile_selected');
 	this.element.element.scrollIntoView();
 };
 
@@ -1453,6 +1454,7 @@ UserUI.prototype.deselect = function() {
 		selected_uid = null;
 		prev_selected_uid = this.uid;
 	}
+	this.element.rm_classes('profile_selected');
 };
 
 UserUI.prototype.refresh = function() {

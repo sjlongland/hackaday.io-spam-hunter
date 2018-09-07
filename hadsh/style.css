@@ -32,6 +32,11 @@ button:hover {
 	padding: 2em;
 }
 
+.profile_selected {
+	background-color: #030;
+	border: 2px solid #0f0;
+};
+
 .profile_field_name {
 	font-weight: bold;
 }
