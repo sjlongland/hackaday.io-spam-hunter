@@ -1073,6 +1073,19 @@ const UserUI = function(uid) {
 			+ user.inspections
 			+ ' inspections.');
 
+	let date_list = self.element.add_new_child('div').add_new_child('ul');
+	let item = date_list.add_new_child('li');
+	item.add_text('Registered: ')
+	self.registeredField = item.add_text(user.had_created);
+
+	item = date_list.add_new_child('li');
+	item.add_text('First seen: ')
+	self.firstSeenField = item.add_text(user.created);
+
+	item = date_list.add_new_child('li');
+	item.add_text('Last update: ')
+	self.lastUpdateField = item.add_text(user.last_update);
+
 	let score_text_box = self.element.add_new_child('div');
 	let score = user.score();
 
@@ -1495,6 +1508,10 @@ UserUI.prototype.refresh = function() {
 
 	self.scoreField.data = score;
 	self.scoreGauge.set(score);
+
+	self.registeredField.data = user.had_created;
+	self.firstSeenField.data = user.created;
+	self.lastUpdateField.data = user.last_update;
 
 	self._update_groups(user);
 	self._update_tags(user);
