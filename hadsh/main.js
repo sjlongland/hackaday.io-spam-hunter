@@ -2150,6 +2150,10 @@ const main = function() {
 
 	user_pane.element.focus();
 	user_pane.element.addEventListener('keypress', (ev) => {
+		/* Ignore CTRL/ALT keys */
+		if (ev.ctrlKey || ev.altKey)
+			return;
+
 		if (ev.key === 'b') {
 			selectPrev();
 			ev.preventDefault();
