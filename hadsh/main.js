@@ -1849,6 +1849,14 @@ const update_pending_actions = function() {
 					commitPending();
 				}
 			}).add_text('Commit');
+
+			if ((legit + suspect) >= 100)
+				status_pane.add_new_child(
+					'strong').add_text(
+						' ' + (legit + suspect)
+						+ 'pending operations, '
+						+ 'you might want to '
+						+ 'commit them now.');
 		}
 	}
 };
