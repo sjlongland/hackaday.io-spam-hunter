@@ -1047,15 +1047,19 @@ const UserUI = function(uid) {
 
 	user.ui = self;
 	self.auto_classify = true;
+	self.first_seen_by_mod = null;
 
 	/* Build the core elements */
 	self.element = new DOMElement('div', {
 		classes: ['profile'],
 		onmouseover: () => {
-			if (!busy)
+			if (!busy) {
+				self.mark_seen_by_mod();
 				self._update_classification();
+			}
 		},
 		onclick: () => {
+			self.mark_seen_by_mod();
 			if (selected_uid !== self.uid)
 				self.select(false);
 		}
@@ -1130,6 +1134,7 @@ const UserUI = function(uid) {
 		checked: false,
 		classes: ['classify_op'],
 		onchange: () => {
+			self.mark_seen_by_mod();
 			if (!self.classifySuspectBtn.element.checked)
 				return;
 
@@ -1153,6 +1158,7 @@ const UserUI = function(uid) {
 		checked: true,
 		classes: ['classify_op', 'classify_op_selected'],
 		onchange: () => {
+			self.mark_seen_by_mod();
 			if (!self.classifyNoneBtn.element.checked)
 				return;
 
@@ -1176,6 +1182,7 @@ const UserUI = function(uid) {
 		checked: false,
 		classes: ['classify_op'],
 		onchange: () => {
+			self.mark_seen_by_mod();
 			if (!self.classifyLegitBtn.element.checked)
 				return;
 
@@ -1271,6 +1278,15 @@ const UserUI = function(uid) {
 	self._update_wordadj(user);
 };
 
+UserUI.prototype.mark_seen_by_mod = function() {
+	if (this.first_seen_by_mod === null)
+		this.first_seen_by_mod = Date.now();
+};
+
+UserUI.prototype.seen_by_mod = function() {
+	return ((Date.now() - (this.first_seen_by_mod || 0)) > 5000);
+};
+
 UserUI.prototype._get_user = function() {
 	return users[this.uid];
 };
@@ -1351,6 +1367,12 @@ UserUI.prototype._update_classification = function(user) {
 	const self = this;
 	if (!self.auto_classify)
 		return;
+
+	if (!self.seen_by_mod()) {
+		/* Set a timeout and see if the moderator has seen it then. */
+		setTimeout(self._update_classification.bind(self), 5000);
+		return;
+	}
 
 	if (user === undefined) {
 		user = this._get_user();
