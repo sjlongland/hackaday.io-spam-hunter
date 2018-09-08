@@ -1853,7 +1853,7 @@ const update_pending_actions = function() {
 				status_pane.add_new_child(
 					'strong').add_text(
 						' ' + (legit + suspect)
-						+ 'pending operations, '
+						+ ' pending operations, '
 						+ 'you might want to '
 						+ 'commit them now.');
 		}
