@@ -1522,6 +1522,7 @@ UserUI.prototype.hide = function() {
 		}
 	}
 
+	this.auto_classify = false;
 	this.set_action(null);
 	this.destroy();
 }
