@@ -1641,7 +1641,12 @@ Spinner.prototype.nextState = function() {
 	case '|':	this._spinner = '/'; break;
 	default:
 			this._spinner = '-';
-			this._dots += '.';
+			if ((this._dots.length
+					+ this.message.length
+					+ 1) < 80)
+				this._dots += '.';
+			else
+				this._dots = '';
 			break;
 	}
 };
