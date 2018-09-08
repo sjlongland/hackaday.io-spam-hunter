@@ -1071,7 +1071,8 @@ const UserUI = function(uid) {
 
 	let profile_box = self.element.add_new_child('div');
 	self.profileLink = profile_box.add_new_child('a', {
-		href: user.url
+		href: user.url,
+		target: '_blank'
 	});
 
 	self.profileName = self.profileLink.add_new_child('tt');
