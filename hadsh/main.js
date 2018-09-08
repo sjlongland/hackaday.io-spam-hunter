@@ -1489,12 +1489,10 @@ UserUI.prototype.destroy = function() {
 	const self = this;
 	this.destroy = () => {};
 
-	let ui_idx = user_uis.findIndex((ui) => {
-		return (ui.uid === self.uid);
+	user_uis = user_uis.filter((ui) => {
+		return ((ui.uid !== self.uid)
+			&& (ui.element.element.parentElement !== null));
 	});
-	if (ui_idx >= 0) {
-		user_uis.slice(ui_idx, 1);
-	}
 
 	const user = self._get_user();
 	if (user)
@@ -1533,6 +1531,11 @@ UserUI.prototype.hide = function() {
 UserUI.prototype.select = function(scroll) {
 	if (scroll === undefined)
 		scroll = true;
+
+	if (this.element.element.parentElement === null) {
+		this.destroy();
+		throw new Error('UI not added to parent element');
+	}
 
 	user_uis.forEach((ui) => {
 		if (ui.uid !== this.uid)
