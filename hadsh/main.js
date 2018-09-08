@@ -29,7 +29,8 @@ var title_pane = null,
 	status_pane = null,
 	user_uis = [],
 	selected_uid = null,
-	prev_selected_uid = null;
+	prev_selected_uid = null,
+	heading = null;
 
 /* Pending user actions */
 var user_actions = {};
@@ -1667,19 +1668,6 @@ Spinner.prototype._go = function() {
 	self.timeout = setTimeout(self._go.bind(self), self.delay);
 }
 
-const selectSource = function(src) {
-	/* Clear out the old state */
-	newest_uid = null;
-	oldest_uid = null;
-	
-	while (user_uis.length)
-		user_uis.pop().destroy();
-
-	/* Switch sources */
-	source = src;
-	getNextPage();
-};
-
 const getNextPage = function(subset) {
 	var uri = source;
 
@@ -1718,6 +1706,21 @@ const getNextPage = function(subset) {
 		spinner.stop();
 		status_pane.clear();
 		busy = false;
+
+		heading.clear();
+		heading.add_text('Hackaday.io Spam Hunter Project');
+
+		switch(source) {
+		case '/data/newcomers.json':
+			heading.add_text(': Newest unclassified users');
+			break;
+		case '/data/legit.json':
+			heading.add_text(': Newest legitmate users');
+			break;
+		case '/data/suspect.json':
+			heading.add_text(': Newest suspect users');
+			break;
+		}
 
 		if (subset === 'newer')
 			data.users.reverse();
@@ -1786,14 +1789,23 @@ const getNextPage = function(subset) {
 		let location_args = [
 			'source=' + encodeURIComponent(source)
 		];
-		if (oldest_uid !== null)
+		if (oldest_uid !== null) {
 			location_args.push(
 				'oldest_uid='
 				+ encodeURIComponent(oldest_uid));
-		if (newest_uid !== null)
+			heading.firstUIDField.element.value = oldest_uid;
+		} else {
+			heading.firstUIDField.element.value = '';
+		}
+
+		if (newest_uid !== null) {
 			location_args.push(
 				'newest_uid='
 				+ encodeURIComponent(newest_uid));
+			heading.lastUIDField.element.value = newest_uid;
+		} else {
+			heading.lastUIDField.element.value = '';
+		}
 		location.hash = '#' + location_args.join('&');
 
 	}).catch(function (err) {
@@ -1997,15 +2009,15 @@ const main = function() {
 				const value = decodeURIComponent(parts[1]);
 
 				switch(name) {
-					case 'newest_uid':
-						newest_uid = parseInt(value);
-						break;
-					case 'oldest_uid':
-						oldest_uid = parseInt(value);
-						break;
-					case 'source':
-						source = value;
-						break;
+				case 'newest_uid':
+					newest_uid = parseInt(value);
+					break;
+				case 'oldest_uid':
+					oldest_uid = parseInt(value);
+					break;
+				case 'source':
+					source = value;
+					break;
 				}
 			} catch (err) {
 				console.log('Failed to decode ' + arg
@@ -2015,22 +2027,25 @@ const main = function() {
 		});
 	}
 
-	let query_and_hash = location.href.substring(
-		location.origin.length
-		+ location.pathname.length);
+	let query_and_hash = window.location.href.substring(
+		window.location.origin.length
+		+ window.location.pathname.length);
 
 	if (query_and_hash.substring(0,1) === '?') {
 		/* Parse the query string first */
-		let query = (location.hash)
-			? query_and_hash.substring(
-				1, query_and_hash.length
-					- 1 - location.hash.length)
-			: query_and_hash;
+		let query = query_and_hash.substring(1);
+		if (window.location.hash.length) {
+			query = query.substring(0,
+					query.length
+				- window.location.hash.length);
+		} else if (query.substring(query.length-1) === '#') {
+			query = query.substring(0, query.length-1);
+		}
 		parse_args(query);
 	}
 
-	if (location.hash) {
-		parse_args(location.hash.substring(1));
+	if (window.location.hash) {
+		parse_args(window.location.hash.substring(1));
 	}
 
 	title_pane = new DOMElement('div', {
@@ -2053,6 +2068,78 @@ const main = function() {
 			} else if (this.scrollTop === 0) {
 				getNextPage('newer');
 			}
+		}
+	});
+
+	heading = title_pane.add_new_child('h1');
+	heading.add_text('Hackaday.io Spam Hunter Project');
+
+	let head_form = title_pane.add_new_child('form');
+	head_form.add_text('Display user IDs: ');
+	heading.firstUIDField = head_form.add_new_child('input', {
+		type: 'text',
+		name: 'oldest_uid',
+		value: oldest_uid,
+		size: 2
+	});
+	head_form.add_text(' to ');
+	heading.lastUIDField = head_form.add_new_child('input', {
+		type: 'text',
+		name: 'newest_uid',
+		value: newest_uid,
+		size: 2
+	});
+	head_form.add_text(' from set ');
+
+	heading.srcNewestBtn = head_form.add_new_child('input', {
+		type: 'radio',
+		name: 'source',
+		id: 'srcNewestBtn',
+		value: '/data/newcomers.json',
+		checked: (source === '/data/newcomers.json')
+	});
+	head_form.add_new_child('label', {
+		htmlFor: 'srcNewestBtn'
+	}).add_text('Newest Users');
+
+	heading.srcLegitBtn = head_form.add_new_child('input', {
+		type: 'radio',
+		name: 'source',
+		id: 'srcLegitBtn',
+		value: '/data/legit.json',
+		checked: (source === '/data/legit.json')
+	});
+	head_form.add_new_child('label', {
+		htmlFor: 'srcLegitBtn'
+	}).add_text('Legit Users');
+
+	heading.srcSuspectBtn = head_form.add_new_child('input', {
+		type: 'radio',
+		name: 'source',
+		id: 'srcSuspectBtn',
+		value: '/data/suspect.json',
+		checked: (source === '/data/suspect.json')
+	});
+	head_form.add_new_child('label', {
+		htmlFor: 'srcSuspectBtn'
+	}).add_text('Suspect Users');
+
+	heading.srcAdminBtn = head_form.add_new_child('input', {
+		type: 'radio',
+		name: 'source',
+		id: 'srcAdminBtn',
+		value: '/data/admin.json',
+		checked: (source === '/data/admin.json')
+	});
+	head_form.add_new_child('label', {
+		htmlFor: 'srcAdminBtn'
+	}).add_text('Admin Users');
+
+	head_form.add_new_child('input', {
+		type: 'submit',
+		value: 'Fetch',
+		onclick: () => {
+			location.hash = '';
 		}
 	});
 

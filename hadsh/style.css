@@ -12,7 +12,10 @@ a:hover {
 	color: #0f0;
 }
 
-button {
+button,
+input[type=button],
+input[type=submit],
+input[type=reset] {
 	font-family: monospace;
 	background-color: #030;
 	color: #0c0;
@@ -22,7 +25,10 @@ button {
 	padding-bottom: 0.2em;
 	border: 1px solid #0c0;
 }
-button:hover {
+button:hover,
+input[type=button]:hover,
+input[type=submit]:hover,
+input[type=reset]:hover {
 	background-color: #060;
 	color: #0f0;
 }
@@ -93,7 +99,7 @@ button:hover {
 	overflow: auto;
 	left: 0px;
 	right: 0px;
-	top: 5em;
+	top: 8em;
 	bottom: 3em;
 }
 
@@ -102,7 +108,7 @@ button:hover {
 	overflow: none;
 	left: 0px;
 	right: 0px;
-	height: 5em;
+	height: 8em;
 	top: 0px;
 }
 
