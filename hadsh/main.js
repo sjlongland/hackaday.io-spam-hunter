@@ -1713,6 +1713,20 @@ const getNextPage = function(reverse) {
 		}
 
 		update_pending_actions();
+
+		/* Update the hash with the new start/end UID */
+		let location_args = [];
+		if (oldest_uid !== null)
+			location_args.push(
+				'oldest_uid='
+				+ encodeURIComponent(oldest_uid));
+		if (newest_uid !== null)
+			location_args.push(
+				'newest_uid='
+				+ encodeURIComponent(newest_uid));
+		if (location_args.length)
+			location.hash = '#' + location_args.join('&');
+
 	}).catch(function (err) {
 		spinner.stop();
 		status_pane.clear();
