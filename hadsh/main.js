@@ -1039,6 +1039,7 @@ const UserUI = function(uid) {
 	const self = this;
 
 	self.uid = uid;
+	self.selected = false;
 	const user = users[uid];
 
 	if (user === undefined)
@@ -1498,19 +1499,16 @@ UserUI.prototype.select = function(scroll) {
 	if (scroll === undefined)
 		scroll = true;
 
-	if (selected_uid !== null) {
-		let other_ui = user_uis.find((ui) => {
-			return (ui.uid === selected_uid);
-		});
-		if (other_ui) {
-			other_ui.deselect();
-		}
-	}
+	user_uis.forEach((ui) => {
+		if (ui.uid !== this.uid)
+			ui.deselect();
+	});
 
 	if (!busy)
 		this._update_classification();
 
 	selected_uid = this.uid;
+	this.selected = true;
 	this.element.add_classes('profile_selected');
 	if (scroll)
 		this.element.element.scrollIntoView();
@@ -1521,6 +1519,7 @@ UserUI.prototype.deselect = function() {
 		selected_uid = null;
 		prev_selected_uid = this.uid;
 	}
+	this.selected = false;
 	this.element.rm_classes('profile_selected');
 };
 
