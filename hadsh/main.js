@@ -1519,9 +1519,9 @@ UserUI.prototype.hide = function() {
 	if (selected_uid === this.uid) {
 		/* Select another UID */
 		if (prev_selected_uid < this.uid) {
-			selectPrev();
-		} else {
 			selectNext();
+		} else {
+			selectPrev();
 		}
 	}
 
