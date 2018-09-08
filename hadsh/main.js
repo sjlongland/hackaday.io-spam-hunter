@@ -326,10 +326,12 @@ ScoredObject.prototype.update_score = function(score, count) {
 	self.normalised_score = self._get_normalised_score();
 
 	self.users.elements().forEach((u) => {
-		u.update_score();
+		setTimeout(u.update_score.bind(u), 0);
 	});
 	Object.keys(self.ui).forEach((id) => {
-		self.ui[id].update(self);
+		setTimeout(() => {
+			self.ui[id].update(self);
+		}, 0);
 	});
 };
 
@@ -558,15 +560,18 @@ User.prototype._calc_score = function() {
 	let user_score = [];
 
 	this.hostnames.elements().forEach((hostname) => {
-		user_score.push(hostname.normalised_score);
+		if (hostname.user_count > 0)
+			user_score.push(hostname.normalised_score);
 	});
 
 	this.words.elements().forEach((word) => {
-		user_score.push(word.normalised_score);
+		if (word.user_count > 0)
+			user_score.push(word.normalised_score);
 	});
 
 	this.wordadj.elements().forEach((wordadj) => {
-		user_score.push(wordadj.normalised_score);
+		if (wordadj.user_count > 0)
+			user_score.push(wordadj.normalised_score);
 	});
 
 	/* Compute user score */
@@ -641,9 +646,10 @@ User.prototype.score = function() {
 };
 
 User.prototype.update_score = function() {
-	this._score = null;
-	if (this.ui) {
-		this.ui.refresh();
+	const self = this;
+	self._score = null;
+	if (self.ui) {
+		setTimeout(self.ui.refresh.bind(self.ui), 0);
 	}
 };
 
