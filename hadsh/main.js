@@ -1280,6 +1280,8 @@ const UserUI = function(uid) {
 	self.wordAdjField = wordadj_box.add_new_child('div');
 	self._wordadj = [];
 	self._update_wordadj(user);
+
+	self.auto_classify = true;
 };
 
 UserUI.prototype.mark_seen_by_mod = function() {
@@ -2190,18 +2192,21 @@ const main = function() {
 		} else if (ev.key === 'u') {
 			let ui = getUserUI();
 			if (ui) {
+				ui.auto_classify = false;
 				ui.set_action(null);
 			}
 			ev.preventDefault();
 		} else if (ev.key === 's') {
 			let ui = getUserUI();
 			if (ui) {
+				ui.auto_classify = false;
 				ui.set_action('suspect');
 			}
 			ev.preventDefault();
 		} else if (ev.key === 'l') {
 			let ui = getUserUI();
 			if (ui) {
+				ui.auto_classify = false;
 				ui.set_action('legit');
 			}
 			ev.preventDefault();
