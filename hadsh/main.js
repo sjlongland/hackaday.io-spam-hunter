@@ -953,7 +953,11 @@ ScoredObjectUI.prototype._get_title = function(obj) {
 	const self = this;
 	return (self.user_count + ' occurrances; '
 		+ ((obj.count > 0)
-			? ('score ' + obj.normalised_score)
+			? ('score '
+				+ obj.normalised_score
+				+ ' (from '
+				+ obj.count
+				+ ' occurrances)')
 			: 'NEW'));
 };
 
