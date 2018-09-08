@@ -1680,21 +1680,36 @@ const selectSource = function(src) {
 	getNextPage();
 };
 
-const getNextPage = function(reverse) {
+const getNextPage = function(subset) {
 	var uri = source;
 
 	let spinner = new Spinner('Loading user accounts');
 	status_pane.clear();
 	status_pane.add_children(spinner.element);
 
-	if (reverse && (newest_uid !== null)) {
+	if ((subset === 'newer') && (newest_uid !== null)) {
 		spinner.message += ' after UID #' + newest_uid;
 		uri += "?after_user_id=" + newest_uid
 			+ '&order=asc';
-	} else if (oldest_uid !== null) {
+	} else if ((subset === 'older') && (oldest_uid !== null)) {
 		spinner.message += ' before UID #' + oldest_uid;
 		uri += "?before_user_id=" + oldest_uid
 			+ '&order=desc';
+	} else {
+		let args = [];
+
+		if (newest_uid !== null)
+			args.push('before_user_id=' + (newest_uid+1));
+
+		if (oldest_uid !== null)
+			args.push('after_user_id=' + (oldest_uid-1));
+
+		if (args.length)
+			uri += '?' + args.join('&');
+
+		/* Reset so we can update with what actually got returned */
+		newest_uid = null;
+		oldest_uid = null;
 	}
 	spinner.start();
 	busy = true;
@@ -1704,7 +1719,7 @@ const getNextPage = function(reverse) {
 		status_pane.clear();
 		busy = false;
 
-		if (reverse)
+		if (subset === 'newer')
 			data.users.reverse();
 
 		let widgets = data.users.map(function (user) {
@@ -1731,18 +1746,46 @@ const getNextPage = function(reverse) {
 			return 0;
 		});
 
-		widgets.unshift((reverse) ? 'start' : 'end');
+		widgets.unshift((subset === 'newer') ? 'start' : 'end');
 		user_pane.add_children.apply(user_pane, widgets);
 		user_pane.element.focus();
 
 		if ((selected_uid === null) && (user_uis.length)) {
-			user_uis[(reverse) ? 0 : (user_uis.length-1)].select();
+			user_uis[(subset === 'newer') ?
+				0 : (user_uis.length-1)].select();
 		}
 
 		update_pending_actions();
 
+		if (user_pane.element.childNodes.length === 0) {
+			const no_users_box = user_pane.add_new_child('div');
+
+			no_users_box.add_new_child('h1').add_text(
+				'No users found');
+
+			no_users_box.add_new_child('br');
+
+			no_users_box.add_new_child('button', {
+				onclick: function() {
+					no_users_box.destroy();
+					getNextPage('newer');
+				}
+			}).add_text('Load newer users');
+
+			no_users_box.add_new_child('br');
+
+			no_users_box.add_new_child('button', {
+				onclick: function() {
+					no_users_box.destroy();
+					getNextPage('older');
+				}
+			}).add_text('Load older users');
+		}
+
 		/* Update the hash with the new start/end UID */
-		let location_args = [];
+		let location_args = [
+			'source=' + encodeURIComponent(source)
+		];
 		if (oldest_uid !== null)
 			location_args.push(
 				'oldest_uid='
@@ -1751,8 +1794,7 @@ const getNextPage = function(reverse) {
 			location_args.push(
 				'newest_uid='
 				+ encodeURIComponent(newest_uid));
-		if (location_args.length)
-			location.hash = '#' + location_args.join('&');
+		location.hash = '#' + location_args.join('&');
 
 	}).catch(function (err) {
 		spinner.stop();
@@ -1846,7 +1888,7 @@ const selectPrev = function() {
 	if (ui) {
 		ui.select();
 	} else {
-		getNextPage(true).then(() => {
+		getNextPage('newer').then(() => {
 			ui = findPrevUser();
 			if (ui)
 				ui.select();
@@ -1859,7 +1901,7 @@ const selectNext = function() {
 	if (ui) {
 		ui.select();
 	} else {
-		getNextPage(false).then(() => {
+		getNextPage('older').then(() => {
 			ui = findNextUser();
 			if (ui)
 				ui.select();
@@ -1932,7 +1974,7 @@ const commitPending = function() {
 		spinner.stop();
 		update_pending_actions();
 		if (user_uis.length === 0)
-			return getNextPage();
+			return getNextPage('older');
 	}).catch((err) => {
 		busy = false;
 		spinner.stop();
@@ -1947,23 +1989,23 @@ const commitPending = function() {
 const main = function() {
 	clear_element(document.body);
 
-	if (location.hash) {
-		location.hash.substring(1).split('&').forEach((arg) => {
+	const parse_args = function(args) {
+		args.split('&').forEach((arg) => {
 			try {
 				const parts = arg.split('=', 2);
 				const name = parts[0];
 				const value = decodeURIComponent(parts[1]);
 
 				switch(name) {
-				case 'newest_uid':
-					newest_uid = parseInt(value);
-					break;
-				case 'oldest_uid':
-					oldest_uid = parseInt(value);
-					break;
-				case 'source':
-					source = value;
-					break;
+					case 'newest_uid':
+						newest_uid = parseInt(value);
+						break;
+					case 'oldest_uid':
+						oldest_uid = parseInt(value);
+						break;
+					case 'source':
+						source = value;
+						break;
 				}
 			} catch (err) {
 				console.log('Failed to decode ' + arg
@@ -1971,6 +2013,24 @@ const main = function() {
 					+ err.stack);
 			}
 		});
+	}
+
+	let query_and_hash = location.href.substring(
+		location.origin.length
+		+ location.pathname.length);
+
+	if (query_and_hash.substring(0,1) === '?') {
+		/* Parse the query string first */
+		let query = (location.hash)
+			? query_and_hash.substring(
+				1, query_and_hash.length
+					- 1 - location.hash.length)
+			: query_and_hash;
+		parse_args(query);
+	}
+
+	if (location.hash) {
+		parse_args(location.hash.substring(1));
 	}
 
 	title_pane = new DOMElement('div', {
@@ -1989,9 +2049,9 @@ const main = function() {
 				return;
 
 			if (this.scrollTop === this.scrollTopMax) {
-				getNextPage(false);
+				getNextPage('older');
 			} else if (this.scrollTop === 0) {
-				getNextPage(true);
+				getNextPage('newer');
 			}
 		}
 	});
@@ -2038,5 +2098,5 @@ const main = function() {
 		}
 	});
 
-	getNextPage();
+	getNextPage('init');
 };
