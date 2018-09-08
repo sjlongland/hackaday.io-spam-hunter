@@ -611,8 +611,9 @@ User.prototype.set_action = function(action) {
 };
 
 User.prototype.refresh = function() {
-	return get_json('/user/' + this.id).then((data) => {
-		return this.update(data);
+	const self = this;
+	return get_json('/user/' + self.id).then((data) => {
+		return self.update(data);
 	});
 };
 
@@ -626,8 +627,6 @@ User.prototype.commit = function() {
 			'/classify/' + self.id,
 			self._action
 		).then(() => {
-			return self.refresh();
-		}).then(() => {
 			if (user_actions[self.id] === self._action) {
 				self.set_action(null);
 			}
@@ -1969,8 +1968,10 @@ const commitPending = function() {
 		if (user !== undefined) {
 			return user.commit().then(() => {
 				update_spinner_msg();
+				return user.refresh();
+			}).then(() => {
 				return new Promise((resolve, reject) => {
-					setTimeout(resolve, 3000);
+					setTimeout(resolve, 5000);
 				});
 			}).then(() => {
 				if (user_ui)
