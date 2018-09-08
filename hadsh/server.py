@@ -389,9 +389,9 @@ class UserBrowserHandler(AuthRequestHandler):
                 if after_user_id is not None:
                     query = query.filter(User.user_id > after_user_id)
                 new_users = query.order_by(\
-                        User.user_id.desc() \
-                            if before_user_id \
-                            else User.user_id.asc()
+                        User.user_id.asc() \
+                            if not before_user_id \
+                            else User.user_id.desc()
                 ).offset(page*count).limit(count).all()
 
                 if len(new_users) == 0:
