@@ -1689,10 +1689,12 @@ const getNextPage = function(reverse) {
 
 	if (reverse && (newest_uid !== null)) {
 		spinner.message += ' after UID #' + newest_uid;
-		uri += "?after_user_id=" + newest_uid;
+		uri += "?after_user_id=" + newest_uid
+			+ '&order=asc';
 	} else if (oldest_uid !== null) {
 		spinner.message += ' before UID #' + oldest_uid;
-		uri += "?before_user_id=" + oldest_uid;
+		uri += "?before_user_id=" + oldest_uid
+			+ '&order=desc';
 	}
 	spinner.start();
 	busy = true;
@@ -1701,6 +1703,9 @@ const getNextPage = function(reverse) {
 		spinner.stop();
 		status_pane.clear();
 		busy = false;
+
+		if (reverse)
+			data.users.reverse();
 
 		let widgets = data.users.map(function (user) {
 			let u = User.from_data(user);
