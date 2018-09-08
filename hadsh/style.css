@@ -36,6 +36,7 @@ input[type=reset]:hover {
 .profile {
 	border: 2px solid black;
 	padding: 2em;
+	overflow: auto;
 }
 
 .profile_selected {
