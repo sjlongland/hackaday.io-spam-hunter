@@ -389,8 +389,10 @@ class UserBrowserHandler(AuthRequestHandler):
                 if after_user_id is not None:
                     query = query.filter(User.user_id > after_user_id)
                 new_users = query.order_by(\
-                        User.user_id.desc(),
-                        User.user_id.desc()).offset(page*count).limit(count).all()
+                        User.user_id.desc() \
+                            if before_user_id \
+                            else User.user_id.asc()
+                ).offset(page*count).limit(count).all()
 
                 if len(new_users) == 0:
                     # There are no more new users, wait for crawl to happen
@@ -401,6 +403,11 @@ class UserBrowserHandler(AuthRequestHandler):
                                 timeout=60.0)
                     except TimeoutError:
                         break
+            user_data = list(map(functools.partial(
+                    UserHandler._dump_user, db), new_users))
+
+            if not before_user_id:
+                user_data.reverse()
 
             self.set_status(200)
             self.set_header('Content-Type', 'application/json')
@@ -408,8 +415,7 @@ class UserBrowserHandler(AuthRequestHandler):
                     'no-cache, no-store, must-revalidate')
             self.write(json.dumps({
                     'page': page,
-                    'users': list(map(functools.partial(
-                        UserHandler._dump_user, db), new_users))
+                    'users': user_data
             }))
         finally:
             db.close()
