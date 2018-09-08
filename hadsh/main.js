@@ -1462,6 +1462,13 @@ UserUI.prototype.destroy = function() {
 	const self = this;
 	this.destroy = () => {};
 
+	let ui_idx = user_uis.findIndex((ui) => {
+		return (ui.uid === self.uid);
+	});
+	if (ui_idx >= 0) {
+		user_uis.slice(ui_idx, 1);
+	}
+
 	const user = self._get_user();
 	if (user)
 		user.ui = null;
