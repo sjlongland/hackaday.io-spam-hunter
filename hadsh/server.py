@@ -371,6 +371,14 @@ class UserBrowserHandler(AuthRequestHandler):
                 after_user_id = None
 
             try:
+                order = self.get_query_argument('order')
+            except MissingArgumentError:
+                if (after_user_id is not None) and (before_user_id is None):
+                    order = 'asc'
+                else:
+                    order = 'desc'
+
+            try:
                 groups = tuple(self.get_query_argument('groups').split(' '))
             except MissingArgumentError:
                 groups = self.DEFAULT_GROUPS
@@ -390,7 +398,7 @@ class UserBrowserHandler(AuthRequestHandler):
                     query = query.filter(User.user_id > after_user_id)
                 new_users = query.order_by(\
                         User.user_id.asc() \
-                            if not before_user_id \
+                            if order == 'asc' \
                             else User.user_id.desc()
                 ).offset(page*count).limit(count).all()
 
@@ -405,9 +413,6 @@ class UserBrowserHandler(AuthRequestHandler):
                         break
             user_data = list(map(functools.partial(
                     UserHandler._dump_user, db), new_users))
-
-            if not before_user_id:
-                user_data.reverse()
 
             self.set_status(200)
             self.set_header('Content-Type', 'application/json')
