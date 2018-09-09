@@ -2112,14 +2112,14 @@ const main = function() {
 		type: 'text',
 		name: 'oldest_uid',
 		value: oldest_uid,
-		size: 2
+		size: 6
 	});
 	head_form.add_text(' to ');
 	heading.lastUIDField = head_form.add_new_child('input', {
 		type: 'text',
 		name: 'newest_uid',
 		value: newest_uid,
-		size: 2
+		size: 6
 	});
 	head_form.add_text(' from set ');
 

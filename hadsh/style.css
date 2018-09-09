@@ -13,9 +13,7 @@ a:hover {
 }
 
 button,
-input[type=button],
-input[type=submit],
-input[type=reset] {
+input {
 	font-family: monospace;
 	background-color: #030;
 	color: #0c0;
@@ -25,10 +23,9 @@ input[type=reset] {
 	padding-bottom: 0.2em;
 	border: 1px solid #0c0;
 }
+
 button:hover,
-input[type=button]:hover,
-input[type=submit]:hover,
-input[type=reset]:hover {
+input:hover {
 	background-color: #060;
 	color: #0f0;
 }
