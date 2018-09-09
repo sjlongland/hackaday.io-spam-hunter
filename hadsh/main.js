@@ -330,7 +330,9 @@ ScoredObject.prototype.update_score = function(score, count) {
 	});
 	Object.keys(self.ui).forEach((id) => {
 		setTimeout(() => {
-			self.ui[id].update(self);
+			const ui = self.ui[id];
+			if (ui)
+				ui.update(self);
 		}, 0);
 	});
 };
