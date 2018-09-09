@@ -21,6 +21,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import or_
 from .. import extdlog
 
+from .tldcache import TopLevelDomainCache
+
 
 # Patterns to look for:
 CHECK_PATTERNS = (
@@ -76,6 +78,8 @@ class Crawler(object):
             'old_user_fetch_interval_lastpage': 604800.0,
             'admin_user_fetch_interval': 86400.0,
             'api_blocked_delay': 86400.0,
+            'tld_suffix_uri': TopLevelDomainCache.PUBLICSUFFIX_URI,
+            'tld_suffix_cache_duration': TopLevelDomainCache.CACHE_DURATION,
     }
 
     def __init__(self, project_id, admin_uid, db, api, log,
@@ -130,6 +134,11 @@ class Crawler(object):
         self._io_loop.add_timeout(
                 self._io_loop.time() + self._config['init_delay'],
                 self._background_inspect_new)
+
+        self._tld_cache = TopLevelDomainCache(
+                list_uri=self._config['tld_suffix_uri'],
+                cache_duration=self._config['tld_suffix_cache_duration'],
+                log=log.getChild('tldcache'))
 
         # Event to indicate when new users have been added
         self.new_user_event = Event()
@@ -373,13 +382,12 @@ class Crawler(object):
 
                             try:
                                 # Count up the hostname/domain frequencies
-                                full_hostname = urlparse(link['url']).hostname.split('.')
-                                while len(full_hostname) > 1:
-                                    hostname = '.'.join(full_hostname)
+                                uri_domains = yield self._tld_cache.splitdomain(
+                                        urlparse(link['url']).hostname)
+
+                                for hostname in uri_domains:
                                     user_host_freq[hostname] = \
                                             user_host_freq.get(hostname, 0) + 1
-                                    # Pop off the first bit to count the parent domain
-                                    full_hostname.pop(0)
                             except:
                                 self._log.warning(
                                     'Failed to count up domain frequency for '
