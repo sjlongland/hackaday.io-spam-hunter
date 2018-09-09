@@ -562,17 +562,17 @@ User.prototype._calc_score = function() {
 	let user_score = [];
 
 	this.hostnames.elements().forEach((hostname) => {
-		if (hostname.user_count > 0)
+		if ((this.hostname_count[hostname.id] || 0) > 0)
 			user_score.push(hostname.normalised_score);
 	});
 
 	this.words.elements().forEach((word) => {
-		if (word.user_count > 0)
+		if ((this.word_count[word.id] || 0) > 0)
 			user_score.push(word.normalised_score);
 	});
 
 	this.wordadj.elements().forEach((wordadj) => {
-		if (wordadj.user_count > 0)
+		if ((this.wordadj_count[wordadj.key] || 0) > 0)
 			user_score.push(wordadj.normalised_score);
 	});
 
