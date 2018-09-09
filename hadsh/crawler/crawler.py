@@ -738,6 +738,9 @@ class Crawler(object):
                         page=page, inspect_all=True,
                         defer=True)
                 page_count += 1
+        except NoUsersReturned:
+            # Okay, so we've got nothing, move along.
+            pass
         except SQLAlchemyError:
             # SQL cock up, roll back.
             self._db.rollback()
