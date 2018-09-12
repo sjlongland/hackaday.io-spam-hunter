@@ -1085,13 +1085,13 @@ const UserUI = function(uid) {
 		classes: ['avatar']
 	});
 
-	let profile_box = self.element.add_new_child('div');
+	let profile_box = self.element.add_new_child('h2');
 	self.profileLink = profile_box.add_new_child('a', {
 		href: user.url,
 		target: '_blank'
 	});
 
-	self.profileName = self.profileLink.add_new_child('tt');
+	self.profileName = self.profileLink.add_new_child('span');
 	self.profileName.element.innerHTML = user.screen_name;
 
 	self.profileLink.add_text(' [#' + uid + ']');
@@ -1421,7 +1421,8 @@ UserUI.prototype._update_links = function(user) {
 	user.links.forEach(function (link) {
 		let link_tag = self.linksField.add_new_child(
 			'li').add_new_child('a', {
-				href: link.url
+				href: link.url,
+				target: '_blank'
 			});
 		link_tag.add_text(link.title);
 		link_tag.add_new_child('tt').add_text(
