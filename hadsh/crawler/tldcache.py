@@ -29,6 +29,7 @@ class TopLevelDomainCache(object):
         self._cache_duration = int(cache_duration)
         self._cache_expiry = 0
         self._client = client
+        self._log = log
 
         self._list = None
 
