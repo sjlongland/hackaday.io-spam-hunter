@@ -46,7 +46,7 @@ class TopLevelDomainCache(object):
             lambda line : (len(line) > 0) \
                     and (not line.startswith('//')) \
                     and ('*' not in line),
-                        response.body.split('\n')))
+                        response.body.decode('utf-8').split('\n')))
 
         self._cache_expiry = int(time()) + self._cache_duration
         self._log.debug('Cached %d entries', len(self._list))
