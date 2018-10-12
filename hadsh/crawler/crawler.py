@@ -394,7 +394,7 @@ class Crawler(object):
                                     'user %s [#%d] link %s <%s>',
                                     user_data['screen_name'],
                                     user_data['id'],
-                                    link['title'], link['url'])
+                                    link['title'], link['url'], exc_info=1)
 
                             # Do we have the link already?
                             l = self._db.query(UserLink).filter(
