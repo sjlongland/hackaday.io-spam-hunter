@@ -1,0 +1,33 @@
+<!DOCTYPE html 
+	PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta http-equiv="Content-Type"
+			content="text/html; charset=utf-8"/>
+		<title>Hackaday.io Spambot Hunter Project: Login</title>
+		<link rel="stylesheet" href="style.css" />
+	</head>
+	<body>
+		<h1>Hackaday.io Spambot Hunter Project: Log-in</h1>
+
+		<hr />
+
+		<form method="post">
+			<input type="text" placeholder="Username" size="30" name="username" /><br />
+			<input type="password" placeholder="Password" size="30" name="password" /><br />
+			<input type="submit" value="Log-in" />
+		</form>
+
+		<p>
+		{% if api_forbidden %}
+		<strong>HAD.io API is unavailable.</strong>  Contact the project
+		administrators to be issued with log-in credentials.
+		{% else %}
+		<a href="/authorize">Log-in using Hackaday.io</a>.  If there
+		are problems (e.g. the dreaded "invalid access code"), contact
+		the project administrators to receive log-in credentials.
+		{% end %}
+		</p>
+	</body>
+</html>

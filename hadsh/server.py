@@ -7,6 +7,8 @@ import pytz
 import json
 import functools
 
+from passlib.context import CryptContext
+
 from tornado.web import Application, RequestHandler, \
         RedirectHandler, MissingArgumentError
 from tornado.httpclient import AsyncHTTPClient, HTTPError
@@ -22,7 +24,7 @@ from .resizer import ImageResizer
 from .wordstat import tokenise, frequency, adjacency
 from .db.db import get_db, User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag, Word, WordAdjacent, DeferredUser, \
-        Hostname
+        Hostname, Account
 from .util import decode_body
 from sqlalchemy import or_
 from sqlalchemy.exc import InvalidRequestError
@@ -37,14 +39,14 @@ class AuthRequestHandler(RequestHandler):
         session_id = self.get_cookie('hadsh')
         if session_id is None:
             # Not yet logged in
-            self.redirect('/authorize')
+            self.redirect('/login')
             return
 
         # Fetch the user details from the session
         session = db.query(Session).get(session_id)
         if session is None:
             # Session is invalid
-            self.redirect('/authorize')
+            self.redirect('/login')
             return
 
         # Is the session within a day of expiry?
@@ -52,7 +54,7 @@ class AuthRequestHandler(RequestHandler):
         expiry_secs = (session.expiry_date - now).total_seconds()
         if expiry_secs < 0:
             # Session is defunct.
-            self.redirect('/authorize')
+            self.redirect('/login')
             return
 
         if expiry_secs < 86400:
@@ -74,6 +76,57 @@ class AuthAdminRequestHandler(AuthRequestHandler):
         return 'admin' in set([
             g.name for g in session.user.groups
         ])
+
+
+class LoginHandler(RequestHandler):
+    def get(self):
+        self.set_status(200)
+        self.render('login.html',
+                api_forbidden=self.application._api.is_forbidden)
+
+    def post(self):
+        db = self.application._db
+        username = self.get_body_argument('username')
+        password = self.get_body_argument('password')
+        account = db.query(Account).filter(Account.name == username).first()
+
+        if account is None:
+            self.set_status(401)
+            self.render('login.html',
+                    api_forbidden=self.application._api.is_forbidden,
+                    error="Invalid log-in credentials")
+            return
+
+        # Check the password
+        match, newhash = self.application._crypt_context.verify_and_update(
+                password, account.hashedpassword)
+        if not match:
+            self.set_status(401)
+            self.render('login.html',
+                    api_forbidden=self.application._api.is_forbidden,
+                    error="Invalid log-in credentials")
+            return
+
+        if newhash:
+            account.hashedpassword = newhash
+
+        # We have the user account, create the session
+        expiry = datetime.datetime.now(tz=pytz.utc) \
+                + datetime.timedelta(days=7)
+        session = Session(
+                session_id=uuid.uuid4(),
+                user_id=account.user_id,
+                expiry_date=expiry)
+        db.add(session)
+        db.commit()
+
+        # Grab the session ID and set that in a cookie.
+        self.set_cookie(name='hadsh',
+                value=str(session.session_id),
+                domain=self.application._domain,
+                secure=self.application._secure,
+                expires_days=7)
+        self.redirect('/', permanent=False)
 
 
 class RootHandler(AuthRequestHandler):
@@ -690,8 +743,13 @@ class HADSHApp(Application):
         self._secure = secure
         self._classify_sem = Semaphore(1)
 
+        self._crypt_context = CryptContext([
+            'argon2', 'scrypt', 'bcrypt'
+        ])
+
         super(HADSHApp, self).__init__([
             (r"/", RootHandler),
+            (r"/login", LoginHandler),
             (r"/avatar/([0-9]+)", AvatarHandler),
             (r"/user/([0-9]+)", UserHandler),
             (r"/word/([0-9]+)", WordHandler),
