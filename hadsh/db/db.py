@@ -1,6 +1,6 @@
 from .model import Base, User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag, Word, WordAdjacent, UserWord, UserWordAdjacent, \
-        UserToken, DeferredUser, Hostname, UserHostname, NewUser
+        UserToken, DeferredUser, Hostname, UserHostname, NewUser, Account
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 

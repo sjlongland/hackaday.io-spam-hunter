@@ -1,7 +1,7 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, BigInteger, String, ForeignKey, \
-        LargeBinary, Text, DateTime, Table, Integer
+        LargeBinary, Text, DateTime, Table, Integer, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 
 Base = declarative_base()
@@ -55,6 +55,15 @@ class User(Base):
     def __repr__(self):
         return 'User(user_id=%r, screen_name=%r)' \
                 % (self.user_id, self.screen_name)
+
+
+class Account(Base):
+    __tablename__   = 'account'
+    user_id         = Column(BigInteger, ForeignKey('user.user_id'),
+            primary_key=True)
+    name            = Column(String, unique=True)
+    hashedpassword  = Column(String)
+    changenextlogin = Column(Boolean)
 
 
 class DeferredUser(Base):
