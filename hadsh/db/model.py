@@ -1,4 +1,5 @@
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.schema import Index
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, BigInteger, String, ForeignKey, \
         LargeBinary, Text, DateTime, Table, Integer, Boolean
@@ -15,6 +16,11 @@ user_group_assoc = Table('user_group_assoc', Base.metadata,
 user_tag_assoc = Table('user_tag_assoc', Base.metadata,
     Column('user_id', BigInteger, ForeignKey('user.user_id')),
     Column('tag_id', BigInteger, ForeignKey('tag.tag_id'))
+)
+
+avatar_hash_assoc = Table('avatar_hash_assoc', Base.metadata,
+    Column('avatar_id', BigInteger, ForeignKey('avatar.avatar_id')),
+    Column('hash_id', BigInteger, ForeignKey('avatar_hash.hash_id'))
 )
 
 
@@ -162,6 +168,26 @@ class Avatar(Base):
     url             = Column(String, unique=True, index=True)
     avatar          = Column(LargeBinary)
     avatar_type     = Column(String)
+
+    hashes = relationship("AvatarHash", secondary=avatar_hash_assoc,
+            back_populates="avatars")
+
+
+class AvatarHash(Base):
+    """
+    A hash of users' avatars.
+    """
+    __tablename__   = 'avatar_hash'
+
+    hash_id         = Column(BigInteger, primary_key=True)
+    hashalgo        = Column(String)
+    hashdata        = Column(LargeBinary)
+
+    avatars = relationship("Avatar", secondary=avatar_hash_assoc,
+            back_populates="hashes")
+
+
+Index('avatar_hash_index', AvatarHash.hashalgo, AvatarHash.hashdata)
 
 
 class Tag(Base):
