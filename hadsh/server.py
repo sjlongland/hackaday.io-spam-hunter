@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import base64
 import argparse
 import uuid
 import datetime
@@ -21,10 +22,11 @@ from .pool import WorkerPool
 from .hadapi.hadapi import HackadayAPI
 from .crawler.crawler import Crawler
 from .resizer import ImageResizer
+from .hasher import ImageHasher
 from .wordstat import tokenise, frequency, adjacency
 from .db.db import get_db, User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag, Word, WordAdjacent, DeferredUser, \
-        Hostname, Account
+        Hostname, Account, AvatarHash
 from .util import decode_body
 from sqlalchemy import or_
 from sqlalchemy.exc import InvalidRequestError
@@ -185,6 +187,58 @@ class AvatarHandler(AuthRequestHandler):
             self.set_status(200)
             self.set_header('Content-Type', avatar.avatar_type)
             self.write(image_data)
+            self.finish()
+        finally:
+            db.close()
+
+
+class AvatarHashHandler(AuthRequestHandler):
+    @coroutine
+    def get(self, algorithm, avatar_id):
+        db = self.application._db
+        try:
+            # Are we logged in?
+            session = self._get_session_or_redirect()
+            if session is None:
+                return
+
+            avatar_id = int(avatar_id)
+            log = self.application._log.getChild('avatar[%d]' % avatar_id)
+            log.audit('Retrieving from database')
+            avatar = db.query(Avatar).get(avatar_id)
+            if avatar is None:
+                self.set_status(404)
+                self.finish()
+                return
+
+            if not avatar.avatar_type:
+                yield self.application._crawler.fetch_avatar(avatar)
+
+            # Do we have the hash on file already?
+            avatar_hash = None
+            for known_hash in avatar.hashes:
+                if known_hash.hashalgo == algorithm:
+                    avatar_hash = known_hash
+                    break
+
+            if avatar_hash is None:
+                # We need to retreive it
+                hash_data = yield self.application._hasher.hash(
+                        avatar, algorithm)
+                # Does this already exist?
+                avatar_hash = db.query(AvatarHash).filter(
+                        AvatarHash.hashalgo == algorithm,
+                        AvatarHash.hashdata == hash_data).first()
+
+            if avatar_hash is None:
+                # This is a new hash
+                avatar_hash = AvatarHash(hashalgo=algorithm,
+                        hashdata=hash_data)
+                db.add(avatar_hash)
+
+            self.set_status(200)
+            self.set_header('Content-Type', 'text/plain')
+            self.write(base64.a85encode(avatar_hash.hashdata))
             self.finish()
         finally:
             db.close()
@@ -739,6 +793,7 @@ class HADSHApp(Application):
         self._pool = WorkerPool(thread_count)
         self._resizer = ImageResizer(self._log.getChild('resizer'),
                 self._pool)
+        self._hasher = ImageHasher(self._log.getChild('hasher'), self._pool)
         self._domain = domain
         self._secure = secure
         self._classify_sem = Semaphore(1)
@@ -751,6 +806,7 @@ class HADSHApp(Application):
             (r"/", RootHandler),
             (r"/login", LoginHandler),
             (r"/avatar/([0-9]+)", AvatarHandler),
+            (r"/avatar/([a-z_]+hash)/([0-9]+)", AvatarHashHandler),
             (r"/user/([0-9]+)", UserHandler),
             (r"/word/([0-9]+)", WordHandler),
             (r"/wordadj/([0-9]+)", WordAdjacencyHandler),
