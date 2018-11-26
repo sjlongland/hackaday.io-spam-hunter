@@ -1077,9 +1077,10 @@ const UserUI = function(uid) {
 		}
 	});
 
-	self.avatarImg = self.element.add_new_child('div', {
+	let avatar_box = self.element.add_new_child('div', {
 		classes: ['avatar_box']
-	}).add_new_child('img', {
+	});
+	self.avatarImg = avatar_box.add_new_child('img', {
 		src: '/avatar/' + user.avatar_id
 			+ '?width=300&height=300',
 		classes: ['avatar']
@@ -1107,6 +1108,23 @@ const UserUI = function(uid) {
 			+ '; '
 			+ user.inspections
 			+ ' inspections.');
+
+	let avatar_hashes = self.element.add_new_child('ul');
+	self.avatarHash = {};
+	['average_hash','dhash','phash','whash'].forEach(function (algo) {
+		let elem = avatar_hashes.add_new_child('li')
+		elem.add_new_child('strong').add_text(algo + ': ');
+		self.avatarHash[algo] = elem.add_new_child('code').add_text('');
+		promise_http('/avatar/' + algo
+			+ '/' + user.avatar_id, 'GET').then(function (res) {
+				self.avatarHash[algo].data = res.responseText;
+			}).catch(function (err) {
+				console.log('Failed to retrieve '
+					+ algo + ' hash of avatar '
+					+ user.avatar_id
+					+ ': ' + err.message);
+			});
+	});
 
 	let date_list = self.element.add_new_child('div').add_new_child('ul');
 	let item = date_list.add_new_child('li');
