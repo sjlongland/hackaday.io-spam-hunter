@@ -2095,10 +2095,12 @@ const main = function() {
 		onscroll: function(ev) {
 			if (busy)
 				return;
+			var pos = (document.body.scrollTop + this.scrollTop)
+				/ (this.scrollHeight - this.clientHeight);
 
-			if (this.scrollTop === this.scrollTopMax) {
+			if (pos > 0.98) {
 				getNextPage('older');
-			} else if (this.scrollTop === 0) {
+			} else if (pos < 0.02) {
 				getNextPage('newer');
 			}
 		}
