@@ -838,7 +838,7 @@ def main(*args, **kwargs):
 
     application = HADSHApp(
             project_id=args.project_id,
-            admin_uid=set(args.admin_uid),
+            admin_uid=set(args.admin_uid or []),
             db_uri=args.db_uri,
             client_id=args.client_id,
             client_secret=args.client_secret,
