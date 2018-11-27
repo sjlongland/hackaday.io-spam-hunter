@@ -242,8 +242,14 @@ class AvatarHashHandler(AuthRequestHandler):
                 db.commit()
 
             self.set_status(200)
-            self.set_header('Content-Type', 'text/plain')
-            self.write(avatar_hash.hashstr)
+            self.set_header('Content-Type', 'application/json')
+            self.write(json.dumps({
+                'id': avatar_hash.hash_id,
+                'algo': avatar_hash.hashalgo,
+                'hash': avatar_hash.hashstr.decode(),
+                'score': avatar_hash.score,
+                'count': avatar_hash.count
+            }))
             self.finish()
         finally:
             db.close()
