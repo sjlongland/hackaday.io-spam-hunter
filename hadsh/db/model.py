@@ -5,6 +5,8 @@ from sqlalchemy import Column, BigInteger, String, ForeignKey, \
         LargeBinary, Text, DateTime, Table, Integer, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 
+import base64
+
 Base = declarative_base()
 
 
@@ -175,7 +177,7 @@ class Avatar(Base):
 
 class AvatarHash(Base):
     """
-    A hash of users' avatars.
+    A hash of users' avatars and their scores.
     """
     __tablename__   = 'avatar_hash'
 
@@ -183,8 +185,22 @@ class AvatarHash(Base):
     hashalgo        = Column(String)
     hashdata        = Column(LargeBinary)
 
+    score           = Column(BigInteger)
+    count           = Column(BigInteger)
+
+    @property
+    def hashstr(self):
+        return base64.a85encode(self.hashdata)
+
     avatars = relationship("Avatar", secondary=avatar_hash_assoc,
             back_populates="hashes")
+
+    def __repr__(self):
+        return '<%s #%d %s %s>' % (
+                self.__class__.__name__,
+                self.hash_id,
+                self.hashalgo,
+                self.hashstr)
 
 
 Index('avatar_hash_index', AvatarHash.hashalgo, AvatarHash.hashdata)
