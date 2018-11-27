@@ -7,6 +7,7 @@ from PIL import Image
 from sys import exc_info
 from io import BytesIO
 import binascii
+import hashlib
 
 
 class ImageHasher(object):
@@ -22,7 +23,8 @@ class ImageHasher(object):
         log = self._log.getChild('avatar[%d]' % avatar.avatar_id)
         future = Future()
 
-        if not hasattr(imagehash, algorithm):
+        if not (hasattr(imagehash, algorithm) or \
+                hasattr(hashlib, algorithm)):
             raise ValueError('unknown algorithm %s' % algorithm)
 
         # Handing the value back to the coroutine
@@ -37,14 +39,19 @@ class ImageHasher(object):
         # What to do in the thread pool
         def _do_hash(image_data, algorithm):
             try:
-                log.audit('Opening image')
-                image = Image.open(BytesIO(image_data))
+                if hasattr(hashlib, algorithm):
+                    algofunc = getattr(hashlib, algorithm)
+                    self._io_loop.add_callback(_on_done,
+                            algofunc(image_data).digest())
+                else:
+                    log.audit('Opening image')
+                    image = Image.open(BytesIO(image_data))
 
-                algofunc = getattr(imagehash, algorithm)
-                res = algofunc(image)
+                    algofunc = getattr(imagehash, algorithm)
+                    res = algofunc(image)
 
-                self._io_loop.add_callback(_on_done,
-                        binascii.a2b_hex(str(res)))
+                    self._io_loop.add_callback(_on_done,
+                            binascii.a2b_hex(str(res)))
             except:
                 log.exception('Failed to hash')
                 self._io_loop.add_callback(_on_done, exc_info())

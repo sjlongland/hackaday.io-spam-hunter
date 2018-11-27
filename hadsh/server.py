@@ -818,7 +818,8 @@ class HADSHApp(Application):
             (r"/", RootHandler),
             (r"/login", LoginHandler),
             (r"/avatar/([0-9]+)", AvatarHandler),
-            (r"/avatar/([a-z_]+hash)/([0-9]+)", AvatarHashHandler),
+            (r"/avatar/(average_hash|dhash|phash|whash|sha512)/([0-9]+)", \
+                    AvatarHashHandler),
             (r"/user/([0-9]+)", UserHandler),
             (r"/word/([0-9]+)", WordHandler),
             (r"/wordadj/([0-9]+)", WordAdjacencyHandler),
