@@ -230,15 +230,20 @@ class AvatarHashHandler(AuthRequestHandler):
                         AvatarHash.hashalgo == algorithm,
                         AvatarHash.hashdata == hash_data).first()
 
-            if avatar_hash is None:
-                # This is a new hash
-                avatar_hash = AvatarHash(hashalgo=algorithm,
-                        hashdata=hash_data)
-                db.add(avatar_hash)
+                if avatar_hash is None:
+                    # This is a new hash
+                    avatar_hash = AvatarHash(hashalgo=algorithm,
+                            hashdata=hash_data)
+                    db.add(avatar_hash)
+                    db.commit()
+
+                assert avatar_hash is not None
+                avatar.hashes.append(avatar_hash)
+                db.commit()
 
             self.set_status(200)
             self.set_header('Content-Type', 'text/plain')
-            self.write(base64.a85encode(avatar_hash.hashdata))
+            self.write(avatar_hash.hashstr)
             self.finish()
         finally:
             db.close()
