@@ -6,6 +6,7 @@ import imagehash
 from PIL import Image
 from sys import exc_info
 from io import BytesIO
+import binascii
 
 
 class ImageHasher(object):
@@ -42,7 +43,8 @@ class ImageHasher(object):
                 algofunc = getattr(imagehash, algorithm)
                 res = algofunc(image)
 
-                self._io_loop.add_callback(_on_done, res.hash)
+                self._io_loop.add_callback(_on_done,
+                        binascii.a2b_hex(str(res)))
             except:
                 log.exception('Failed to hash')
                 self._io_loop.add_callback(_on_done, exc_info())
