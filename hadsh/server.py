@@ -248,7 +248,8 @@ class AvatarHashHandler(AuthRequestHandler):
                 'algo': avatar_hash.hashalgo,
                 'hash': avatar_hash.hashstr.decode(),
                 'score': avatar_hash.score,
-                'count': avatar_hash.count
+                'count': avatar_hash.count,
+                'instances': len(avatar_hash.avatars)
             }))
             self.finish()
         finally:
