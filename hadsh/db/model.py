@@ -185,8 +185,8 @@ class AvatarHash(Base):
     hashalgo        = Column(String)
     hashdata        = Column(LargeBinary)
 
-    score           = Column(BigInteger)
-    count           = Column(BigInteger)
+    score           = Column(BigInteger, nullable=False, default=0)
+    count           = Column(BigInteger, nullable=False, default=0)
 
     @property
     def hashstr(self):
@@ -246,8 +246,8 @@ class Hostname(Base):
 
     hostname_id     = Column(BigInteger, primary_key=True)
     hostname        = Column(String, unique=True, index=True)
-    score           = Column(BigInteger)
-    count           = Column(BigInteger)
+    score           = Column(BigInteger, nullable=False, default=0)
+    count           = Column(BigInteger, nullable=False, default=0)
 
     def __repr__(self):
         return 'Hostname(hostname_id=%r, hostname=%r, score=%r, count=%r)' \
@@ -262,8 +262,8 @@ class Word(Base):
 
     word_id         = Column(BigInteger, primary_key=True)
     word            = Column(String, unique=True, index=True)
-    score           = Column(BigInteger)
-    count           = Column(BigInteger)
+    score           = Column(BigInteger, nullable=False, default=0)
+    count           = Column(BigInteger, nullable=False, default=0)
 
     def __repr__(self):
         return 'Word(word_id=%r, word=%r, score=%r, count=%r)' \
@@ -280,8 +280,8 @@ class WordAdjacent(Base):
                         primary_key=True, index=True)
     following_id    = Column(BigInteger, ForeignKey('word.word_id'),
                         primary_key=True, index=True)
-    score           = Column(BigInteger)
-    count           = Column(BigInteger)
+    score           = Column(BigInteger, nullable=False, default=0)
+    count           = Column(BigInteger, nullable=False, default=0)
 
     proceeding      = relationship("Word", foreign_keys=[proceeding_id])
     following       = relationship("Word", foreign_keys=[following_id])
