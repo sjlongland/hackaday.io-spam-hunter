@@ -44,8 +44,10 @@ URI_WHITELIST = (
         re.compile(r'^https?://([a-z]{2}|www)\.linkedin\.com/in/[^/]+(|/.*)$'),
         # Github
         re.compile(r'^https?://github.com/[^/]+(|/.*)$'),
+        re.compile(r'^https?://github.com/?$'),
         # Twitter
         re.compile(r'^https?://(mobile\.|www\.|)twitter.com/[^/]+(|/.*)$'),
+        re.compile(r'^https?://twitter.com/?$'),
         # Youtube
         re.compile(r'^https?://(www.|)youtube.com/channel/'),
         # Hackaday.com
