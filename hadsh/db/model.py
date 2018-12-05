@@ -41,6 +41,7 @@ class User(Base):
     had_created     = Column(DateTime(timezone=True))
     last_update     = Column(DateTime(timezone=True))
 
+    avatar = relationship("Avatar", back_populates="users")
     sessions = relationship("Session", back_populates="user",
             cascade="all, delete-orphan")
     links = relationship("UserLink", back_populates="user",
@@ -171,6 +172,7 @@ class Avatar(Base):
     avatar          = Column(LargeBinary)
     avatar_type     = Column(String)
 
+    users           = relationship("User", back_populates="avatar")
     hashes = relationship("AvatarHash", secondary=avatar_hash_assoc,
             back_populates="avatars")
 
