@@ -669,6 +669,12 @@ class ClassifyHandler(AuthAdminRequestHandler):
                 if du is not None:
                     db.delete(du)
 
+                # Update the avatar hash scores
+                if user.avatar is not None:
+                    for avatar_hash in user.avatar.hashes:
+                        avatar_hash.count += 1
+                        avatar_hash.score += score_inc
+
                 db.commit()
                 log.info('User %d marked as %s', user_id, classification)
                 res = {
