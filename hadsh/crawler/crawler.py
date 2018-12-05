@@ -15,7 +15,7 @@ from ..hadapi.hadapi import UserSortBy
 from ..db.model import User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag, NewestUserPageRefresh, \
         UserWord, UserWordAdjacent, UserToken, Word, WordAdjacent, \
-        DeferredUser, Hostname, UserHostname, NewUser
+        DeferredUser, Hostname, UserHostname, NewUser, AvatarHash
 from ..wordstat import tokenise, frequency, adjacency
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import or_
@@ -82,8 +82,9 @@ class Crawler(object):
             'tld_suffix_cache_duration': TopLevelDomainCache.CACHE_DURATION,
     }
 
-    def __init__(self, project_id, admin_uid, db, api, log,
+    def __init__(self, project_id, admin_uid, db, api, hasher, log,
             config=None, io_loop=None):
+        self._hasher = hasher
         self._project_id = project_id
         self._admin_uid = admin_uid
         self._admin_uid_scanned = False
@@ -251,7 +252,7 @@ class Crawler(object):
 
         if not avatar.avatar_type:
             # We don't have the avatar yet
-            self._log.trace('Retrieving avatar at %s',
+            self._log.debug('Retrieving avatar at %s',
                     avatar.url)
             avatar_res = yield self._api.api_fetch(
                     avatar.url)
@@ -700,6 +701,9 @@ class Crawler(object):
             self._log.info('New user: %s [#%d]',
                     user.screen_name, user.user_id)
             self._db.add(user)
+
+            # Fetch and hash the avatars
+            yield self._get_avatar_hashes(avatar.avatar_id)
         else:
             # Existing user, update the user details
             self._log.debug('Updating existing user %s', user)
@@ -958,3 +962,51 @@ class Crawler(object):
                 break
 
         raise Return(page)
+
+    @coroutine
+    def _get_avatar_hashes(self, avatar_id):
+        hashes = {}
+        for algo in ('sha512','average_hash','dhash','phash','whash'):
+            hashes[algo] = yield self.get_avatar_hash(algo, avatar_id)
+        raise Return(hashes)
+
+    @coroutine
+    def get_avatar_hash(self, algorithm, avatar_id):
+        avatar = self._db.query(Avatar).get(avatar_id)
+        if avatar is None:
+            self.set_status(404)
+            self.finish()
+            return
+
+        if not avatar.avatar_type:
+            yield self.fetch_avatar(avatar)
+
+        # Do we have the hash on file already?
+        avatar_hash = None
+        for known_hash in avatar.hashes:
+            if known_hash.hashalgo == algorithm:
+                avatar_hash = known_hash
+                break
+
+        if avatar_hash is None:
+            # We need to retreive it
+            hash_data = yield self._hasher.hash(avatar, algorithm)
+            # Does this already exist?
+            avatar_hash = self._db.query(AvatarHash).filter(
+                    AvatarHash.hashalgo == algorithm,
+                    AvatarHash.hashdata == hash_data).first()
+
+            if avatar_hash is None:
+                # This is a new hash
+                avatar_hash = AvatarHash(hashalgo=algorithm,
+                        hashdata=hash_data)
+                self._db.add(avatar_hash)
+                self._db.commit()
+
+            assert avatar_hash is not None
+            avatar.hashes.append(avatar_hash)
+            self._log.debug('Generating new hash for avatar %d algorithm %s',
+                    avatar_id, algorithm)
+            self._db.commit()
+
+        raise Return(avatar_hash)

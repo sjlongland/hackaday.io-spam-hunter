@@ -204,42 +204,8 @@ class AvatarHashHandler(AuthRequestHandler):
 
             avatar_id = int(avatar_id)
             log = self.application._log.getChild('avatar[%d]' % avatar_id)
-            log.audit('Retrieving from database')
-            avatar = db.query(Avatar).get(avatar_id)
-            if avatar is None:
-                self.set_status(404)
-                self.finish()
-                return
-
-            if not avatar.avatar_type:
-                yield self.application._crawler.fetch_avatar(avatar)
-
-            # Do we have the hash on file already?
-            avatar_hash = None
-            for known_hash in avatar.hashes:
-                if known_hash.hashalgo == algorithm:
-                    avatar_hash = known_hash
-                    break
-
-            if avatar_hash is None:
-                # We need to retreive it
-                hash_data = yield self.application._hasher.hash(
-                        avatar, algorithm)
-                # Does this already exist?
-                avatar_hash = db.query(AvatarHash).filter(
-                        AvatarHash.hashalgo == algorithm,
-                        AvatarHash.hashdata == hash_data).first()
-
-                if avatar_hash is None:
-                    # This is a new hash
-                    avatar_hash = AvatarHash(hashalgo=algorithm,
-                            hashdata=hash_data)
-                    db.add(avatar_hash)
-                    db.commit()
-
-                assert avatar_hash is not None
-                avatar.hashes.append(avatar_hash)
-                db.commit()
+            avatar_hash = yield self.application._crawler.get_avatar_hash(
+                    algorithm, avatar_id)
 
             self.set_status(200)
             self.set_header('Content-Type', 'application/json')
@@ -792,6 +758,7 @@ class HADSHApp(Application):
         self._db_uri = db_uri
         # Session management connection
         self._session_db = get_db(db_uri)
+        self._hasher = ImageHasher(self._log.getChild('hasher'), self._pool)
         AsyncHTTPClient.configure(
                 None, defaults=dict(
                     user_agent="HADSH/0.0.1 (https://hackaday.io/project/29161-hackadayio-spambot-hunter-project)"))
@@ -800,12 +767,11 @@ class HADSHApp(Application):
                 rqlim_time=api_rq_interval,
                 client=AsyncHTTPClient(), log=self._log.getChild('api'))
         self._crawler = Crawler(project_id, admin_uid, get_db(db_uri),
-                self._api, self._log.getChild('crawler'),
+                self._api, self._hasher, self._log.getChild('crawler'),
                 config=crawler_config)
         self._pool = WorkerPool(thread_count)
         self._resizer = ImageResizer(self._log.getChild('resizer'),
                 self._pool)
-        self._hasher = ImageHasher(self._log.getChild('hasher'), self._pool)
         self._domain = domain
         self._secure = secure
         self._classify_sem = Semaphore(1)
