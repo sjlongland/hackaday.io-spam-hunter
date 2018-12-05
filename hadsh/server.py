@@ -764,6 +764,7 @@ class HADSHApp(Application):
         self._db_uri = db_uri
         # Session management connection
         self._session_db = get_db(db_uri)
+        self._pool = WorkerPool(thread_count)
         self._hasher = ImageHasher(self._log.getChild('hasher'), self._pool)
         AsyncHTTPClient.configure(
                 None, defaults=dict(
@@ -775,7 +776,6 @@ class HADSHApp(Application):
         self._crawler = Crawler(project_id, admin_uid, get_db(db_uri),
                 self._api, self._hasher, self._log.getChild('crawler'),
                 config=crawler_config)
-        self._pool = WorkerPool(thread_count)
         self._resizer = ImageResizer(self._log.getChild('resizer'),
                 self._pool)
         self._domain = domain
