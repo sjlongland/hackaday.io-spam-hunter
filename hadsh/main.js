@@ -1,7 +1,13 @@
 "use strict";
 
+/*! In-progress fetches */
+var get_inprogress = {};
+
 /*! All users currently being managed */
 var users = {};
+
+/*! All hashes being managed */
+var hashes = {};
 
 /*! All words being managed */
 var words = {};
@@ -92,10 +98,47 @@ const promise_http = function(uri, method, body_ct, body) {
 };
 
 /*!
+ * Perform a GET request, or wait for an existing GET to finish.
+ */
+const get_uri = function(uri) {
+	var waitqueue = get_inprogress[uri];
+	return new Promise(function (resolve, reject) {
+		let in_progress = get_inprogress.hasOwnProperty(uri);
+
+		if (!in_progress) {
+			waitqueue = [];
+			get_inprogress[uri] = waitqueue;
+		}
+
+		waitqueue.push({
+			resolve: resolve,
+			reject: reject
+		});
+
+		if (!in_progress) {
+			let notify = function(action, res) {
+				delete get_inprogress[uri];
+				waitqueue.forEach(function (p) {
+					setTimeout(function () {
+						p[action](res);
+					}, 0);
+				});
+			};
+
+			promise_http(uri, 'GET').then(function (res) {
+				notify('resolve', res);
+			}).catch(function (err) {
+				notify('reject', err);
+			});
+		}
+	});
+};
+
+/*!
  * Retrieve JSON via HTTP using Promises
  */
 const get_json = function(uri) {
-	return promise_http(uri, 'GET').then(function (res) {
+	return get_uri(uri).then(function (res) {
 		return JSON.parse(res.responseText);
 	});
 };
@@ -254,7 +297,6 @@ const WordSet = function() {
 	args.unshift(Word);
 	ObjectSet.apply(this, args);
 };
-
 WordSet.prototype = Object.create(ObjectSet.prototype);
 
 const WordAdjSet = function() {
@@ -266,7 +308,6 @@ const WordAdjSet = function() {
 	args.unshift(WordAdj);
 	ObjectSet.apply(this, args);
 };
-
 WordAdjSet.prototype = Object.create(ObjectSet.prototype);
 
 const HostnameSet = function() {
@@ -278,7 +319,6 @@ const HostnameSet = function() {
 	args.unshift(Hostname);
 	ObjectSet.apply(this, args);
 };
-
 HostnameSet.prototype = Object.create(ObjectSet.prototype);
 
 const GroupSet = function() {
@@ -290,7 +330,6 @@ const GroupSet = function() {
 	args.unshift(Group);
 	ObjectSet.apply(this, args);
 };
-
 GroupSet.prototype = Object.create(ObjectSet.prototype);
 
 /*!
@@ -335,6 +374,43 @@ ScoredObject.prototype.update_score = function(score, count) {
 				ui.update(self);
 		}, 0);
 	});
+};
+
+/*!
+ * An avatar hash
+ */
+const AvatarHash = function(id, algo, hash, instances, score, count) {
+	if (hashes.hasOwnProperty(id))
+		throw new Error('Existing hash');
+
+	hashes[id] = this;
+
+	this.id = id;
+	this.algo = algo;
+	this.hash = hash;
+	this.instances = instances;
+	ScoredObject.call(this, score, count);
+};
+AvatarHash.prototype = Object.create(ScoredObject.prototype);
+
+AvatarHash.fetch = function(algo, avatar_id) {
+	return get_json(
+		'/avatar/' + algo + '/' + avatar_id
+	).then(function (res) {
+		return AvatarHash.from_data(res);
+	});
+};
+
+AvatarHash.from_data = function(data) {
+	let h = hashes[data.id];
+	if (h) {
+		h.update_score(data.score, data.count);
+	} else {
+		h = new AvatarHash(
+			data.id, data.algo, data.hash,
+			data.instances, data.score, data.count);
+	}
+	return h;
 };
 
 /*!
@@ -1111,19 +1187,18 @@ const UserUI = function(uid) {
 
 	let avatar_hashes = self.element.add_new_child('ul');
 	self.avatarHash = {};
-	['average_hash','dhash','phash','whash'].forEach(function (algo) {
+	[
+		'average_hash','dhash','phash','whash','sha512'
+	].forEach(function (algo) {
 		let elem = avatar_hashes.add_new_child('li')
 		elem.add_new_child('strong').add_text(algo + ': ');
 		self.avatarHash[algo] = elem.add_new_child('code').add_text('');
-		promise_http('/avatar/' + algo
-			+ '/' + user.avatar_id, 'GET').then(function (res) {
-				self.avatarHash[algo].data = res.responseText;
-			}).catch(function (err) {
-				console.log('Failed to retrieve '
-					+ algo + ' hash of avatar '
-					+ user.avatar_id
-					+ ': ' + err.message);
-			});
+
+		AvatarHash.fetch(algo, user.avatar_id).then(function (hash) {
+			self.avatarHash[algo].data = hash.instances
+				+ ' instances, score ' + hash.normalised_score
+				+ ' (' + hash.count + ' occurrances)';
+		});
 	});
 
 	let date_list = self.element.add_new_child('div').add_new_child('ul');
