@@ -5,6 +5,13 @@ from polyglot.text import Text
 from string import punctuation
 
 
+def stripunprintable(s):
+    """
+    Strip non-printable characters
+    """
+    return ''.join(c for c in s if c.isprintable())
+
+
 def tokenise(html_text):
     """
     Return a list of words that appear in the text.
@@ -12,7 +19,9 @@ def tokenise(html_text):
     try:
         return list(
                 filter(lambda w : w not in punctuation,
-                    Text(html_to_text(html_text)).lower().words))
+                    Text(stripunprintable(
+                        html_to_text(html_text))
+                    ).lower().words))
     except ValueError:
         # Empty sequence?
         return []
