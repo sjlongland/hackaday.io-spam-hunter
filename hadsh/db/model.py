@@ -419,6 +419,8 @@ class UserTraits(Base):
     """
     Traits linked to a particular user.
     """
+    __tablename__   = 'user_trait'
+
     user_id         = Column(BigInteger, ForeignKey('user.user_id'),
                         primary_key=True, index=True)
     trait_id        = Column(BigInteger, ForeignKey('trait.trait_id'),
@@ -430,6 +432,8 @@ class UserTraitInstances(Base):
     """
     Trait instances linked to a particular user.
     """
+    __tablename__   = 'user_trait_instance'
+
     user_id         = Column(BigInteger, ForeignKey('user.user_id'),
                         primary_key=True, index=True)
     trait_inst_id   = Column(BigInteger,
