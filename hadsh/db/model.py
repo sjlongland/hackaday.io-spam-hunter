@@ -369,3 +369,70 @@ class UserToken(Base):
     count           = Column(BigInteger)
 
     user            = relationship("User", back_populates="tokens")
+
+
+class Trait(Base):
+    """
+    Traits are characteristics which are common to subsets of users.
+    """
+    __tablename__   = 'trait'
+
+    trait_id        = Column(BigInteger, primary_key=True)
+    trait_class     = Column(String, index=True)
+    trait_type      = Column(String)
+    score           = Column(BigInteger, nullable=False, default=0)
+    count           = Column(BigInteger, nullable=False, default=0)
+
+
+class TraitInstance(Base):
+    """
+    Instances of particular traits (e.g. if the trait is a 'word',
+    this may be the score for a particular word).
+    """
+    __tablename__   = 'trait_instance'
+
+    trait_inst_id   = Column(BigInteger, primary_key=True)
+    trait_id        = Column(BigInteger, ForeignKey('trait.trait_id'))
+    score           = Column(BigInteger, nullable=False, default=0)
+    count           = Column(BigInteger, nullable=False, default=0)
+
+
+class TraitInstanceString(TraitInstance):
+    """
+    Trait instance that is described by a string.
+    """
+    trait_string    = Column(String)
+Index('trait_instance_string_index',
+        TraitInstance.trait_id, TraitInstanceString.trait_string)
+
+
+class TraitInstanceAvatarHash(TraitInstance):
+    """
+    Trait instance that references an avatar hash.
+    """
+    trait_hash_id   = Column(BigInteger, ForeignKey('avatar_hash.hash_id'))
+Index('trait_instance_avatar_hash_index',
+        TraitInstance.trait_id, TraitInstanceAvatarHash.trait_hash_id)
+
+
+class UserTraits(Base):
+    """
+    Traits linked to a particular user.
+    """
+    user_id         = Column(BigInteger, ForeignKey('user.user_id'),
+                        primary_key=True, index=True)
+    trait_id        = Column(BigInteger, ForeignKey('trait.trait_id'),
+                        primary_key=True)
+    count           = Column(BigInteger, nullable=False, default=0)
+
+
+class UserTraitInstances(Base):
+    """
+    Trait instances linked to a particular user.
+    """
+    user_id         = Column(BigInteger, ForeignKey('user.user_id'),
+                        primary_key=True, index=True)
+    trait_inst_id   = Column(BigInteger,
+                        ForeignKey('trait_instance.trait_inst_id'),
+                        primary_key=True)
+    count           = Column(BigInteger, nullable=False, default=0)
