@@ -215,8 +215,6 @@ class AvatarHashHandler(AuthRequestHandler):
                 'id': avatar_hash.hash_id,
                 'algo': avatar_hash.hashalgo,
                 'hash': avatar_hash.hashstr.decode(),
-                'score': avatar_hash.score,
-                'count': avatar_hash.count,
                 'instances': len(avatar_hash.avatars)
             }))
             self.finish()
@@ -693,12 +691,6 @@ class ClassifyHandler(AuthAdminRequestHandler):
                 du = db.query(DeferredUser).get(user_id)
                 if du is not None:
                     db.delete(du)
-
-                # Update the avatar hash scores
-                if user.avatar is not None:
-                    for avatar_hash in user.avatar.hashes:
-                        avatar_hash.count += 1
-                        avatar_hash.score += score_inc
 
                 db.commit()
                 log.info('User %d marked as %s', user_id, classification)
