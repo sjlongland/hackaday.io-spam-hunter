@@ -187,9 +187,6 @@ class AvatarHash(Base):
     hashalgo        = Column(String)
     hashdata        = Column(LargeBinary)
 
-    score           = Column(BigInteger, nullable=False, default=0)
-    count           = Column(BigInteger, nullable=False, default=0)
-
     @property
     def hashstr(self):
         return base64.a85encode(self.hashdata)
