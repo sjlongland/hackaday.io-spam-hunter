@@ -403,6 +403,11 @@ class TraitInstanceString(TraitInstance):
     Trait instance that is described by a string.
     """
     trait_string    = Column(String)
+
+    @property
+    def instance(self):
+        return self.trait_string
+
 Index('trait_instance_string_index',
         TraitInstance.trait_id, TraitInstanceString.trait_string)
 
@@ -412,6 +417,11 @@ class TraitInstanceAvatarHash(TraitInstance):
     Trait instance that references an avatar hash.
     """
     trait_hash_id   = Column(BigInteger, ForeignKey('avatar_hash.hash_id'))
+
+    @property
+    def instance(self):
+        return self.trait_hash_id
+
 Index('trait_instance_avatar_hash_index',
         TraitInstance.trait_id, TraitInstanceAvatarHash.trait_hash_id)
 
