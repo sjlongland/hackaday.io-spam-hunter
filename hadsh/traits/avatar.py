@@ -17,7 +17,7 @@ class BaseAvatarTrait(Trait):
                     trait_hash_id=avatar_hash.hash_id,
                     score=0, count=0)
             self._db.add(trait_instance)
-            self._db_commit()
+            self._db.commit()
         return TraitInstance(self, trait_instance)
 
     def _assess(self, user, log):
