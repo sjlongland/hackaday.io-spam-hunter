@@ -1,17 +1,18 @@
 from .trait import Trait, TraitType, TraitInstance, UserTraitInstance
-from ..db.model import TraitInstanceAvatarHash
+from ..db import model
 
 
 class BaseAvatarTrait(Trait):
     _TRAIT_TYPE = TraitType.AVATAR_HASH
 
     def _get_trait_instance(self, avatar_hash):
-        trait_instance = self._db.query(TraitInstanceAvatarHash).filter(
-                TraitInstance.trait_id == self._trait.trait_id,
-                TraitInstanceAvatarHash.trait_hash_id == avatar_hash.hash_id
+        trait_instance = self._db.query(model.TraitInstanceAvatarHash).filter(
+                model.TraitInstance.trait_id == self._trait.trait_id,
+                model.TraitInstanceAvatarHash.trait_hash_id ==
+                    avatar_hash.hash_id
         ).one_or_none()
         if trait_instance is None:
-            trait_instance = TraitInstanceAvatarHash(
+            trait_instance = model.TraitInstanceAvatarHash(
                     trait_id=self._trait.trait_id,
                     trait_hash_id=avatar_hash.hash_id,
                     score=0, count=0)
