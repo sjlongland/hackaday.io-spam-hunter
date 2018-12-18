@@ -330,6 +330,18 @@ class UserHandler(AuthRequestHandler):
                     'url':          link.url
             }
 
+        def _dump_trait(trait):
+            data = {
+                    'class': t._TRAIT_CLASS,
+                    'weighted_score': t.weighted_score,
+                    'site_score': t.trait_score,
+                    'site_count': t.trait_count,
+                    'user_count': t.count
+            }
+            if t.instance:
+                data['instance'] = t.instance
+            return data
+
         user_words = {}
         user_hostnames = {}
         user_adj = []
@@ -344,6 +356,12 @@ class UserHandler(AuthRequestHandler):
             inspections = du.inspections
             next_inspection = du.inspect_time.isoformat()
 
+        log = self.application._log.getChild(\
+            '%s[%s]' % (self.__class__.__name__, user.user_id))
+
+        # Retrieve the user's traits.
+        traits = Trait.assess(user, log)
+
         data = {
                 'id':           user.user_id,
                 'screen_name':  user.screen_name,
@@ -356,6 +374,16 @@ class UserHandler(AuthRequestHandler):
                                 if user.last_update is not None else None,
                 'links':        list(map(_dump_link, user.links)),
                 'hostnames':    user_hostnames,
+                'traits':       [
+                    {
+                        'class': t._TRAIT_CLASS,
+                        'instance': t.instance or t._TRAIT_CLASS,
+                        'weighted_score': t.weighted_score,
+                        'site_score': t.trait_score,
+                        'site_count': t.trait_count,
+                        'user_count': t.count
+                    } for t in traits
+                ],
                 'groups':       [
                     g.name for g in user.groups
                 ],
