@@ -415,7 +415,7 @@ Index('trait_instance_avatar_hash_index',
         TraitInstance.trait_id, TraitInstanceAvatarHash.trait_hash_id)
 
 
-class UserTraits(Base):
+class UserTrait(Base):
     """
     Traits linked to a particular user.
     """
@@ -428,7 +428,7 @@ class UserTraits(Base):
     count           = Column(BigInteger, nullable=False, default=0)
 
 
-class UserTraitInstances(Base):
+class UserTraitInstance(Base):
     """
     Trait instances linked to a particular user.
     """
