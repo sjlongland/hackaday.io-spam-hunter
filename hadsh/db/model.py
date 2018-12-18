@@ -2,7 +2,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.schema import Index
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, BigInteger, String, ForeignKey, \
-        LargeBinary, Text, DateTime, Table, Integer, Boolean
+        LargeBinary, Text, DateTime, Table, Integer, Boolean, Float
 from sqlalchemy.dialects.postgresql import UUID
 
 import base64
@@ -382,6 +382,7 @@ class Trait(Base):
     trait_type      = Column(String)
     score           = Column(BigInteger, nullable=False, default=0)
     count           = Column(BigInteger, nullable=False, default=0)
+    weight          = Column(Float, nullable=False, default=1.0)
 
 
 class TraitInstance(Base):
