@@ -1,5 +1,8 @@
 "use strict";
 
+/*! Request queue */
+var request_queue = null;
+
 /*! In-progress fetches */
 var get_inprogress = {};
 
@@ -66,7 +69,7 @@ const clear_element = function(element) {
  * Configure a XMLHttpRequest with a call-back function
  * for use with Promises.
  */
-const setup_xhr = function(rq, resolve, reject) {
+const setup_xhr = function(rq, resolve, reject, finalfn) {
 	rq.onreadystatechange = function() {
 		if (rq.readyState == 4) {
 			if (rq.status === 200) {
@@ -75,6 +78,11 @@ const setup_xhr = function(rq, resolve, reject) {
 				const err = new Error('Request failed');
 				err.rq = rq;
 				reject(err);
+			}
+			if (finalfn) {
+				setTimeout(function () {
+					finalfn(rq);
+				}, 0);
 			}
 		}
 	}
@@ -85,14 +93,31 @@ const setup_xhr = function(rq, resolve, reject) {
  */
 const promise_http = function(uri, method, body_ct, body) {
 	return new Promise(function (resolve, reject) {
-		const rq = new XMLHttpRequest();
-		setup_xhr(rq, resolve, reject);
-		rq.open(method || 'GET', uri, true);
-		if (body_ct && body) {
-			rq.setRequestHeader("Content-type", body_ct);
-			rq.send(body);
-		} else {
-			rq.send();
+		var queue = request_queue || [];
+
+		queue.push(function(finalfn) {
+			const rq = new XMLHttpRequest();
+			setup_xhr(rq, resolve, reject, finalfn);
+			rq.open(method || 'GET', uri, true);
+			if (body_ct && body) {
+				rq.setRequestHeader("Content-type", body_ct);
+				rq.send(body);
+			} else {
+				rq.send();
+			}
+		});
+
+		if (request_queue === null) {
+			var next = function() {
+				if (request_queue && request_queue.length) {
+					var rq = request_queue.shift();
+					rq(next);
+				} else {
+					request_queue = null;
+				}
+			};
+			request_queue = queue;
+			next();
 		}
 	});
 };
@@ -374,43 +399,6 @@ ScoredObject.prototype.update_score = function(score, count) {
 				ui.update(self);
 		}, 0);
 	});
-};
-
-/*!
- * An avatar hash
- */
-const AvatarHash = function(id, algo, hash, instances, score, count) {
-	if (hashes.hasOwnProperty(id))
-		throw new Error('Existing hash');
-
-	hashes[id] = this;
-
-	this.id = id;
-	this.algo = algo;
-	this.hash = hash;
-	this.instances = instances;
-	ScoredObject.call(this, score, count);
-};
-AvatarHash.prototype = Object.create(ScoredObject.prototype);
-
-AvatarHash.fetch = function(algo, avatar_id) {
-	return get_json(
-		'/avatar/' + algo + '/' + avatar_id
-	).then(function (res) {
-		return AvatarHash.from_data(res);
-	});
-};
-
-AvatarHash.from_data = function(data) {
-	let h = hashes[data.id];
-	if (h) {
-		h.update_score(data.score, data.count);
-	} else {
-		h = new AvatarHash(
-			data.id, data.algo, data.hash,
-			data.instances, data.score, data.count);
-	}
-	return h;
 };
 
 /*!
@@ -755,6 +743,17 @@ User.prototype.update = function(data) {
 	self.inspections = data.inspections;
 	self.pending = data.pending;
 	self.url = data.url;
+
+	self.traits = {};
+	data.traits.forEach(function (trait) {
+		var traitClass = self.traits[trait['class']];
+		if (traitClass === undefined) {
+			traitClass = [];
+			self.traits[trait['class']] = traitClass;
+		}
+
+		traitClass.push(trait);
+	});
 
 	let in_group = {};
 	data.groups.forEach((name) => {
@@ -1185,19 +1184,18 @@ const UserUI = function(uid) {
 			+ user.inspections
 			+ ' inspections.');
 
-	let avatar_hashes = self.element.add_new_child('ul');
-	self.avatarHash = {};
-	[
-		'average_hash','dhash','phash','whash','sha512'
-	].forEach(function (algo) {
-		let elem = avatar_hashes.add_new_child('li')
-		elem.add_new_child('strong').add_text(algo + ': ');
-		self.avatarHash[algo] = elem.add_new_child('code').add_text('');
+	self.traits = self.element.add_new_child('ul');
+	Object.keys(user.traits).forEach(function (traitClass) {
+		var traitItem = self.traits.add_new_child('li');
+		traitItem.add_new_child('strong').add_text(traitClass);
+		var traitList = traitItem.add_new_child('ul');
 
-		AvatarHash.fetch(algo, user.avatar_id).then(function (hash) {
-			self.avatarHash[algo].data = hash.instances
-				+ ' instances, score ' + hash.normalised_score
-				+ ' (' + hash.count + ' occurrances)';
+		user.traits[traitClass].forEach(function (trait) {
+			var text = 'score ' + (Math.round(100*trait.weighted_score)/100);
+			if (trait.instance) {
+				text = trait.instance + ' ' + text;
+			}
+			traitList.add_new_child('li').add_text(text);
 		});
 	});
 
@@ -1786,6 +1784,7 @@ Spinner.prototype._go = function() {
 
 const getNextPage = function(subset) {
 	var uri = source;
+	busy = true;
 
 	let spinner = new Spinner('Loading user accounts');
 	status_pane.clear();
@@ -1816,7 +1815,6 @@ const getNextPage = function(subset) {
 		oldest_uid = null;
 	}
 	spinner.start();
-	busy = true;
 
 	return get_json(uri).then(function (data) {
 		spinner.stop();
@@ -2191,9 +2189,9 @@ const main = function() {
 			var pos = (document.body.scrollTop + this.scrollTop)
 				/ (this.scrollHeight - this.clientHeight);
 
-			if (pos > 0.98) {
+			if (pos > 0.9) {
 				getNextPage('older');
-			} else if (pos < 0.02) {
+			} else if (pos < 0.1) {
 				getNextPage('newer');
 			}
 		}
