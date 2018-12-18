@@ -23,6 +23,8 @@ from .. import extdlog
 
 from .tldcache import TopLevelDomainCache
 
+from ..traits.trait import Trait
+
 
 # Patterns to look for:
 CHECK_PATTERNS = (
@@ -600,6 +602,12 @@ class Crawler(object):
                         continue
                     if wa.count > 0:
                         score.append(float(wa.score) / float(wa.count))
+
+                # Append each traits' weighted score
+                for trait in Trait.assess(user,
+                        self._log.getChild('user%d' % user.user_id)):
+                    score.append(trait.weighted_score)
+                    trait.persist()
 
                 # Compute score
                 score.sort()
