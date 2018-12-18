@@ -28,6 +28,7 @@ from .db.db import get_db, User, Group, Session, UserDetail, \
         UserLink, Avatar, Tag, Word, WordAdjacent, DeferredUser, \
         Hostname, Account, AvatarHash
 from .util import decode_body
+from .traits.trait import Trait
 from sqlalchemy import or_
 from sqlalchemy.exc import InvalidRequestError
 from . import extdlog
@@ -656,6 +657,10 @@ class ClassifyHandler(AuthAdminRequestHandler):
                         db.add(wa)
                     wa.score += uwa.count * score_inc
                     wa.count += uwa.count
+
+                # Update the user's traits.
+                for trait in Trait.assess(user, log):
+                    trait.increment_trait(score_inc)
 
                 # Drop the user detail unless we're keeping it
                 if not keep_detail:
