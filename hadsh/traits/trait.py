@@ -27,7 +27,7 @@ class Trait(object):
         assert self._TRAIT_CLASS not in self._ALL_TRAITS
 
         trait = db.query(model.Trait).filter(
-                model.Trait.trait_class == self._TRAIT_CLASS)
+                model.Trait.trait_class == self._TRAIT_CLASS).one_or_none()
 
         if trait is None:
             trait = model.Trait(
