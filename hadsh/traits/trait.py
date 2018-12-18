@@ -91,6 +91,10 @@ class BaseTraitInstance(object):
     def trait(self):
         return self._trait
 
+    @property
+    def instance(self):
+        raise NotImplementedError()
+
     def increment(self, count, direction):
         """
         Increment the score and count.
@@ -135,6 +139,10 @@ class BaseUserTraitInstance(object):
     def trait(self):
         return self._trait_instance.trait
 
+    @property
+    def instance(self):
+        return self._trait_instance.instance
+
     def persist(self):
         """
         Persist this user trait instance count in the database.
@@ -167,6 +175,10 @@ class TraitInstance(BaseTraitInstance):
     @property
     def count(self):
         return self._instance.count
+
+    @property
+    def instance(self):
+        return self._instance.instance
 
     def increment(self, count, direction):
         """
@@ -257,6 +269,10 @@ class SingletonTraitInstance(BaseTraitInstance):
     @property
     def count(self):
         return self._trait.count
+
+    @property
+    def instance(self):
+        return None
 
     def increment(self, count, direction):
         """
