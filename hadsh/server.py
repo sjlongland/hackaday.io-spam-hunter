@@ -336,14 +336,14 @@ class UserHandler(AuthRequestHandler):
 
         def _dump_trait(trait):
             data = {
-                    'class': t._TRAIT_CLASS,
-                    'weighted_score': t.weighted_score,
-                    'site_score': t.trait_score,
-                    'site_count': t.trait_count,
-                    'user_count': t.count
+                    'class': trait.trait._TRAIT_CLASS,
+                    'weighted_score': trait.weighted_score,
+                    'site_score': trait.trait_score,
+                    'site_count': trait.trait_count,
+                    'user_count': trait.count
             }
-            if t.instance:
-                data['instance'] = t.instance
+            if trait.instance:
+                data['instance'] = trait.instance
             return data
 
         user_words = {}
@@ -375,16 +375,7 @@ class UserHandler(AuthRequestHandler):
                                 if user.last_update is not None else None,
                 'links':        list(map(_dump_link, user.links)),
                 'hostnames':    user_hostnames,
-                'traits':       [
-                    {
-                        'class': t._TRAIT_CLASS,
-                        'instance': t.instance or t._TRAIT_CLASS,
-                        'weighted_score': t.weighted_score,
-                        'site_score': t.trait_score,
-                        'site_count': t.trait_count,
-                        'user_count': t.count
-                    } for t in traits
-                ],
+                'traits':       list(map(_dump_trait, traits)),
                 'groups':       [
                     g.name for g in user.groups
                 ],
