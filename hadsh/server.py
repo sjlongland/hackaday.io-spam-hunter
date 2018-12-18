@@ -29,6 +29,7 @@ from .db.db import get_db, User, Group, Session, UserDetail, \
         Hostname, Account, AvatarHash
 from .util import decode_body
 from .traits.trait import Trait
+from .traits import init_traits
 from sqlalchemy import or_
 from sqlalchemy.exc import InvalidRequestError
 from . import extdlog
@@ -818,6 +819,9 @@ class HADSHApp(Application):
         self._crypt_context = CryptContext([
             'argon2', 'scrypt', 'bcrypt'
         ])
+
+        # Initialise traits
+        init_traits(self._db)
 
         super(HADSHApp, self).__init__([
             (r"/", RootHandler),
