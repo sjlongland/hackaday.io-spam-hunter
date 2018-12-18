@@ -300,6 +300,9 @@ class UserHandler(AuthRequestHandler):
     def get(self, user_id):
         db = self.application._db
 
+        log = self.application._log.getChild(\
+            '%s[%s]' % (self.__class__.__name__, user_id))
+
         try:
             # Are we logged in?
             session = self._get_session_or_redirect()
@@ -318,12 +321,12 @@ class UserHandler(AuthRequestHandler):
                 }))
             else:
                 self.set_status(200)
-                self.write(json.dumps(self._dump_user(db, user)))
+                self.write(json.dumps(self._dump_user(db, log, user)))
         finally:
             db.close()
 
     @staticmethod
-    def _dump_user(db, user):
+    def _dump_user(db, log, user):
         # Return JSON data
         def _dump_link(link):
             return {
@@ -356,9 +359,6 @@ class UserHandler(AuthRequestHandler):
             pending = True
             inspections = du.inspections
             next_inspection = du.inspect_time.isoformat()
-
-        log = self.application._log.getChild(\
-            '%s[%s]' % (self.__class__.__name__, user.user_id))
 
         # Retrieve the user's traits.
         traits = Trait.assess(user, log)
@@ -527,7 +527,7 @@ class UserBrowserHandler(AuthRequestHandler):
                     except TimeoutError:
                         break
             user_data = list(map(functools.partial(
-                    UserHandler._dump_user, db), new_users))
+                    UserHandler._dump_user, db, log), new_users))
 
             self.set_status(200)
             self.set_header('Content-Type', 'application/json')
