@@ -60,6 +60,10 @@ class User(Base):
             back_populates="users")
     tags = relationship("Tag", secondary=user_tag_assoc,
             back_populates="users")
+    traits = relationship("UserTrait", back_populates="user",
+            cascade="all, delete-orphan")
+    trait_instances = relationship("UserTraitInstance",
+            back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return 'User(user_id=%r, screen_name=%r)' \
@@ -193,6 +197,9 @@ class AvatarHash(Base):
 
     avatars = relationship("Avatar", secondary=avatar_hash_assoc,
             back_populates="hashes")
+
+    trait_instances = relationship("TraitInstanceAvatarHash",
+            back_populates="avatar_hash")
 
     def __repr__(self):
         return '<%s #%d %s %s>' % (
@@ -381,6 +388,8 @@ class Trait(Base):
     count           = Column(BigInteger, nullable=False, default=0)
     weight          = Column(Float, nullable=False, default=1.0)
 
+    user_traits = relationship("UserTrait", back_populates="trait")
+
 
 class TraitInstance(Base):
     """
@@ -393,6 +402,9 @@ class TraitInstance(Base):
     trait_id        = Column(BigInteger, ForeignKey('trait.trait_id'))
     score           = Column(BigInteger, nullable=False, default=0)
     count           = Column(BigInteger, nullable=False, default=0)
+
+    user_instances = relationship("UserTraitInstance",
+            back_populates="trait_instance")
 
 
 class TraitInstanceString(TraitInstance):
@@ -419,6 +431,9 @@ class TraitInstanceAvatarHash(TraitInstance):
     def instance(self):
         return self.trait_hash_id
 
+    avatar_hash = relationship("AvatarHash",
+            back_populates="trait_instances")
+
 Index('trait_instance_avatar_hash_index',
         TraitInstance.trait_id, TraitInstanceAvatarHash.trait_hash_id)
 
@@ -435,6 +450,9 @@ class UserTrait(Base):
                         primary_key=True)
     count           = Column(BigInteger, nullable=False, default=0)
 
+    trait = relationship("Trait", back_populates="user_traits")
+    user = relationship("User", back_populates="traits")
+
 
 class UserTraitInstance(Base):
     """
@@ -448,3 +466,7 @@ class UserTraitInstance(Base):
                         ForeignKey('trait_instance.trait_inst_id'),
                         primary_key=True)
     count           = Column(BigInteger, nullable=False, default=0)
+
+    trait_instance = relationship("TraitInstance",
+            back_populates="user_instances")
+    user = relationship("User", back_populates="trait_instances")
