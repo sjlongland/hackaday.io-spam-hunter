@@ -114,6 +114,11 @@ class BaseUserTraitInstance(object):
         self._user = user
         self._trait_instance = trait_instance
         self._count = count
+        self._user_trait_obj = None
+
+    @property
+    def _user_trait(self):
+        return NotImplementedError()
 
     @property
     def count(self):
@@ -142,6 +147,14 @@ class BaseUserTraitInstance(object):
     @property
     def instance(self):
         return self._trait_instance.instance
+
+    def discard(self):
+        """
+        Remove a link between a trait and a user from the database.
+        """
+        if self._user_trait is not None:
+            self._user_trait.delete()
+        self._db.commit()
 
     def persist(self):
         """
@@ -198,14 +211,12 @@ class UserTraitInstance(BaseUserTraitInstance):
     """
     def __init__(self, user, trait_instance, count):
         super(UserTraitInstance, self).__init__(user, trait_instance, count)
-        self._user_instance = None
+        self._user_trait_obj = None
 
-    def persist(self):
-        """
-        Persist this user trait instance count in the database.
-        """
-        if self._user_instance is None:
-            self._user_instance = self._db.Query( \
+    @property
+    def _user_trait(self):
+        if self._user_trait_obj is None:
+            self._user_trait_obj = self._db.Query( \
                     model.UserTraitInstance \
             ).filter(
                     model.UserTraitInstance.user_id == self._user.user_id,
@@ -213,13 +224,19 @@ class UserTraitInstance(BaseUserTraitInstance):
                         == self._trait_instance.trait_inst_id
             ).one_or_none()
 
-        if self._user_instance is None:
+        return self._user_trait_obj
+
+    def persist(self):
+        """
+        Persist this user trait instance count in the database.
+        """
+        if self._user_trait is None:
             # No existing instance, create it.
-            self._user_instance = model.UserTraitInstance(
+            self._user_trait_obj = model.UserTraitInstance(
                     user_id=self._user.user_id,
                     trait_inst_id=self._trait_instance,
                     count=self.count)
-            self._db.add(self._user_instance)
+            self._db.add(self._user_trait_obj)
         else:
             # Existing instance, update if not matching.
             if self._user_instance.count == self.count:
@@ -288,26 +305,29 @@ class UserSingletonTraitInstance(BaseUserTraitInstance):
     def __init__(self, user, trait_instance, count):
         super(UserSingletonTraitInstance, self).__init__(\
                 user, trait_instance, count)
-        self._user_trait = None
+        self._user_trait_obj = None
+
+    @property
+    def _user_trait(self):
+        if self._user_trait_obj is None:
+            self._user_trait_obj = self._db.Query(model.UserTrait).filter(
+                    model.UserTrait.user_id == self._user.user_id,
+                    model.UserTrait.trait_id == \
+                        self._trait_instance.trait.trait_id
+            ).one_or_none()
+        return self._user_trait_obj
 
     def persist(self):
         """
         Persist this user trait instance count in the database.
         """
         if self._user_trait is None:
-            self._user_trait = self._db.Query(model.UserTrait).filter(
-                    model.UserTrait.user_id == self._user.user_id,
-                    model.UserTrait.trait_id == \
-                        self._trait_instance.trait.trait_id
-            ).one_or_none()
-
-        if self._user_trait is None:
             # No existing instance, create it.
-            self._user_trait = model.UserTrait(
+            self._user_trait_obj = model.UserTrait(
                     user_id=self._user.user_id,
                     trait_id=self._trait_instance.trait.trait_id,
                     count=self.count)
-            self._db.add(self._user_trait)
+            self._db.add(self._user_trait_obj)
         else:
             # Existing instance, update if not matching.
             if self._user_trait.count == self.count:
