@@ -29,13 +29,13 @@ from ..traits.trait import Trait
 # Patterns to look for:
 CHECK_PATTERNS = (
         # Hyperlink
-        re.compile(r'<a .*href=".*">.*</a>'),
+        re.compile(r'<a .*?href=".*?">.*?</a>'),
         # US-style telephone number
-        re.compile(r'\([0-9]+\)[ 0-9\-]+'),
+        re.compile(r'\([0-9]+?\)[ 0-9\-]+?'),
         # International telephone number
-        re.compile(r'\+[0-9]+[ 0-9\-]+'),
+        re.compile(r'\+[0-9]+?[ 0-9\-]+?'),
         # Hybrid telephone (US/International)
-        re.compile(r'\+[0-9]+ *\([0-9]+\)[ 0-9\-]+'),
+        re.compile(r'\+[0-9]+? *\([0-9]+?\)[ 0-9\-]+?'),
 )
 
 # URI whitelist
