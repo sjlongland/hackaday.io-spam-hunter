@@ -18,7 +18,7 @@ class SpammyNameTrait(SingletonTrait):
 
     def _assess(self, user, log):
         for pattern in NAME_PATTERNS:
-            if pattern.match(user.screen_name):
+            if pattern.search(user.screen_name):
                 return UserSingletonTraitInstance(
                         user,
                         SingletonTraitInstance(self),
