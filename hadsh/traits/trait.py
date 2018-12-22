@@ -42,6 +42,10 @@ class Trait(object):
         self._ALL_TRAITS[self._TRAIT_CLASS] = self
 
     @property
+    def trait_id(self):
+        return self._trait.trait_id
+
+    @property
     def weight(self):
         return self._trait.weight
 
@@ -182,6 +186,10 @@ class TraitInstance(BaseTraitInstance):
         self._instance = instance
 
     @property
+    def trait_inst_id(self):
+        return self._instance.trait_inst_id
+
+    @property
     def score(self):
         return self._instance.score
 
@@ -234,7 +242,7 @@ class UserTraitInstance(BaseUserTraitInstance):
             # No existing instance, create it.
             self._user_trait_obj = model.UserTraitInstance(
                     user_id=self._user.user_id,
-                    trait_inst_id=self._trait_instance,
+                    trait_inst_id=self._trait_instance.trait_inst_id,
                     count=self.count)
             self._db.add(self._user_trait_obj)
         else:
