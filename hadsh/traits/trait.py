@@ -216,7 +216,7 @@ class UserTraitInstance(BaseUserTraitInstance):
     @property
     def _user_trait(self):
         if self._user_trait_obj is None:
-            self._user_trait_obj = self._db.Query( \
+            self._user_trait_obj = self._db.query( \
                     model.UserTraitInstance \
             ).filter(
                     model.UserTraitInstance.user_id == self._user.user_id,
@@ -310,7 +310,7 @@ class UserSingletonTraitInstance(BaseUserTraitInstance):
     @property
     def _user_trait(self):
         if self._user_trait_obj is None:
-            self._user_trait_obj = self._db.Query(model.UserTrait).filter(
+            self._user_trait_obj = self._db.query(model.UserTrait).filter(
                     model.UserTrait.user_id == self._user.user_id,
                     model.UserTrait.trait_id == \
                         self._trait_instance.trait.trait_id
