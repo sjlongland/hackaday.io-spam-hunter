@@ -285,7 +285,7 @@ class SingletonTraitInstance(BaseTraitInstance):
     An instance of a given singleton trait.
     """
     def __init__(self, trait):
-        super(TraitInstance, self).__init__(trait)
+        super(SingletonTraitInstance, self).__init__(trait)
 
     @property
     def score(self):
