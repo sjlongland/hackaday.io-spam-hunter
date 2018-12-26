@@ -26,5 +26,5 @@ class SpammyNameTrait(SingletonTrait):
 
 
 # Instantiate these instances and register them.
-def spamname_init(db):
-    assert SpammyNameTrait(db)
+def spamname_init(db, log):
+    assert SpammyNameTrait(db, log)

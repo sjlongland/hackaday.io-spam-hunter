@@ -17,5 +17,5 @@ class AboutMeLinkTrait(SingletonTrait):
 
 
 # Instantiate these instances and register them.
-def aboutmelink_init(db):
-    assert AboutMeLinkTrait(db)
+def aboutmelink_init(db, log):
+    assert AboutMeLinkTrait(db, log)

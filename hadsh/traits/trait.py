@@ -21,7 +21,7 @@ class Trait(object):
     # All known traits
     _ALL_TRAITS = {}
 
-    def __init__(self, db):
+    def __init__(self, db, log):
         # This is a singleton class
         assert not hasattr(self.__class__, '_instance')
         assert self._TRAIT_CLASS not in self._ALL_TRAITS
@@ -37,6 +37,7 @@ class Trait(object):
             db.add(trait)
             db.commit()
 
+        self._log = log.getChild(self._TRAIT_CLASS)
         self._db = db
         self._trait = trait
         self._ALL_TRAITS[self._TRAIT_CLASS] = self
@@ -184,6 +185,7 @@ class TraitInstance(BaseTraitInstance):
     def __init__(self, trait, instance):
         super(TraitInstance, self).__init__(trait)
         self._instance = instance
+        self._log = trait._log.getChild('inst[%s]' % instance.instance)
 
     @property
     def trait_inst_id(self):
@@ -211,6 +213,8 @@ class TraitInstance(BaseTraitInstance):
         self._instance.score += (count * direction)
         self._instance.count += count
         self._db.commit()
+        self._log.debug('Adjust instance score=%d count=%d',
+                self._instance.score, self._instance.count)
 
 
 class UserTraitInstance(BaseUserTraitInstance):
@@ -278,6 +282,8 @@ class SingletonTrait(Trait):
         self._trait.score += (count * direction)
         self._trait.count += count
         self._db.commit()
+        self._log.debug('Adjust trait score=%d count=%d',
+                self._trait.score, self._trait.count)
 
 
 class SingletonTraitInstance(BaseTraitInstance):
