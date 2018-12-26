@@ -446,8 +446,8 @@ class TraitInstancePair(TraitInstance):
     """
     Instances of two other traits that appear together.
     """
-    prev_id = Column(BigInteger, ForeignKey('TraitInstance.trait_inst_id'))
-    next_id = Column(BigInteger, ForeignKey('TraitInstance.trait_inst_id'))
+    prev_id = Column(BigInteger, ForeignKey('trait_instance.trait_inst_id'))
+    next_id = Column(BigInteger, ForeignKey('trait_instance.trait_inst_id'))
 
     @property
     def instance(self):
