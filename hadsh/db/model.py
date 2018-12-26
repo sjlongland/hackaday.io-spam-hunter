@@ -403,6 +403,10 @@ class TraitInstance(Base):
     score           = Column(BigInteger, nullable=False, default=0)
     count           = Column(BigInteger, nullable=False, default=0)
 
+    @property
+    def instance(self):
+        return 't%di%d' % (self.trait_id, self.trait_inst_id)
+
     user_instances = relationship("UserTraitInstance",
             back_populates="trait_instance")
 
@@ -436,6 +440,23 @@ class TraitInstanceAvatarHash(TraitInstance):
 
 Index('trait_instance_avatar_hash_index',
         TraitInstance.trait_id, TraitInstanceAvatarHash.trait_hash_id)
+
+
+class TraitInstancePair(TraitInstance):
+    """
+    Instances of two other traits that appear together.
+    """
+    prev_id = Column(BigInteger, ForeignKey('TraitInstance.trait_inst_id'))
+    next_id = Column(BigInteger, ForeignKey('TraitInstance.trait_inst_id'))
+
+    @property
+    def instance(self):
+        return ('%d>%d' % (self.prev_id, self.next_id))
+
+Index('trait_instance_pair_index',
+        TraitInstance.trait_id,
+        TraitInstancePair.prev_id,
+        TraitInstancePair.next_id)
 
 
 class UserTrait(Base):
