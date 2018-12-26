@@ -44,6 +44,7 @@ class AuthRequestHandler(RequestHandler):
         session_id = self.get_cookie('hadsh')
         if session_id is None:
             # Not yet logged in
+            self.set_header('Cache-Control', 'private, no-cache')
             self.redirect('/login')
             return
 
@@ -51,6 +52,7 @@ class AuthRequestHandler(RequestHandler):
         session = db.query(Session).get(session_id)
         if session is None:
             # Session is invalid
+            self.set_header('Cache-Control', 'private, no-cache')
             self.redirect('/login')
             return
 
@@ -59,6 +61,7 @@ class AuthRequestHandler(RequestHandler):
         expiry_secs = (session.expiry_date - now).total_seconds()
         if expiry_secs < 0:
             # Session is defunct.
+            self.set_header('Cache-Control', 'private, no-cache')
             self.redirect('/login')
             return
 
@@ -93,9 +96,11 @@ class LoginHandler(RequestHandler):
         db = self.application._db
         username = self.get_body_argument('username')
         password = self.get_body_argument('password')
+        log = self.application._log.getChild('login[%s]' % username)
         account = db.query(Account).filter(Account.name == username).first()
 
         if account is None:
+            log.info('No user account found matching user name')
             self.set_status(401)
             self.render('login.html',
                     api_forbidden=self.application._api.is_forbidden,
@@ -106,6 +111,7 @@ class LoginHandler(RequestHandler):
         match, newhash = self.application._crypt_context.verify_and_update(
                 password, account.hashedpassword)
         if not match:
+            log.info('Incorrect password given')
             self.set_status(401)
             self.render('login.html',
                     api_forbidden=self.application._api.is_forbidden,
@@ -113,6 +119,7 @@ class LoginHandler(RequestHandler):
             return
 
         if newhash:
+            log.info('Password hash needs updating')
             account.hashedpassword = newhash
 
         # We have the user account, create the session
@@ -124,6 +131,7 @@ class LoginHandler(RequestHandler):
                 expiry_date=expiry)
         db.add(session)
         db.commit()
+        log.info('Session %s created.', session.session_id)
 
         # Grab the session ID and set that in a cookie.
         self.set_cookie(name='hadsh',
