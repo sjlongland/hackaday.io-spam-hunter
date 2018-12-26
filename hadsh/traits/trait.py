@@ -11,6 +11,7 @@ class TraitType(Enum):
     SINGLETON   = 'singleton'
     AVATAR_HASH = 'avatar_hash'
     STRING      = 'string'
+    PAIR        = 'pair'
 
 
 class Trait(object):
