@@ -7,6 +7,7 @@ import datetime
 import pytz
 import json
 import functools
+import os
 
 from passlib.context import CryptContext
 
@@ -777,7 +778,8 @@ class HADSHApp(Application):
     """
     def __init__(self, db_uri, project_id, admin_uid,
             client_id, client_secret, api_key, api_rq_interval,
-            domain, secure, thread_count, crawler_config):
+            domain, secure, static_uri, static_path,
+            thread_count, crawler_config, **kwargs):
         self._log = extdlog.getLogger(self.__class__.__name__)
         self._db_uri = db_uri
         # Session management connection
@@ -826,7 +828,10 @@ class HADSHApp(Application):
             (r"/authorize", RedirectHandler, {
                 "url": self._api.auth_uri
             }),
-        ])
+        ],
+        static_url_prefix=static_uri,
+        static_path=static_path,
+        **kwargs)
 
     @property
     def _db(self):
@@ -867,6 +872,14 @@ def main(*args, **kwargs):
             default='INFO', help='Logging level')
     parser.add_argument('--thread-count', dest='thread_count', type=int,
             default=8, help='Number of concurrent threads.')
+    parser.add_argument('--static-uri', dest='static_uri', type=str,
+            help='Static resource URI', default='/static/')
+    parser.add_argument('--static-path', dest='static_path', type=str,
+            help='Static resource path', default=os.path.realpath(
+                os.path.join(os.path.dirname(__file__), 'static')))
+    parser.add_argument('--template-path', dest='template_path', type=str,
+            help='Directory containing template files', default=os.path.realpath(
+                os.path.join(os.path.dirname(__file__), 'static')))
 
     # Add arguments from the crawler config
     for key, default_value in Crawler.DEFAULT_CONFIG.items():
@@ -908,6 +921,9 @@ def main(*args, **kwargs):
             api_rq_interval=args.api_rq_interval,
             domain=args.domain,
             secure=args.secure,
+            static_path=args.static_path,
+            static_uri=args.static_uri,
+            template_path=args.template_path,
             thread_count=args.thread_count,
             crawler_config=crawler_config
     )
