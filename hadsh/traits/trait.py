@@ -77,6 +77,27 @@ class Trait(object):
         raise NotImplementedError()
 
 
+class StringTrait(Trait):
+    """
+    Helper sub-class for string-based traits.
+    """
+    _TRAIT_TYPE = TraitType.STRING
+
+    def _get_trait_instance(self, value):
+        trait_instance = self._db.query(model.TraitInstanceString).filter(
+                model.TraitInstance.trait_id == self._trait.trait_id,
+                model.TraitInstanceString.trait_hash_id == value
+        ).one_or_none()
+        if trait_instance is None:
+            trait_instance = model.TraitInstanceString(
+                    trait_id=self._trait.trait_id,
+                    trait_string=value,
+                    score=0, count=0)
+            self._db.add(trait_instance)
+            self._db.commit()
+        return TraitInstance(self, trait_instance)
+
+
 class BaseTraitInstance(object):
     """
     An instance of a given trait, linked to a user.
