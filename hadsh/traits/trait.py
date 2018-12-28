@@ -15,6 +15,18 @@ class TraitType(Enum):
     PAIR        = 'pair'
 
 
+class DatabaseShutdown(object):
+    """
+    Lives in the "thread local" storage and tells us when
+    that gets 'freed' so that we can close the database connection.
+    """
+    def __init__(self, db):
+        self._db = db
+
+    def __del__(self):
+        self._db.close()
+
+
 class Trait(object):
     """
     A base class for all Traits
@@ -93,6 +105,7 @@ class Trait(object):
         except AttributeError:
             db = self._app._db
             self._local.db = db
+            self._local.dbshutdown = DatabaseShutdown(db)
             return db
 
     def _assess(self, user, log):
