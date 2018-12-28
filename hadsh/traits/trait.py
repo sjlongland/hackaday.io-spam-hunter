@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import threading
 from ..db import model
 from enum import Enum
 
@@ -22,11 +23,12 @@ class Trait(object):
     # All known traits
     _ALL_TRAITS = {}
 
-    def __init__(self, db, log):
+    def __init__(self, app, log):
         # This is a singleton class
         assert not hasattr(self.__class__, '_instance')
         assert self._TRAIT_CLASS not in self._ALL_TRAITS
 
+        db = app._db
         trait = db.query(model.Trait).filter(
                 model.Trait.trait_class == self._TRAIT_CLASS).one_or_none()
 
@@ -39,13 +41,17 @@ class Trait(object):
             db.commit()
 
         self._log = log.getChild(self._TRAIT_CLASS)
-        self._db = db
-        self._trait = trait
+        self._app = app
+        self._local = threading.local()
+        self._trait_id = trait.trait_id
+        self._local.trait = trait
+        self._local.db = db
+
         self._ALL_TRAITS[self._TRAIT_CLASS] = self
 
     @property
     def trait_id(self):
-        return self._trait.trait_id
+        return self._trait_id
 
     @property
     def weight(self):
@@ -70,6 +76,24 @@ class Trait(object):
             if user_trait is not None:
                 user_traits.append(user_trait)
         return user_traits
+
+    @property
+    def _trait(self):
+        try:
+            return self._local.trait
+        except AttributeError:
+            trait = self._db.query(model.Trait).get(self.trait_id)
+            self._local.trait = trait
+            return trait
+
+    @property
+    def _db(self):
+        try:
+            return self._local.db
+        except AttributeError:
+            db = self._app._db
+            self._local.db = db
+            return db
 
     def _assess(self, user, log):
         """
@@ -104,6 +128,7 @@ class BaseTraitInstance(object):
     An instance of a given trait, linked to a user.
     """
     def __init__(self, trait):
+        assert isinstance(trait, Trait)
         self._trait = trait
 
     @property
@@ -138,10 +163,11 @@ class BaseUserTraitInstance(object):
     An instance of a trait linked to a user.
     """
     def __init__(self, user, trait_instance, count):
-        self._user = user
+        self._local = threading.local()
+        self._user_id = user.user_id
         self._trait_instance = trait_instance
         self._count = count
-        self._user_trait_obj = None
+        self._user_trait_id = None
 
     @property
     def _user_trait(self):
@@ -243,22 +269,24 @@ class UserTraitInstance(BaseUserTraitInstance):
     """
     An instance of a trait linked to a user.
     """
-    def __init__(self, user, trait_instance, count):
-        super(UserTraitInstance, self).__init__(user, trait_instance, count)
-        self._user_trait_obj = None
-
     @property
     def _user_trait(self):
-        if self._user_trait_obj is None:
-            self._user_trait_obj = self._db.query( \
-                    model.UserTraitInstance \
-            ).filter(
-                    model.UserTraitInstance.user_id == self._user.user_id,
-                    model.UserTraitInstance.trait_inst_id \
-                        == self._trait_instance.trait_inst_id
-            ).one_or_none()
+        try:
+            return self._local.user_trait
+        except AttributeError:
+            pass
 
-        return self._user_trait_obj
+        user_trait = self._db.query( \
+                model.UserTraitInstance \
+        ).filter(
+                model.UserTraitInstance.user_id == self._user_id,
+                model.UserTraitInstance.trait_inst_id \
+                    == self._trait_instance.trait_inst_id
+        ).one_or_none()
+
+        if user_trait is not None:
+            self._local.user_trait = user_trait
+        return user_trait
 
     def persist(self):
         """
@@ -266,11 +294,11 @@ class UserTraitInstance(BaseUserTraitInstance):
         """
         if self._user_trait is None:
             # No existing instance, create it.
-            self._user_trait_obj = model.UserTraitInstance(
-                    user_id=self._user.user_id,
+            self._local.user_trait = model.UserTraitInstance(
+                    user_id=self._user_id,
                     trait_inst_id=self._trait_instance.trait_inst_id,
                     count=self.count)
-            self._db.add(self._user_trait_obj)
+            self._db.add(self._local.user_trait)
         else:
             # Existing instance, update if not matching.
             if self._user_instance.count == self.count:
@@ -338,20 +366,23 @@ class UserSingletonTraitInstance(BaseUserTraitInstance):
     """
     A singleton trait linked to a user.
     """
-    def __init__(self, user, trait_instance, count):
-        super(UserSingletonTraitInstance, self).__init__(\
-                user, trait_instance, count)
-        self._user_trait_obj = None
-
     @property
     def _user_trait(self):
-        if self._user_trait_obj is None:
-            self._user_trait_obj = self._db.query(model.UserTrait).filter(
-                    model.UserTrait.user_id == self._user.user_id,
-                    model.UserTrait.trait_id == \
-                        self._trait_instance.trait.trait_id
-            ).one_or_none()
-        return self._user_trait_obj
+        try:
+            return self._local.user_trait
+        except AttributeError:
+            pass
+
+        user_trait = self._db.query(model.UserTrait).filter(
+                model.UserTrait.user_id == self._user_id,
+                model.UserTrait.trait_id == \
+                    self._trait_instance.trait.trait_id
+        ).one_or_none()
+
+        if user_trait is not None:
+            self._local.user_trait = user_trait
+
+        return user_trait
 
     def persist(self):
         """
@@ -359,11 +390,11 @@ class UserSingletonTraitInstance(BaseUserTraitInstance):
         """
         if self._user_trait is None:
             # No existing instance, create it.
-            self._user_trait_obj = model.UserTrait(
-                    user_id=self._user.user_id,
+            self._local.user_trait = model.UserTrait(
+                    user_id=self._user_id,
                     trait_id=self._trait_instance.trait.trait_id,
                     count=self.count)
-            self._db.add(self._user_trait_obj)
+            self._db.add(self._local.user_trait)
         else:
             # Existing instance, update if not matching.
             if self._user_trait.count == self.count:

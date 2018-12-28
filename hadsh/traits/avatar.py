@@ -53,9 +53,9 @@ class WHashAvatarTrait(BaseAvatarTrait):
 
 
 # Instantiate these instances and register them.
-def avatar_init(db, log):
-    assert SHA512AvatarTrait(db, log)
-    assert AverageHashAvatarTrait(db, log)
-    assert PHashAvatarTrait(db, log)
-    assert DHashAvatarTrait(db, log)
-    assert WHashAvatarTrait(db, log)
+def avatar_init(app, log):
+    assert SHA512AvatarTrait(app, log)
+    assert AverageHashAvatarTrait(app, log)
+    assert PHashAvatarTrait(app, log)
+    assert DHashAvatarTrait(app, log)
+    assert WHashAvatarTrait(app, log)

@@ -815,7 +815,7 @@ class HADSHApp(Application):
         ])
 
         # Initialise traits
-        init_traits(self._db, self._log.getChild('trait'))
+        init_traits(self, self._log.getChild('trait'))
 
         super(HADSHApp, self).__init__([
             (r"/", RootHandler),
