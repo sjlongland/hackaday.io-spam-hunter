@@ -56,8 +56,6 @@ class Trait(object):
         self._app = app
         self._local = threading.local()
         self._trait_id = trait.trait_id
-        self._local.trait = trait
-        self._local.db = db
 
         self._ALL_TRAITS[self._TRAIT_CLASS] = self
 
