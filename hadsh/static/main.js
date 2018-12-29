@@ -27,7 +27,8 @@ var groups = {};
 /* Pagination and source */
 var source = '/data/newcomers.json',
 	newest_uid = null,
-	oldest_uid = null;
+	oldest_uid = null,
+	num_fetch = null;
 
 /* UI state */
 var busy = false;
@@ -1790,30 +1791,33 @@ const getNextPage = function(subset) {
 	status_pane.clear();
 	status_pane.add_children(spinner.element);
 
+	let args = [];
+
 	if ((subset === 'newer') && (newest_uid !== null)) {
 		spinner.message += ' after UID #' + newest_uid;
-		uri += "?after_user_id=" + newest_uid
-			+ '&order=asc';
+		args.push('after_user_id=' + newest_uid);
+		args.push('order=asc');
 	} else if ((subset === 'older') && (oldest_uid !== null)) {
 		spinner.message += ' before UID #' + oldest_uid;
-		uri += "?before_user_id=" + oldest_uid
-			+ '&order=desc';
+		args.push('before_user_id=' + oldest_uid);
+		args.push('order=dasc');
 	} else {
-		let args = [];
-
 		if (newest_uid !== null)
 			args.push('before_user_id=' + (newest_uid+1));
 
 		if (oldest_uid !== null)
 			args.push('after_user_id=' + (oldest_uid-1));
 
-		if (args.length)
-			uri += '?' + args.join('&');
-
 		/* Reset so we can update with what actually got returned */
 		newest_uid = null;
 		oldest_uid = null;
 	}
+
+	if (num_fetch)
+		args.push('count=' + num_fetch);
+
+	if (args.length)
+		uri += '?' + args.join('&');
 	spinner.start();
 
 	return get_json(uri).then(function (data) {
@@ -2142,6 +2146,9 @@ const main = function() {
 				case 'source':
 					source = value;
 					break;
+				case 'count':
+					num_fetch = parseInt(value);
+					break;
 				}
 			} catch (err) {
 				console.log('Failed to decode ' + arg
@@ -2260,6 +2267,24 @@ const main = function() {
 	head_form.add_new_child('label', {
 		htmlFor: 'srcAdminBtn'
 	}).add_text('Admin Users');
+
+	var span = head_form.add_new_child('span');
+	span.add_new_child('label', {
+		htmlFor: 'numFetchFld'
+	}).add_text(' # to fetch: ');
+	span.add_new_child('input', {
+		type: 'text',
+		name: 'num_fetch',
+		id: 'numFetchFld',
+		value: num_fetch || 10,
+		size: 2,
+		onblur: function () {
+			try {
+				num_fetch = parseInt(this.value);
+			} catch (e) {
+			}
+		}
+	});
 
 	head_form.add_new_child('input', {
 		type: 'submit',
