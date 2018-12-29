@@ -41,23 +41,26 @@ class Trait(object):
         assert self._TRAIT_CLASS not in self._ALL_TRAITS
 
         db = app._db
-        trait = db.query(model.Trait).filter(
-                model.Trait.trait_class == self._TRAIT_CLASS).one_or_none()
+        try:
+            trait = db.query(model.Trait).filter(
+                    model.Trait.trait_class == self._TRAIT_CLASS).one_or_none()
 
-        if trait is None:
-            trait = model.Trait(
-                    trait_class=self._TRAIT_CLASS,
-                    trait_type=self._TRAIT_TYPE.value,
-                    score=0, count=0)
-            db.add(trait)
-            db.commit()
+            if trait is None:
+                trait = model.Trait(
+                        trait_class=self._TRAIT_CLASS,
+                        trait_type=self._TRAIT_TYPE.value,
+                        score=0, count=0)
+                db.add(trait)
+                db.commit()
 
-        self._log = log.getChild(self._TRAIT_CLASS)
-        self._app = app
-        self._local = threading.local()
-        self._trait_id = trait.trait_id
+            self._log = log.getChild(self._TRAIT_CLASS)
+            self._app = app
+            self._local = threading.local()
+            self._trait_id = trait.trait_id
 
-        self._ALL_TRAITS[self._TRAIT_CLASS] = self
+            self._ALL_TRAITS[self._TRAIT_CLASS] = self
+        finally:
+            db.close()
 
     @property
     def trait_id(self):
@@ -105,6 +108,20 @@ class Trait(object):
             self._local.db = db
             self._local.dbshutdown = DatabaseShutdown(db)
             return db
+
+    def _close_db(self):
+        try:
+            self._local.db.close()
+        except AttributeError:
+            return
+
+        try:
+            del self._local.trait
+        except AttributeError:
+            pass
+
+        del self._local.db
+        del self._local.dbshutdown
 
     def _assess(self, user, log):
         """
@@ -168,6 +185,9 @@ class BaseTraitInstance(object):
     def _db(self):
         return self._trait._db
 
+    def _close_db(self):
+        self._trait._close_db()
+
 
 class BaseUserTraitInstance(object):
     """
@@ -219,6 +239,7 @@ class BaseUserTraitInstance(object):
         if self._user_trait is not None:
             self._user_trait.delete()
         self._db.commit()
+        self._close_db()
 
     def persist(self):
         """
@@ -235,6 +256,13 @@ class BaseUserTraitInstance(object):
     @property
     def _db(self):
         return self._trait_instance._db
+
+    def _close_db(self):
+        self._trait_instance._close_db()
+        try:
+            del self._local.user_trait
+        except AttributeError:
+            pass
 
 
 class TraitInstance(BaseTraitInstance):
@@ -274,6 +302,7 @@ class TraitInstance(BaseTraitInstance):
         self._db.commit()
         self._log.debug('Adjust instance score=%d count=%d',
                 self._instance.score, self._instance.count)
+        self._close_db()
 
 
 class UserTraitInstance(BaseUserTraitInstance):
@@ -317,6 +346,7 @@ class UserTraitInstance(BaseUserTraitInstance):
 
             self._user_instance.count = self.count
         self._db.commit()
+        self._close_db()
 
 
 class SingletonTrait(Trait):
@@ -345,6 +375,7 @@ class SingletonTrait(Trait):
         self._db.commit()
         self._log.debug('Adjust trait score=%d count=%d',
                 self._trait.score, self._trait.count)
+        self._close_db()
 
 
 class SingletonTraitInstance(BaseTraitInstance):
@@ -413,3 +444,4 @@ class UserSingletonTraitInstance(BaseUserTraitInstance):
 
             self._user_trait.count = self.count
         self._db.commit()
+        self._close_db()
