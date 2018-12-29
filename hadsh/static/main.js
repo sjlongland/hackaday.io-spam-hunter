@@ -2274,7 +2274,7 @@ const main = function() {
 	}).add_text(' # to fetch: ');
 	span.add_new_child('input', {
 		type: 'text',
-		name: 'num_fetch',
+		name: 'count',
 		id: 'numFetchFld',
 		value: num_fetch || 10,
 		size: 2,
