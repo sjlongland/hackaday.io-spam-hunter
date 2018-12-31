@@ -26,7 +26,7 @@ class Row(object):
 
     @classmethod
     @coroutine
-    def fetch(cls, db, where, *args):
+    def fetch(cls, db, where, *args, single=False):
         rows = yield db.query(
                 '''
                     SELECT
@@ -40,10 +40,17 @@ class Row(object):
                     'table': cls._TABLE_,
                     'where': where
                 }, *args)
-        raise Return([
+        res = [
             cls(db, row) for row in rows
-        ])
+        ]
 
+        if single:
+            try:
+                raise Return(res[0])
+            except IndexError:
+                raise Return(None)
+        else:
+            raise Return(res)
 
     @coroutine
     def commit(self):
