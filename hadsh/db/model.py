@@ -239,21 +239,15 @@ class User(Row):
 
     @coroutine
     def get_detail(self):
-        details = yield UserDetail.fetch(self._db,
-                'user_id=%s LIMIT 1', self.user_id)
-        if len(details) == 1:
-            raise Return(details[0])
-        else:
-            raise Return(None)
+        raise Return((yield UserDetail.fetch(self._db,
+                'user_id=%s LIMIT 1', self.user_id,
+                single=True)))
 
     @coroutine
     def get_deferral(self):
-        deferrals = yield DeferredUser.fetch(self._db,
-                'user_id=%s LIMIT 1', self.user_id)
-        if len(deferrals) == 1:
-            raise Return(deferrals[0])
-        else:
-            raise Return(None)
+        raise Return((yield DeferredUser.fetch(self._db,
+                'user_id=%s LIMIT 1', self.user_id,
+                single=True)))
 
 
 class Account(Row):
@@ -268,12 +262,9 @@ class Account(Row):
 
     @coroutine
     def get_user(self):
-        users = yield User.fetch(self._db,
-                'user_id=%s LIMIT 1', self.user_id)
-        if len(users) == 1:
-            raise Return(users[0])
-        else:
-            raise Return(None)
+        raise Return((yield User.fetch(self._db,
+                'user_id=%s LIMIT 1', self.user_id,
+                single=True)))
 
 
 class DeferredUser(Row):
@@ -327,12 +318,9 @@ class Session(Row):
 
     @coroutine
     def get_user(self):
-        users = yield User.fetch(self._db,
-                'user_id=%s LIMIT 1', self.user_id)
-        if len(users) == 1:
-            raise Return(users[0])
-        else:
-            raise Return(None)
+        raise Return((yield User.fetch(self._db,
+                'user_id=%s LIMIT 1', self.user_id,
+                single=True)))
 
 
 class UserDetail(Row):
