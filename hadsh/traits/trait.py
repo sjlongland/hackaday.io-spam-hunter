@@ -156,6 +156,7 @@ class BaseTraitInstance(object):
     def instance(self):
         raise NotImplementedError()
 
+    @coroutine
     def increment(self, count, direction):
         """
         Increment the score and count.
@@ -210,26 +211,27 @@ class BaseUserTraitInstance(object):
     def instance(self):
         return self._trait_instance.instance
 
+    @coroutine
     def discard(self):
         """
         Remove a link between a trait and a user from the database.
         """
-        if self._user_trait is not None:
-            self._user_trait.delete()
-        self._db.commit()
-        self._close_db()
+        raise NotImplementedError()
 
+    @coroutine
     def persist(self):
         """
         Persist this user trait instance count in the database.
         """
         raise NotImplementedError()
 
+    @coroutine
     def increment_trait(self, direction):
         """
         Increment the trait instance score
         """
-        self._trait_instance.increment(self.count, direction)
+        yield self._trait_instance.increment(
+                self.count, direction)
 
     @property
     def _db(self):
@@ -261,6 +263,7 @@ class TraitInstance(BaseTraitInstance):
     def instance(self):
         return self._instance.instance
 
+    @coroutine
     def increment(self, count, direction):
         """
         Increment the score and count.
@@ -270,54 +273,53 @@ class TraitInstance(BaseTraitInstance):
 
         self._instance.score += (count * direction)
         self._instance.count += count
-        self._db.commit()
+        yield self._instance.commit()
         self._log.debug('Adjust instance score=%d count=%d',
                 self._instance.score, self._instance.count)
-        self._close_db()
 
 
 class UserTraitInstance(BaseUserTraitInstance):
     """
     An instance of a trait linked to a user.
     """
-    @property
-    def _user_trait(self):
-        try:
-            return self._local.user_trait
-        except AttributeError:
-            pass
+    @coroutine
+    def discard(self):
+        yield self._db.query('''
+            DELETE FROM "user_trait_instance"
+            WHERE
+                user_id=%s
+            AND
+                trait_inst_id=%s
+                ''',
+                self._user_id,
+                self._trait_instance.trait_inst_id,
+                commit=True)
 
-        user_trait = self._db.query( \
-                model.UserTraitInstance \
-        ).filter(
-                model.UserTraitInstance.user_id == self._user_id,
-                model.UserTraitInstance.trait_inst_id \
-                    == self._trait_instance.trait_inst_id
-        ).one_or_none()
-
-        if user_trait is not None:
-            self._local.user_trait = user_trait
-        return user_trait
-
+    @coroutine
     def persist(self):
         """
         Persist this user trait instance count in the database.
         """
-        if self._user_trait is None:
-            # No existing instance, create it.
-            self._local.user_trait = model.UserTraitInstance(
-                    user_id=self._user_id,
-                    trait_inst_id=self._trait_instance.trait_inst_id,
-                    count=self.count)
-            self._db.add(self._local.user_trait)
-        else:
-            # Existing instance, update if not matching.
-            if self._user_instance.count == self.count:
-                return
-
-            self._user_instance.count = self.count
-        self._db.commit()
-        self._close_db()
+        yield self._db.query('''
+            INSERT INTO "user_trait_instance"
+                (user_id, trait_inst_id, count)
+            VALUES
+                (%s, %s, %s)
+            ON CONFLICT DO UPDATE
+            SET
+                count=%s
+            WHERE
+                user_id=%s
+            AND
+                trait_inst_id=%s
+                ''',
+                self._user_id,
+                self._trait_instance.trait_inst_id,
+                self.count,
+                self.count,
+                self._user_id,
+                self._trait_instance.trait_inst_id,
+                commit=True)
 
 
 class SingletonTrait(Trait):
@@ -334,6 +336,7 @@ class SingletonTrait(Trait):
     def count(self):
         return self._trait.count
 
+    @coroutine
     def increment(self, count, direction):
         """
         Increment the score and count.
@@ -343,10 +346,9 @@ class SingletonTrait(Trait):
 
         self._trait.score += (count * direction)
         self._trait.count += count
-        self._db.commit()
+        yield self._trait.commit()
         self._log.debug('Adjust trait score=%d count=%d',
                 self._trait.score, self._trait.count)
-        self._close_db()
 
 
 class SingletonTraitInstance(BaseTraitInstance):
@@ -379,40 +381,45 @@ class UserSingletonTraitInstance(BaseUserTraitInstance):
     """
     A singleton trait linked to a user.
     """
-    @property
-    def _user_trait(self):
-        try:
-            return self._local.user_trait
-        except AttributeError:
-            pass
 
-        user_trait = self._db.query(model.UserTrait).filter(
-                model.UserTrait.user_id == self._user_id,
-                model.UserTrait.trait_id == \
-                    self._trait_instance.trait.trait_id
-        ).one_or_none()
+    @coroutine
+    def discard(self):
+        """
+        Remove a link between a trait and a user from the database.
+        """
+        yield self._db.query('''
+            DELETE FROM "user_trait"
+            WHERE
+                user_id=%s
+            AND
+                trait_id=%s
+        ''', 
+                self._user_id,
+                self._trait_instance.trait.trait_id,
+                commit=True)
 
-        if user_trait is not None:
-            self._local.user_trait = user_trait
-
-        return user_trait
-
+    @coroutine
     def persist(self):
         """
         Persist this user trait instance count in the database.
         """
-        if self._user_trait is None:
-            # No existing instance, create it.
-            self._local.user_trait = model.UserTrait(
-                    user_id=self._user_id,
-                    trait_id=self._trait_instance.trait.trait_id,
-                    count=self.count)
-            self._db.add(self._local.user_trait)
-        else:
-            # Existing instance, update if not matching.
-            if self._user_trait.count == self.count:
-                return
-
-            self._user_trait.count = self.count
-        self._db.commit()
-        self._close_db()
+        yield self._db.query('''
+            INSERT INTO "user_trait"
+                (user_id, trait_id, count)
+            VALUES
+                (%s, %s, %s)
+            ON CONFLICT DO UPDATE
+            SET
+                count=%s
+            WHERE
+                user_id=%s
+            AND
+                trait_id=%s
+                ''',
+                self._user_id,
+                self._trait_instance.trait.trait_id,
+                self.count,
+                self.count,
+                self._user_id,
+                self._trait_instance.trait.trait_id,
+                commit=True)
