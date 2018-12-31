@@ -103,30 +103,13 @@ class Crawler(object):
         log.trace('Running config is %s',
                 self._config)
 
-        # Oldest page refreshed
-        oldest_page = \
-                self._db.query(NewestUserPageRefresh).order_by(\
-                    NewestUserPageRefresh.page_num.desc()).first()
-        if oldest_page is None:
-            # No pages fetched, start at the first page.
-            self._refresh_hist_page = 1
-        else:
-            # Start at last visited page.
-            self._refresh_hist_page = oldest_page.page_num
+        self._refresh_hist_page = None
 
         if io_loop is None:
             io_loop = IOLoop.current()
         self._io_loop = io_loop
 
-        # Some standard groups
-        self._admin = self._get_or_make_group('admin')
-        self._auto_suspect = self._get_or_make_group('auto_suspect')
-        self._auto_legit = self._get_or_make_group('auto_legit')
-        self._manual_suspect = self._get_or_make_group('suspect')
-        self._manual_legit = self._get_or_make_group('legit')
-
         self._refresh_admin_group_timeout = None
-        self._io_loop.add_callback(self.refresh_admin_group)
         self._io_loop.add_timeout(
                 self._io_loop.time() + self._config['init_delay'],
                 self._background_fetch_new_users)
@@ -151,108 +134,29 @@ class Crawler(object):
         # Deleted users, by ID
         self._deleted_users = set()
 
-    def _get_or_make_group(self, name):
-        group = self._db.query(Group).filter(
-                Group.name == name).first()
-        if group is None:
-            group = Group(name=name)
-            self._db.add(group)
-            self._db.commit()
-
-        return group
-
     @coroutine
-    def refresh_admin_group(self):
-        """
-        Refresh the membership of the admin group.
-        """
-        if self._refresh_admin_group_timeout is not None:
-            self._io_loop.remove_timeout(self._refresh_admin_group_timeout)
-
-        try:
-            members_data = []
-            page = 1
-            page_cnt = 1
-            while page <= page_cnt:
-                team_data = yield self._api.get_project_team(
-                        self._project_id, sortby=UserSortBy.influence,
-                        page=page, per_page=50)
-                self._log.trace('Retrieved team member page %d of %d',
-                        team_data.get('page',page),
-                        team_data.get('last_page',page_cnt))
-                members_data.extend(team_data['team'])
-                page += 1
-                page_cnt = team_data['last_page']
-
-            if not self._admin_uid_scanned:
-                extras = list(self._admin_uid)
-                while len(extras) > 0:
-                    fetch_uids = extras[:50]
-                    team_data = yield self._api.get_users(ids=fetch_uids,
-                            sortby=UserSortBy.influence, page=page, per_page=50)
-                    self._log.trace('Retrieved additional members: %s', fetch_uids)
-                    members_data.extend([{'user': u} for u in team_data['users']])
-                    extras = extras[50:]
-                self._admin_uid_scanned = True
-
-            members = {}
-            for member_data in members_data:
-                try:
-                    member = yield self.update_user_from_data(
-                            member_data['user'],
-                            inspect_all=False,
-                            defer=False)
-                    members[member.user_id] = member
-                except:
-                    self._log.warning('Failed to process admin: %s',
-                        member_data, exc_info=1)
-
-            # Current members in database
-            existing = set([m.user_id for m in self._admin.users])
-
-            # Add any new members
-            for user_id in (set(members.keys()) - existing):
-                self._log.trace('Adding user ID %d to admin group', user_id)
-                self._admin.users.append(members[user_id])
-                existing.add(user_id)
-
-            # Remove any old members
-            for user_id in (existing - set(members.keys())):
-                if user_id in self._admin_uid:
-                    self._log.trace('%d is given via command line, not removing',
-                            user_id)
-                    continue
-
-                self._log.trace('Removing user ID %d from admin group', user_id)
-                self._admin.users.remove(
-                        self._db.query(User).get(user_id))
-
-            self._db.commit()
-        except:
-            self._log.warning('Failed to refresh admin group', exc_info=1)
-
-        # Schedule this to run again tomorrow.
-        self._refresh_admin_group_timeout = self._io_loop.add_timeout(
-                self._io_loop.time()
-                    + self._config['admin_user_fetch_interval'],
-                self.refresh_admin_group)
-
     def get_avatar(self, avatar_url):
-        avatar = self._db.query(Avatar).filter(
-                Avatar.url==avatar_url).first()
-        if avatar is None:
-            avatar = Avatar(url=avatar_url,
-                        avatar_type='',
-                        avatar=b'')
-            self._db.add(avatar)
-            self._db.commit()
-        return avatar
+        # Ensure it exists, do nothing if already present
+        yield self._db.query(
+                '''
+                INSERT INTO "avatar"
+                    (url)
+                VALUES
+                    (%s)
+                ON CONFLICT DO NOTHING
+                ''', avatar_url, commit=True)
+
+        # Fetch the avatar
+        avatars = yield Avatar.fetch(self._db,
+                'url=%s LIMIT 1', avatar_url)
+
+        raise Return(avatars[0])
 
     @coroutine
     def fetch_avatar(self, avatar):
         # Do we have their avatar on file?
         if isinstance(avatar, str):
-            avatar = self.get_avatar(avatar)
+            avatar = yield self.get_avatar(avatar)
 
         if not avatar.avatar_type:
             # We don't have the avatar yet
@@ -262,7 +166,7 @@ class Crawler(object):
                     avatar.url)
             avatar.avatar_type = avatar_res.headers['Content-Type']
             avatar.avatar=avatar_res.body
-            self._db.commit()
+            yield avatar.commit()
 
         raise Return(avatar)
 
@@ -277,10 +181,12 @@ class Crawler(object):
 
         try:
             if user is None:
-                user = self._db.query(User).get(user_data['id'])
+                users = yield User.fetch(self._db,
+                        'user_id=%s', user_data['id'])
+                user = users[0]
 
             # Has the user been classified?
-            user_groups = set([g.name for g in user.groups])
+            user_groups = yield user.get_groups()
             classified = ('legit' in user_groups) or ('suspect' in user_groups)
             self._log.trace('User %s [#%d] is in groups %s (classified %s)',
                     user.screen_name, user.user_id, user_groups, classified)
@@ -300,20 +206,16 @@ class Crawler(object):
                 self._log.info('Link to user %s [#%d] no longer valid',
                         user.screen_name, user.user_id)
 
-                new_user = self._db.query(NewUser).get(user.user_id)
-                if new_user:
-                    try:
-                        self._db.delete(new_user)
-                    except SQLAlchemyError:
-                        self._db.expunge(new_user)
+                yield self._db.query('''
+                    DELETE FROM "new_user"
+                    WHERE user_id=%s
+                    ''', user.user_id, commit=True)
+                yield self._db.query('''
+                    DELETE FROM "user"
+                    WHERE user_id=%s
+                    CASCADE
+                    ''', user.user_id, commit=True)
 
-                try:
-                    self._db.delete(user)
-                    self._db.commit()
-                except SQLAlchemyError:
-                    # Possible if the object hasn't yet been committed yet.
-                    self._db.expunge(user)
-                    pass
                 self._deleted_users.add(user_data['id'])
                 raise InvalidUser('no longer valid')
 
@@ -401,22 +303,24 @@ class Crawler(object):
                                     user_data['id'],
                                     link['title'], link['url'], exc_info=1)
 
-                            # Do we have the link already?
-                            l = self._db.query(UserLink).filter(
-                                    UserLink.user_id==user.user_id,
-                                    UserLink.url==link['url']).first()
-                            if l is None:
-                                # Record the link
-                                self._log.info('User %s [#%d] has link to %s <%s>',
-                                        user_data['screen_name'], user_data['id'],
-                                        link['title'], link['url'])
-
-                                l = UserLink(user_id=user.user_id,
-                                            title=link['title'],
-                                            url=link['url'])
-                                self._db.add(l)
-                            else:
-                                l.title = link['title']
+                            # Insert the link if not already present.
+                            yield self._db.query(
+                                    '''
+                                    INSERT INTO "user_link"
+                                        (user_id, url, title)
+                                    VALUES
+                                        (%s, %s, title)
+                                    ON CONFLICT DO UPDATE
+                                    SET
+                                        title=%s
+                                    WHERE
+                                        user_id=%s
+                                    AND
+                                        url=%s
+                            ''', user.user_id, link['url'],
+                                link['title'], link['title'],
+                                user.user_id, link['url'],
+                                commit=True)
 
                             if not match:
                                 # Ignore the link if it's in the whitelist
@@ -459,7 +363,6 @@ class Crawler(object):
                                         if field not in raw_prj:
                                             continue
                                         tally(raw_prj[field])
-                                    self._db.commit()
 
                             pg_cnt = prj_res.get('last_page',1)
 
@@ -488,7 +391,6 @@ class Crawler(object):
                                     if field not in raw_page:
                                         continue
                                     tally(raw_page[field])
-                                self._db.commit()
 
                         pg_cnt = page_res.get('last_page',1)
 
@@ -505,57 +407,129 @@ class Crawler(object):
                             user.screen_name, user.user_id, user_data['projects'], age)
                     match = True
 
-                # Commit here so the user ID is valid.
-                self._db.commit()
-
                 # Stash any tokens
                 for token, count in user_tokens.items():
-                    t = self._db.query(UserToken).get((user.user_id, token))
-                    if t is None:
-                        self._db.add(UserToken(
-                            user_id=user.user_id, token=token, count=count))
+                    if count > 0:
+                        yield self._db.query('''
+                            INSERT INTO "user_token"
+                                (user_id, token, count)
+                            VALUES
+                                (%s, %s, %s)
+                            ON CONFLICT DO UPDATE
+                            SET
+                                count=%s
+                            WHERE
+                                user_id=%s
+                            AND
+                                token=%s
+                            ''', user.user_id, token, count,
+                            count, user.user_id, token,
+                            commit=True)
                     else:
-                        t.count = count
+                        yield self._db.query('''
+                            DELETE FROM "user_token"
+                            WHERE
+                                user_id=%s
+                            AND
+                                token=%s
+                        ''', user.user_id, token, commit=True)
 
                 # Retrieve all the hostnames
-                hostnames = {}
-                for hostname in user_host_freq.keys():
-                    h = self._db.query(Hostname).filter(
-                            Hostname.hostname==hostname).one_or_none()
-                    if h is None:
-                        self._log.audit('New hostname: %s', hostname)
-                        h = Hostname(hostname=hostname, score=0, count=0)
-                        self._db.add(h)
-                    hostnames[hostname] = h
+                yield self._db.query('''
+                    INSERT INTO "hostname"
+                        (hostname, score, count)
+                    VALUES
+                        %(insert_template)s
+                    ON CONFLICT DO NOTHING
+                ''' % {
+                    'insert_template': ', '.join([
+                        '(%s, 0, 0)' for x
+                        in range(0, len(user_host_freq))
+                    ])
+                }, *tuple(user_host_freq.keys()), commit=True)
+                hostnames = dict([
+                    (h.hostname, h) for h in
+                    (yield Hostname.fetch(self._db,
+                        'hostname IN %s',
+                        tuple(user_host_freq.keys())))
+                ])
 
                 # Retrieve all the words
-                words = {}
-                for word in user_freq.keys():
-                    w = self._db.query(Word).filter(
-                            Word.word==word).one_or_none()
-                    if w is None:
-                        self._log.audit('New word: %s', word)
-                        w = Word(word=word, score=0, count=0)
-                        self._db.add(w)
-                    words[word] = w
+                yield self._db.query('''
+                    INSERT INTO "word"
+                        (word, score, count)
+                    VALUES
+                        %(insert_template)s
+                    ON CONFLICT DO NOTHING
+                ''' % {
+                    'insert_template': ', '.join([
+                        '(%s, 0, 0)' for x
+                        in range(0, len(user_freq))
+                    ])
+                }, *tuple(user_freq.keys()), commit=True)
 
-                # Stash the new words, if any
-                self._db.commit()
+                words = dict([
+                    (w.word, w) for w in
+                    (yield Word.fetch(self._db,
+                        'word IN %s',
+                        tuple(user_freq.keys())))
+                ])
+
+                # Retrieve all the word adjacencies
+                yield self._db.query('''
+                    INSERT INTO "word_adjacenct"
+                        (proceeding_id, following_id, score, count)
+                    VALUES
+                        %(insert_template)s
+                    ON CONFLICT DO NOTHING
+                ''' % {
+                    'insert_template': ', '.join([
+                        '(%s, %s, 0, 0)' for x
+                        in range(0, len(user_freq))
+                    ])
+                }, *tuple([
+                        word[w].word_id
+                        for w in sum(user_adj_freq.keys(), ())
+                    ]),
+                    commit=True)
+                # There's no clean way I know of to retrieve
+                # composite keys in an IN query.
+                word_adj = {}
+                for (proc_w, follow_w) in user_adj_freq.keys():
+                    word_adjs = yield WordAdjacent.fetch(self._db,
+                            'proceeding_id=%s AND following_id=%s',
+                            word[proc_w], word[follow_w])
+                    word_adj[(proc_w, follow_w)] = word_adjs[0]
 
                 # Add the user words, compute user's score
                 score = []
                 for word, count in user_freq.items():
                     w = words[word]
-                    uw = self._db.query(UserWord).get((user.user_id,
-                            w.word_id))
-
-                    if uw is None:
-                        uw = UserWord(
-                            user_id=user.user_id, word_id=w.word_id,
-                            count=count)
-                        self._db.add(uw)
+                    if count > 0:
+                        yield self._db.query('''
+                            INSERT INTO "user_word"
+                                (user_id, word_id, count)
+                            VALUES
+                                (%s, %s, %s)
+                            ON CONFLICT DO UPDATE
+                            SET
+                                count=%s
+                            WHERE
+                                user_id=%s
+                            AND
+                                word_id=%s
+                        ''', user.user_id, w.word_id, count,
+                            count, user.user_id,
+                            w.word_id, commit=True)
                     else:
-                        uw.count = count
+                        yield self._db.query('''
+                            DELETE FROM "user_word"
+                            WHERE
+                                user_id=%s
+                            AND
+                                word_id=%s''',
+                                user.user_id, w.word_id,
+                                commit=True)
 
                     if w.count > 0:
                         score.append(float(w.score) / float(w.count))
@@ -563,43 +537,72 @@ class Crawler(object):
                 # Add the user host names
                 for hostname, count in user_host_freq.items():
                     h = hostnames[hostname]
-                    uh = self._db.query(UserHostname).get((user.user_id,
-                            h.hostname_id))
-
-                    if uh is None:
-                        uh = UserHostname(
-                            user_id=user.user_id,
-                            hostname_id=h.hostname_id,
-                            count=count)
-                        self._db.add(uh)
+                    if count > 0:
+                        yield self._db.query('''
+                            INSERT INTO "user_hostname"
+                                (user_id, hostname_id, count)
+                            VALUES
+                                (%s, %s, %s)
+                            ON CONFLICT DO UPDATE
+                            SET
+                                count=%s
+                            WHERE
+                                user_id=%s
+                            AND
+                                hostname_id=%s
+                        ''', user.user_id, h.hostname_id, count,
+                            count, user.user_id,
+                            h.hostname_id, commit=True)
                     else:
-                        uh.count = count
+                        yield self._db.query('''
+                            DELETE FROM "user_hostname"
+                            WHERE
+                                user_id=%s
+                            AND
+                                hostname_id=%s''',
+                                user.user_id, h.hostname_id,
+                                commit=True)
 
                     if h.count > 0:
                         score.append(float(h.score) / float(h.count))
 
                 # Add the user word adjcancies
                 for (proc_word, follow_word), count in user_adj_freq.items():
+                    wa = word_adj[(proc_word, follow_word)]
                     proc_w = words[proc_word]
                     follow_w = words[follow_word]
 
-                    uwa = self._db.query(UserWordAdjacent).get((
-                        user.user_id, proc_w.word_id, follow_w.word_id))
-                    if uwa is None:
-                        uwa = UserWordAdjacent(
-                            user_id=user.user_id,
-                            proceeding_id=proc_w.word_id,
-                            following_id=follow_w.word_id,
-                            count=count)
-                        self._db.add(uwa)
+                    if count > 0:
+                        yield self._db.query('''
+                            INSERT INTO "user_word_adjacent"
+                                (user_id, proceeding_id, following_id, count)
+                            VALUES
+                                (%s, %s, %s, %s)
+                            ON CONFLICT DO UPDATE
+                            SET
+                                count=%s
+                            WHERE
+                                user_id=%s
+                            AND
+                                proceeding_id=%s
+                            AND
+                                following_id=%s
+                        ''', user.user_id, proc_w.word_id,
+                            follow_w.word_id, count,
+                            count, user.user_id, proc_w.word_id,
+                            follow_w.word_id, commit=True)
                     else:
-                        uwa.count = count
+                        yield self._db.query('''
+                            DELETE FROM "user_word_adjacent"
+                            WHERE
+                                user_id=%s
+                            AND
+                                proceeding_id=%s
+                            AND
+                                following_id=%s''',
+                                user.user_id, proc_w.word_id,
+                                follow_w.word_id, commit=True)
 
-                    wa = self._db.query(WordAdjacent).get((
-                        proc_w.word_id, follow_w.word_id
-                    ))
-                    if wa is None:
-                        continue
                     if wa.count > 0:
                         score.append(float(wa.score) / float(wa.count))
 
@@ -613,33 +616,31 @@ class Crawler(object):
                 score.sort()
                 score = sum(score[:10])
 
-                defuser = self._db.query(DeferredUser).get(user_data['id'])
-
                 if (defer and (abs(score < 0.5) \
                         or (age < self._config['defer_min_age']))) \
                         and (age < self._config['defer_max_age']):
                     # There's nothing to score.  Inspect again later.
-                    if defuser is None:
-                        defuser = DeferredUser(user_id=user_data['id'],
-                                inspect_time=datetime.datetime.now(tz=pytz.utc) \
-                                        + datetime.timedelta(
-                                            seconds=self._config['defer_delay']),
-                                inspections=1)
-                        self._db.add(defuser)
-                    else:
-                        defuser.inspections += 1
-                        defuser.inspect_time=datetime.datetime.now(tz=pytz.utc) \
-                                        + datetime.timedelta(
-                                                seconds=self._config['defer_delay'] \
-                                                        * defuser.inspections)
-                    self._log.info('User %s has score %f and age %f, '\
-                            'inspect again after %s (inspections %s)',
-                            user, score, age, defuser.inspect_time,
-                            defuser.inspections)
-                elif defuser is not None:
-                    self._log.info('Cancelling deferred inspection for %s',
-                            user)
-                    self._db.delete(defuser)
+
+                    yield self._db.query('''
+                        INSERT INTO "deferred_user"
+                            (user_id, inspect_time, inspections)
+                        VALUES
+                            (%s, CURRENT_TIMESTAMP + make_interval(secs => %s), 1)
+                        ON CONFLICT DO UPDATE
+                        SET
+                            inspect_time=CURRENT_TIMESTAMP + make_interval(secs => (%s * (inspections+1))),
+                            inspections=inspections+1
+                        WHERE
+                            user_id=%s''', user_data['id'],
+                            config['defer_delay'],
+                            config['defer_delay'],
+                            user_data['id'], commit=True)
+                else:
+                    yield self._db.query('''
+                        DELETE FROM "deferred_user"
+                        WHERE
+                            user_id=%s
+                        ''', user_data['id'], commit=True)
 
                 self._log.debug('User %s [#%d] has score %f',
                         user.screen_name, user.user_id, score)
@@ -647,38 +648,48 @@ class Crawler(object):
                     match = True
 
                 # Record the user information
-                detail = self._db.query(UserDetail).get(user_data['id'])
-                if detail is None:
-                    detail = UserDetail(
-                            user_id=user_data['id'],
-                            about_me=user_data['about_me'],
-                            who_am_i=user_data['who_am_i'],
-                            location=user_data['location'],
-                            projects=user_data['projects'],
-                            what_i_would_like_to_do=\
-                                    user_data['what_i_would_like_to_do'])
-                    self._db.add(detail)
-                else:
-                    detail.about_me = user_data['about_me']
-                    detail.who_am_i = user_data['who_am_i']
-                    detail.projects = user_data['projects']
-                    detail.location = user_data['location']
-                    detail.what_i_would_like_to_do = \
-                            user_data['what_i_would_like_to_do']
+                yield self._db.query('''
+                    INSERT INTO "user_detail"
+                        (user_id, about_me, who_am_i, location,
+                         projects, what_i_would_like_to_do)
+                    VALUES
+                        (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO UPDATE
+                    SET
+                        about_me=%s,
+                        who_am_i=%s,
+                        location=%s,
+                        projects=%s,
+                        what_i_would_like_to_do=%s
+                    WHERE
+                        user_id=%s
+                ''',
+                    user_data['id'],
+                    user_data['about_me'],
+                    user_data['who_am_i'],
+                    user_data['location'],
+                    user_data['projects'],
+                    user_data['what_i_would_like_to_do'],
+                    user_data['about_me'],
+                    user_data['who_am_i'],
+                    user_data['location'],
+                    user_data['projects'],
+                    user_data['what_i_would_like_to_do'],
+                    user_data['id'], commit=True)
 
             if match:
                 # Auto-Flag the user as "suspect"
                 if not classified:
                     self._log.debug('Auto-classifying %s [#%d] as suspect',
                             user.screen_name, user.user_id)
-                    self._auto_suspect.users.append(user)
+                    yield user.add_groups('auto_suspect')
+                    yield user.rm_groups('auto_legit')
             elif not classified:
                 # Auto-Flag the user as "legit"
                 self._log.debug('Auto-classifying %s [#%d] as legitmate',
                         user.screen_name, user.user_id)
-                self._auto_legit.users.append(user)
-
-            self._db.commit()
+                yield user.add_groups('auto_legit')
+                yield user.rm_groups('auto_suspect')
             self._log.audit('Finished inspecting %s', user_data)
         except:
             self._log.error('Failed to process user data %r',
@@ -687,55 +698,62 @@ class Crawler(object):
 
     @coroutine
     def update_user_from_data(self, user_data, inspect_all=True,
-            defer=True, return_new=False):
+            defer=True):
         """
         Update a user in the database from data retrieved via the API.
         """
         self._log.audit('Inspecting user data: %s', user_data)
-        avatar = self.get_avatar(user_data['image_url'])
-
-        # Look up the user in the database
-        user = self._db.query(User).get(user_data['id'])
+        avatar = yield self.get_avatar(user_data['image_url'])
         user_created = datetime.datetime.fromtimestamp(
                         user_data['created'], tz=pytz.utc)
 
-        new = user is None
-        if new:
-            # New user
-            user = User(user_id=user_data['id'],
-                        screen_name=user_data['screen_name'],
-                        url=user_data['url'],
-                        avatar_id=avatar.avatar_id,
-                        created=datetime.datetime.now(pytz.utc),
-                        had_created=user_created)
-            self._log.info('New user: %s [#%d]',
-                    user.screen_name, user.user_id)
-            self._db.add(user)
-
-            # Fetch and hash the avatars
-            yield self._get_avatar_hashes(avatar.avatar_id)
-        else:
-            # Existing user, update the user details
-            self._log.debug('Updating existing user %s', user)
-            user.screen_name = user_data['screen_name']
-            user.avatar_id=avatar.avatar_id
-            user.url = user_data['url']
-            if user.created is None:
-                user.created = datetime.datetime.now(pytz.utc)
-            user.had_created = user_created
+        # Create or update the user instance
+        yield self._db.query('''
+            INSERT INTO "user"
+                (user_id, screen_name, url, avatar_id, created,
+                 had_created)
+            VALUES
+                (%s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+            ON CONFLICT DO UPDATE
+            SET
+                screen_name=%s,
+                url=%s,
+                avatar_id=%s,
+                had_created=%s
+            WHERE
+                user_id=%s
+            ''', user_data['id'], user_data['screen_name'],
+                user_data['url'], avatar.avatar_id,
+                user_created, user_data['screen_name'],
+                user_data['url'], avatar.avatar_id,
+                user_created, commit=True)
+        # Fetch the updated user
+        users = yield User.fetch('user_id=%s', user_data['id'])
+        user = users[0]
+        del users
 
         # Inspect the user
         if inspect_all or (user.last_update is None):
             yield self._inspect_user(user_data, user=user, defer=defer)
             user.last_update = datetime.datetime.now(tz=pytz.utc)
-        self._db.commit()
+            yield user.commit()
 
         if new:
             self.new_user_event.set()
         self._log.debug('User %s up-to-date', user)
-        if return_new:
-            raise Return((user, new))
         raise Return(user)
+
+    @coroutine
+    def _fetch_last_refresh_page(self):
+        page_num = yield self._db.query('''
+            SELECT
+                max(page_num)
+            FROM
+                "newest_user_page_refresh"
+        ''')
+        assert len(page_num) == 1
+        raise Return(page_num[0][0])
+
 
     @coroutine
     def _background_fetch_new_users(self):
@@ -744,6 +762,9 @@ class Crawler(object):
         """
         page = 1
         page_count = 0
+        if self._refresh_hist_page is None:
+            self._refresh_hist_page = yield self._fetch_last_refresh_page()
+
         try:
             while (page < max([self._refresh_hist_page,2])) \
                     and (page_count < 10):
@@ -782,12 +803,21 @@ class Crawler(object):
             self._log.info('Scanning deferred users')
             try:
                 # Grab a handful of deferred users
-                ids = [u.user_id for u in self._db.query(DeferredUser).filter(
-                        DeferredUser.inspections \
-                                < self._config['defer_max_count'],
-                        DeferredUser.inspect_time <
-                            datetime.datetime.now(tz=pytz.utc)).order_by(
-                                    DeferredUser.inspect_time).limit(50).all()]
+                ids = yield self._db.query('''
+                    SELECT
+                        user_id
+                    FROM
+                        "deferred_user"
+                    WHERE
+                        inspections < %s
+                    AND
+                        inspect_time < CURRENT_TIMESTAMP
+                    ORDER BY
+                        inspect_time ASC,
+                        inspections DESC
+                    LIMIT 50''',
+                    self._config['defer_max_count'])
+                ids = [r[0] for r in ids]
 
                 if ids:
                     self._log.trace('Scanning %s', ids)
@@ -807,15 +837,17 @@ class Crawler(object):
                                     self._db.rollback()
                     else:
                         # Mark as checked
-                        for user_id in ids:
-                            self._log.debug('Deferring user ID %d', user_id)
-                            du = self._db.query(DeferredUser).get(user_id)
-                            du.inspections += 1
-                            du.inspect_time=datetime.datetime.now(tz=pytz.utc) \
-                                            + datetime.timedelta(
-                                                seconds=self._config['defer_delay']
-                                                * du.inspections)
-                        self._db.commit()
+                        yield self._db.query('''
+                            UPDATE
+                                "deferred_user"
+                            SET
+                                inspections=inspections+1,
+                                inspect_time=CURRENT_TIMESTAMP
+                                    + make_interval(secs => (%s * (inspections + 1)))
+                            WHERE
+                                user_id IN %s
+                        ''', self._config['defer_delay'],
+                            tuple(ids), commit=True)
 
                 self._log.debug('Successfully fetched deferred users')
             except:
@@ -839,36 +871,44 @@ class Crawler(object):
             self._log.info('Scanning new users')
             try:
                 # Grab a handful of new users
-                ids = dict([
-                    (u.user_id, u) for u in
-                    self._db.query(NewUser).order_by(
-                        NewUser.user_id.desc()).limit(50).all()])
+                ids = yield self._db.query('''
+                    SELECT
+                        user_id
+                    FROM
+                        "new_user"
+                    ORDER BY
+                        user_id DESC
+                    LIMIT 50''')
+                ids = [r[0] for r in ids]
 
                 if ids:
-                    self._log.debug('Scanning %s', list(ids.keys()))
+                    self._log.debug('Scanning %s', ids)
 
                     user_data = yield self._api.get_users(
-                            ids=list(ids.keys()), per_page=50)
+                            ids=ids, per_page=50)
                     self._log.audit('Received new users: %s', user_data)
                     if isinstance(user_data['users'], list):
                         user_data['users'].sort(
                                 key=lambda u : u.get('id') or 0,
                                 reverse=True)
                         for this_user_data in user_data['users']:
-                            while True:
-                                try:
-                                    user = yield self.update_user_from_data(
-                                            this_user_data, inspect_all=True)
-                                    new_user = ids.get(user.user_id)
-                                    if new_user:
-                                        self._db.delete(new_user)
-                                    break
-                                except InvalidUser:
-                                    pass
-                                except SQLAlchemyError:
-                                    self._db.rollback()
-                            self._db.commit()
+                            user = yield self.update_user_from_data(
+                                    this_user_data, inspect_all=True)
 
+                # Clean up the new user list
+                yield self._db.query('''
+                    DELETE FROM
+                        "new_user"
+                    WHERE
+                        user_id IN (
+                            SELECT
+                                user_id
+                            FROM
+                                "user"
+                            WHERE
+                                user_id IN %s
+                        )
+                ''', tuple(ids), commit=True)
                 self._log.debug('Successfully fetched new users')
             except:
                 self._log.exception('Failed to retrieve new users')
@@ -888,6 +928,10 @@ class Crawler(object):
         """
         self._log.info('Beginning historical user retrieval')
         delay = self._config['old_user_fetch_interval']
+
+        if self._refresh_hist_page is None:
+            self._refresh_hist_page = yield self._fetch_last_refresh_page()
+
         try:
             self._refresh_hist_page = \
                     yield self.fetch_new_user_ids(
@@ -921,8 +965,9 @@ class Crawler(object):
         now = datetime.datetime.now(tz=pytz.utc)
         while (num_uids < 10) and (pages < 10):
             if page > 1:
-                last_refresh = self._db.query(NewestUserPageRefresh).get(page)
-                if last_refresh is not None:
+                last_refresh = yield NewestUserPageRefresh.fetch(self._db, 'page_num=%s', page)
+                if len(last_refresh) == 1:
+                    last_refresh = last_refresh[0]
                     self._log.audit('Page %s last refreshed on %s',
                             last_refresh.page_num, last_refresh.refresh_date)
                     if (now - last_refresh.refresh_date).total_seconds() \
@@ -957,13 +1002,32 @@ class Crawler(object):
 
             # Filter out the users we already have.  Create new user objects
             # for the ones we don't have.
-            for uid in ids:
-                if (self._db.query(User).get(uid) is None) \
-                        and (self._db.query(NewUser).get(uid) is None):
-                    new_user = NewUser(user_id=uid)
-                    self._db.add(new_user)
-                    num_uids += 1
-            self._db.commit()
+            existing_ids = yield self._db.query('''
+                SELECT
+                    user_id
+                FROM
+                    "users"
+                WHERE
+                    user_id IN %s
+                ''', tuple(ids))
+            existing_ids = set([r[0] for r in existing_ids])
+
+            ids = list(filter(
+                lambda id : id not in existing_ids,
+                ids))
+
+            yield self._db.query('''
+                INSERT INTO "new_user"
+                    (user_id)
+                VALUES
+                    %(value_template)s
+                ON CONFLICT DO NOTHING
+            ''' % {
+                'value_template': ', '.join([
+                    '(%s)' for x in ids
+                ])
+            }, tuple(ids), commit=True)
+
             page += 1
             pages += 1
 
@@ -982,41 +1046,51 @@ class Crawler(object):
 
     @coroutine
     def get_avatar_hash(self, algorithm, avatar_id):
-        avatar = self._db.query(Avatar).get(avatar_id)
-        if avatar is None:
-            self.set_status(404)
-            self.finish()
+        avatars = yield Avatar.fetch(self._db,
+                'avatar_id=%s', avatar_id)
+        if len(avatars) != 1:
             return
+
+        avatar = avatars[0]
+        del avatars
 
         if not avatar.avatar_type:
             yield self.fetch_avatar(avatar)
 
         # Do we have the hash on file already?
-        avatar_hash = None
-        for known_hash in avatar.hashes:
-            if known_hash.hashalgo == algorithm:
-                avatar_hash = known_hash
-                break
+        hashes = yield avatar.get_hashes()
+        avatar_hash = hashes.get(algorithm)
 
         if avatar_hash is None:
             # We need to retreive it
             hash_data = yield self._hasher.hash(avatar, algorithm)
-            # Does this already exist?
-            avatar_hash = self._db.query(AvatarHash).filter(
-                    AvatarHash.hashalgo == algorithm,
-                    AvatarHash.hashdata == hash_data).first()
 
-            if avatar_hash is None:
-                # This is a new hash
-                avatar_hash = AvatarHash(hashalgo=algorithm,
-                        hashdata=hash_data)
-                self._db.add(avatar_hash)
-                self._db.commit()
+            # Create the hash instance if not already present
+            yield self._db.query('''
+                INSERT INTO "avatar_hash"
+                    (hashalgo, hashdata)
+                VALUES
+                    (%s, %s)
+                ON CONFLICT DO NOTHING
+            ''', algorithm, hash_data, commit=True)
 
-            assert avatar_hash is not None
-            avatar.hashes.append(avatar_hash)
-            self._log.debug('Generating new hash for avatar %d algorithm %s',
+            # Fetch the hash instance.
+            avatar_hashes = yield AvatarHash.fetch(self._db,
+                    'hashalgo=%s AND hashdata=%s',
+                    algorithm, hash_data)
+            avatar_hash = avatar_hashes[0]
+
+            # Associate the hash with the avatar
+            yield self._db.query('''
+                INSERT INTO "avatar_hash_assoc"
+                    (avatar_id, hash_id)
+                VALUES
+                    (%s, %s)
+                ON CONFLICT DO NOTHING''',
+                avatar.avatar_id, avatar_hash.hash_id,
+                commit=True)
+
+            self._log.debug('Generated new hash for avatar %d algorithm %s',
                     avatar_id, algorithm)
-            self._db.commit()
 
         raise Return(avatar_hash)
