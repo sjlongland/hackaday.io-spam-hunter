@@ -9,20 +9,28 @@ class BaseAvatarTrait(Trait):
 
     @coroutine
     def _get_trait_instance(self, avatar_hash):
-        # Create the instance if not already there.
-        yield self._db.query('''
-            INSERT INTO "trait_instance"
-                (trait_id, trait_hash_id, score, count)
-            VALUES
-                (%s, %s, 0, 0)
-            ON CONFLICT DO NOTHING
-        ''', self.trait_id, avatar_hash.hash_id, commit=True)
-
+        # See if the trait is already there
         trait_instance = yield model.TraitInstanceAvatarHash.fetch(
                 self._db, 'trait_id=%s AND trait_hash_id=%s',
                 self.trait_id, avatar_hash.hash_id,
                 single=True
         )
+
+        if trait_instance is None:
+            # Create the instance, then re-retrieve it.
+            yield self._db.query('''
+                INSERT INTO "trait_instance"
+                    (trait_id, trait_hash_id, score, count)
+                VALUES
+                    (%s, %s, 0, 0)
+                ''', self.trait_id, avatar_hash.hash_id,
+                commit=True)
+
+            trait_instance = yield model.TraitInstanceAvatarHash.fetch(
+                    self._db, 'trait_id=%s AND trait_hash_id=%s',
+                    self.trait_id, avatar_hash.hash_id,
+                    single=True
+            )
         raise Return(TraitInstance(self, trait_instance))
 
     @coroutine

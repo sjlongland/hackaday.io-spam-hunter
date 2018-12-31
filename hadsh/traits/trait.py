@@ -116,20 +116,28 @@ class StringTrait(Trait):
 
     @coroutine
     def _get_trait_instance(self, value):
-        # Create the instance if not already there.
-        yield self._db.query('''
-            INSERT INTO "trait_instance"
-                (trait_id, trait_string, score, count)
-            VALUES
-                (%s, %s, 0, 0)
-            ON CONFLICT DO NOTHING
-        ''', self.trait_id, value, commit=True)
-
-        trait_instances = yield model.TraitInstanceString.fetch(
-                self._db, 'trait_id=%s AND trait_string=%s',
-                self.trait_id, value
+        # See if the instance exists
+        trait_instance = yield model.TraitInstanceString.fetch(
+                self._db,
+                'trait_id=%s AND trait_string=%s LIMIT 1',
+                self.trait_id, value, single=True
         )
-        raise Return(TraitInstance(self, trait_instances[0]))
+
+        if trait_instance is None:
+            # Create the instance.
+            yield self._db.query('''
+                INSERT INTO "trait_instance"
+                    (trait_id, trait_string, score, count)
+                VALUES
+                    (%s, %s, 0, 0)
+            ''', self.trait_id, value, commit=True)
+
+            trait_instance = yield model.TraitInstanceString.fetch(
+                    self._db,
+                    'trait_id=%s AND trait_string=%s',
+                    self.trait_id, value, single=True
+            )
+        raise Return(TraitInstance(self, trait_instance))
 
 
 class BaseTraitInstance(object):
@@ -271,6 +279,7 @@ class TraitInstance(BaseTraitInstance):
         if count == 0:
             return
 
+        yield self._instance.refresh()
         self._instance.score += (count * direction)
         self._instance.count += count
         yield self._instance.commit()
@@ -344,6 +353,7 @@ class SingletonTrait(Trait):
         if count == 0:
             return
 
+        yield self._trait.refresh()
         self._trait.score += (count * direction)
         self._trait.count += count
         yield self._trait.commit()
