@@ -1,6 +1,6 @@
+from tornado.gen import coroutine, Return
 from .trait import SingletonTrait, SingletonTraitInstance, \
         UserSingletonTraitInstance
-from ..db import model
 import re
 
 NAME_PATTERNS = list(map(lambda p : re.compile(p),
@@ -16,15 +16,17 @@ NAME_PATTERNS = list(map(lambda p : re.compile(p),
 class SpammyNameTrait(SingletonTrait):
     _TRAIT_CLASS = "spamname"
 
+    @coroutine
     def _assess(self, user, log):
         for pattern in NAME_PATTERNS:
             if pattern.search(user.screen_name):
-                return UserSingletonTraitInstance(
+                raise Return(UserSingletonTraitInstance(
                         user,
                         SingletonTraitInstance(self),
-                        1)
+                        1))
 
 
 # Instantiate these instances and register them.
+@coroutine
 def spamname_init(app, log):
-    assert SpammyNameTrait(app, log)
+    yield SpammyNameTrait.init(app, log)

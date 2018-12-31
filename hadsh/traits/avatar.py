@@ -1,3 +1,5 @@
+from tornado.gen import coroutine, Return
+
 from .trait import Trait, TraitType, TraitInstance, UserTraitInstance
 from ..db import model
 
@@ -5,26 +7,48 @@ from ..db import model
 class BaseAvatarTrait(Trait):
     _TRAIT_TYPE = TraitType.AVATAR_HASH
 
+    @coroutine
     def _get_trait_instance(self, avatar_hash):
-        trait_instance = self._db.query(model.TraitInstanceAvatarHash).filter(
-                model.TraitInstance.trait_id == self._trait.trait_id,
-                model.TraitInstanceAvatarHash.trait_hash_id ==
-                    avatar_hash.hash_id
-        ).one_or_none()
-        if trait_instance is None:
-            trait_instance = model.TraitInstanceAvatarHash(
-                    trait_id=self._trait.trait_id,
-                    trait_hash_id=avatar_hash.hash_id,
-                    score=0, count=0)
-            self._db.add(trait_instance)
-            self._db.commit()
-        return TraitInstance(self, trait_instance)
+        # Create the instance if not already there.
+        yield self._db.query('''
+            INSERT INTO "trait_instance"
+                (trait_id, trait_hash_id, score, count)
+            VALUES
+                (%s, %s, 0, 0)
+            ON CONFLICT DO NOTHING
+        ''', self.trait_id, avatar_hash.hash_id, commit=True)
 
+        trait_instance = yield model.TraitInstanceAvatarHash.fetch(
+                self._db, 'trait_id=%s AND trait_hash_id=%s',
+                self.trait_id, avatar_hash.hash_id,
+                single=True
+        )
+        raise Return(TraitInstance(self, trait_instance))
+
+    @coroutine
     def _assess(self, user, log):
-        for ah in user.avatar.hashes:
-            if ah.hashalgo == self._HASH_ALGO:
-                return UserTraitInstance(
-                        user, self._get_trait_instance(ah), 1)
+        avatar_hash = yield model.AvatarHash.fetch(
+                self._db,
+                '''
+                hashalgo=%s
+                AND
+                hash_id IN (
+                    SELECT
+                        hash_id
+                    FROM
+                        "avatar_hash_assoc"
+                    WHERE
+                        avatar_id=%s
+                    )
+                LIMIT 1
+                ''', self._HASH_ALGO, user.avatar_id,
+                single=True)
+        log.audit('User %s avatar %s hash algo %s, hash %s',
+                user, user.avatar_id, self._HASH_ALGO, avatar_hash)
+        if avatar_hash is not None:
+            trait_inst = yield self._get_trait_instance(avatar_hash)
+            raise Return(UserTraitInstance(
+                    user, trait_inst, 1))
 
 
 class SHA512AvatarTrait(BaseAvatarTrait):
@@ -53,9 +77,10 @@ class WHashAvatarTrait(BaseAvatarTrait):
 
 
 # Instantiate these instances and register them.
+@coroutine
 def avatar_init(app, log):
-    assert SHA512AvatarTrait(app, log)
-    assert AverageHashAvatarTrait(app, log)
-    assert PHashAvatarTrait(app, log)
-    assert DHashAvatarTrait(app, log)
-    assert WHashAvatarTrait(app, log)
+    yield SHA512AvatarTrait.init(app, log)
+    yield AverageHashAvatarTrait.init(app, log)
+    yield PHashAvatarTrait.init(app, log)
+    yield DHashAvatarTrait.init(app, log)
+    yield WHashAvatarTrait.init(app, log)

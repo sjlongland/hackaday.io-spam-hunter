@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-import threading
+from tornado.gen import coroutine, Return
+
 from ..db import model
 from enum import Enum
 
@@ -35,52 +36,60 @@ class Trait(object):
     # All known traits
     _ALL_TRAITS = {}
 
-    def __init__(self, app, log):
+    def __init__(self, trait, app, log):
         # This is a singleton class
         assert not hasattr(self.__class__, '_instance')
         assert self._TRAIT_CLASS not in self._ALL_TRAITS
 
+        self._trait = trait
+        self._log = log.getChild(self._TRAIT_CLASS)
+        self._app = app
+        self._db = app._db
+        self._ALL_TRAITS[self._TRAIT_CLASS] = self
+
+    @classmethod
+    @coroutine
+    def init(cls, app, log):
         db = app._db
-        try:
-            trait = db.query(model.Trait).filter(
-                    model.Trait.trait_class == self._TRAIT_CLASS).one_or_none()
+        # Create the trait if it doesn't already exist
+        yield db.query('''
+            INSERT INTO "trait"
+                (trait_class, trait_type, score, count, weight)
+            VALUES
+                (%s, %s, 0, 0, 1.0)
+            ON CONFLICT DO NOTHING''',
+            cls._TRAIT_CLASS,
+            cls._TRAIT_TYPE.value,
+            commit=True)
 
-            if trait is None:
-                trait = model.Trait(
-                        trait_class=self._TRAIT_CLASS,
-                        trait_type=self._TRAIT_TYPE.value,
-                        score=0, count=0)
-                db.add(trait)
-                db.commit()
-
-            self._log = log.getChild(self._TRAIT_CLASS)
-            self._app = app
-            self._local = threading.local()
-            self._trait_id = trait.trait_id
-
-            self._ALL_TRAITS[self._TRAIT_CLASS] = self
-        finally:
-            db.close()
+        # Fetch the trait instance
+        traits = yield model.Trait.fetch(
+                db, 'trait_class=%s', cls._TRAIT_CLASS)
+        assert cls(traits[0], app, log)
 
     @property
     def trait_id(self):
-        return self._trait_id
+        return self._trait.trait_id
 
     @property
     def weight(self):
         return self._trait.weight
 
     @classmethod
+    @coroutine
     def assess(cls, user, log):
         """
         Assess the given user for their traits.
         """
+        assert isinstance(user, model.User)
         user_traits = []
 
         for trait in list(cls._ALL_TRAITS.values()):
             trait_log = log.getChild(trait._TRAIT_CLASS)
+            trait_log.audit('Assessing %s', user)
             try:
-                user_trait = trait._assess(user, trait_log)
+                user_trait = yield trait._assess(
+                        user, trait_log)
             except:
                 trait_log.exception('Failed to assess %s for trait %s',
                         user, trait)
@@ -88,41 +97,10 @@ class Trait(object):
 
             if user_trait is not None:
                 user_traits.append(user_trait)
-        return user_traits
+        log.audit('User %s has %s', user, user_traits)
+        raise Return(user_traits)
 
-    @property
-    def _trait(self):
-        try:
-            return self._local.trait
-        except AttributeError:
-            trait = self._db.query(model.Trait).get(self.trait_id)
-            self._local.trait = trait
-            return trait
-
-    @property
-    def _db(self):
-        try:
-            return self._local.db
-        except AttributeError:
-            db = self._app._db
-            self._local.db = db
-            self._local.dbshutdown = DatabaseShutdown(db)
-            return db
-
-    def _close_db(self):
-        try:
-            self._local.db.close()
-        except AttributeError:
-            return
-
-        try:
-            del self._local.trait
-        except AttributeError:
-            pass
-
-        del self._local.db
-        del self._local.dbshutdown
-
+    @coroutine
     def _assess(self, user, log):
         """
         Assess the user against this particular trait.
@@ -136,19 +114,22 @@ class StringTrait(Trait):
     """
     _TRAIT_TYPE = TraitType.STRING
 
+    @coroutine
     def _get_trait_instance(self, value):
-        trait_instance = self._db.query(model.TraitInstanceString).filter(
-                model.TraitInstance.trait_id == self._trait.trait_id,
-                model.TraitInstanceString.trait_hash_id == value
-        ).one_or_none()
-        if trait_instance is None:
-            trait_instance = model.TraitInstanceString(
-                    trait_id=self._trait.trait_id,
-                    trait_string=value,
-                    score=0, count=0)
-            self._db.add(trait_instance)
-            self._db.commit()
-        return TraitInstance(self, trait_instance)
+        # Create the instance if not already there.
+        yield self._db.query('''
+            INSERT INTO "trait_instance"
+                (trait_id, trait_string, score, count)
+            VALUES
+                (%s, %s, 0, 0)
+            ON CONFLICT DO NOTHING
+        ''', self.trait_id, value, commit=True)
+
+        trait_instances = yield model.TraitInstanceString.fetch(
+                self._db, 'trait_id=%s AND trait_string=%s',
+                self.trait_id, value
+        )
+        raise Return(TraitInstance(self, trait_instances[0]))
 
 
 class BaseTraitInstance(object):
@@ -185,16 +166,13 @@ class BaseTraitInstance(object):
     def _db(self):
         return self._trait._db
 
-    def _close_db(self):
-        self._trait._close_db()
-
 
 class BaseUserTraitInstance(object):
     """
     An instance of a trait linked to a user.
     """
     def __init__(self, user, trait_instance, count):
-        self._local = threading.local()
+        assert isinstance(trait_instance, BaseTraitInstance)
         self._user_id = user.user_id
         self._trait_instance = trait_instance
         self._count = count
@@ -256,13 +234,6 @@ class BaseUserTraitInstance(object):
     @property
     def _db(self):
         return self._trait_instance._db
-
-    def _close_db(self):
-        self._trait_instance._close_db()
-        try:
-            del self._local.user_trait
-        except AttributeError:
-            pass
 
 
 class TraitInstance(BaseTraitInstance):
