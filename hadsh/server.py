@@ -854,7 +854,7 @@ class ClassifyHandler(AuthAdminRequestHandler):
 
         # Update the user's traits.
         for trait in (yield Trait.assess(user, log)):
-            trait.increment_trait(score_inc)
+            yield trait.increment_trait(score_inc)
             trait.discard()
 
         # Drop the user detail unless we're keeping it
