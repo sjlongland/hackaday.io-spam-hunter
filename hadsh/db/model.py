@@ -53,6 +53,40 @@ class Row(object):
             raise Return(res)
 
     @coroutine
+    def refresh(self):
+        # Exclude primary keys from the column list
+        data_columns = list(filter(
+            lambda c : c not in set(self._PRIMARY_KEYS_),
+            self._COLUMNS_))
+        # Determine the "where" criteria
+        where_str = ' AND '.join([
+            '(%s = %%s)' % (col,)
+            for col in self._PRIMARY_KEYS_
+        ])
+        where_args = tuple([
+            self._get_col(c) for c in self._PRIMARY_KEYS_
+        ])
+
+        rows = yield self._db.query(
+                '''
+                    SELECT
+                        %(columns)s
+                    FROM
+                        "%(table)s"
+                    WHERE
+                        %(where)s
+                ''' % {
+                    'columns': ', '.join(data_columns),
+                    'table': self._TABLE_,
+                    'where': where_str
+                }, *where_args)
+        if len(rows) != 1:
+            raise ValueError(
+                    'Row no longer in database or '\
+                            'primary keys ambiguous')
+        self._data.update(dict(zip(data_columns, rows[0])))
+
+    @coroutine
     def commit(self):
         try:
             dirty_data      = self._dirty.copy()
