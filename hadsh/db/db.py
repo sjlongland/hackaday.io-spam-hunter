@@ -127,7 +127,11 @@ class Database(object):
                     with self._conn.cursor() as cur:
                         cur = self._conn.cursor()
                         cur.execute(sql, args)
-                        res = cur.fetchall()
+
+                        if cur.description:
+                            res = cur.fetchall()
+                        else:
+                            res = None
 
                         if commit:
                             self._conn.commit()
