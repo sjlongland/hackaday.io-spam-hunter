@@ -1,3 +1,4 @@
+from functools import partial
 from tornado.gen import coroutine, Return
 
 import base64
@@ -12,9 +13,12 @@ class Row(object):
             if not hasattr(self, column):
                 setattr(self.__class__, column,
                         property(\
-                            lambda self : self._get_col(column),
-                            lambda self, val : self._set_col(column, value),
-                            lambda self : self._del_col(column)))
+                            partial(\
+                                lambda c, s : s._get_col(c), column),
+                            partial(\
+                                lambda c, s, val : s._set_col(c, val), column),
+                            partial(\
+                                lambda c, s : s._del_col(c), column)))
         self._data = dict(zip(self._COLUMNS_, row))
         self._dirty = {}
         self._db = db
@@ -75,6 +79,15 @@ class Row(object):
             dirty_data.update(self._dirty)
             self._dirty = dirty_data
             raise
+
+    def _get_col(self, column):
+        return self._dirty.get(column, self._data[column])
+
+    def _set_col(self, column, value):
+        self._dirty[column] = value
+
+    def _del_col(self, column, value):
+        self._dirty.pop(column, None)
 
 
 class User(Row):
