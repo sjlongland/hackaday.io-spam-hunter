@@ -51,21 +51,28 @@ class Trait(object):
     @coroutine
     def init(cls, app, log):
         db = app._db
-        # Create the trait if it doesn't already exist
-        yield db.query('''
-            INSERT INTO "trait"
-                (trait_class, trait_type, score, count, weight)
-            VALUES
-                (%s, %s, 0, 0, 1.0)
-            ON CONFLICT DO NOTHING''',
-            cls._TRAIT_CLASS,
-            cls._TRAIT_TYPE.value,
-            commit=True)
-
         # Fetch the trait instance
-        traits = yield model.Trait.fetch(
-                db, 'trait_class=%s', cls._TRAIT_CLASS)
-        assert cls(traits[0], app, log)
+        trait = yield model.Trait.fetch(
+                db, 'trait_class=%s', cls._TRAIT_CLASS,
+                single=True)
+
+        if trait is None:
+            # Create the trait
+            yield db.query('''
+                INSERT INTO "trait"
+                    (trait_class, trait_type, score, count, weight)
+                VALUES
+                    (%s, %s, 0, 0, 1.0)
+                ''',
+                cls._TRAIT_CLASS,
+                cls._TRAIT_TYPE.value,
+                commit=True)
+
+            # Fetch the trait instance
+            trait = yield model.Trait.fetch(
+                    db, 'trait_class=%s', cls._TRAIT_CLASS,
+                    single=True)
+        assert cls(trait, app, log)
 
     @property
     def trait_id(self):
