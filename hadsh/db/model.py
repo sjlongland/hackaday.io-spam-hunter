@@ -202,6 +202,24 @@ class User(Row):
         ''', self.user_id, tuple(groups))
 
     @coroutine
+    def rm_groups(self, groups):
+        # Remove groups listed listed
+        yield self._db.query('''
+            DELETE FROM "user_group_assoc"
+            WHERE
+                user_id=%S
+            AND
+                group_id IN (
+                    SELECT
+                        %s, group_id
+                    FROM
+                        "group"
+                    WHERE
+                        name IN %s
+                )
+        ''', self.user_id, tuple(groups))
+
+    @coroutine
     def mask_groups(self, groups):
         # Remove groups not listed
         yield self._db.query('''
