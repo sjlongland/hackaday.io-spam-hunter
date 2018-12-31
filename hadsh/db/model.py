@@ -36,7 +36,7 @@ class Row(object):
                     WHERE
                         %(where)s
                 ''' % {
-                    'columns': cls._COLUMNS_.join(', '),
+                    'columns': ', '.join(cls._COLUMNS_),
                     'table': cls._TABLE_,
                     'where': where
                 }, *args)
