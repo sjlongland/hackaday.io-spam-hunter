@@ -114,6 +114,9 @@ class Database(object):
 
     @coroutine
     def query(self, sql, *args, commit=False):
+        if self._conn is None:
+            yield self.connect()
+
         assert self._conn is not None
         assert self._conn_ioloop is not None
 
