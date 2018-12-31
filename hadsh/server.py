@@ -26,7 +26,7 @@ from .resizer import ImageResizer
 from .hasher import ImageHasher
 from .wordstat import tokenise, frequency, adjacency
 from .db.db import Database
-from .db.model import UserToken, Avatar, User
+from .db.model import UserToken, Avatar, User, Account
 from .util import decode_body
 from .traits.trait import Trait
 from .traits import init_traits
@@ -130,12 +130,14 @@ class LoginHandler(RequestHandler):
         self.render('login.html',
                 api_forbidden=self.application._api.is_forbidden)
 
+    @coroutine
     def post(self):
         db = self.application._db
         username = self.get_body_argument('username')
         password = self.get_body_argument('password')
         log = self.application._log.getChild('login[%s]' % username)
-        account = db.query(Account).filter(Account.name == username).first()
+        account = yield Account.fetch(db, 'name=%s',
+                username, single=True)
 
         if account is None:
             log.info('No user account found matching user name')
@@ -159,21 +161,24 @@ class LoginHandler(RequestHandler):
         if newhash:
             log.info('Password hash needs updating')
             account.hashedpassword = newhash
+            yield account.commit()
 
         # We have the user account, create the session
+        session_id = uuid.uuid4()
         expiry = datetime.datetime.now(tz=pytz.utc) \
                 + datetime.timedelta(days=7)
-        session = Session(
-                session_id=uuid.uuid4(),
-                user_id=account.user_id,
-                expiry_date=expiry)
-        db.add(session)
-        db.commit()
-        log.info('Session %s created.', session.session_id)
+        yield db.query('''
+            INSERT INTO "session"
+                (session_id, user_id, expiry_date)
+            VALUES
+                (%s, %s, %s)
+        ''', str(session_id), account.user_id, expiry,
+            commit=True)
+        log.info('Session %s created.', session_id)
 
         # Grab the session ID and set that in a cookie.
         self.set_cookie(name='hadsh',
-                value=str(session.session_id),
+                value=str(session_id),
                 domain=self.application._domain,
                 secure=self.application._secure,
                 expires_days=7)
