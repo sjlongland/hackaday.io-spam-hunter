@@ -1800,7 +1800,7 @@ const getNextPage = function(subset) {
 	} else if ((subset === 'older') && (oldest_uid !== null)) {
 		spinner.message += ' before UID #' + oldest_uid;
 		args.push('before_user_id=' + oldest_uid);
-		args.push('order=dasc');
+		args.push('order=desc');
 	} else {
 		if (newest_uid !== null)
 			args.push('before_user_id=' + (newest_uid+1));
