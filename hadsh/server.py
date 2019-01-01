@@ -969,9 +969,9 @@ class HADSHApp(Application):
             client_id, client_secret, api_key, api_rq_interval,
             domain, secure, static_uri, static_path,
             thread_count, crawler_config, **kwargs):
-        # Database connection
-        self._db = Database(db_uri)
         self._log = extdlog.getLogger(self.__class__.__name__)
+        # Database connection
+        self._db = Database(db_uri, log=self._log.getChild('db'))
         # Session management connection
         self._pool = WorkerPool(thread_count)
         self._hasher = ImageHasher(self._log.getChild('hasher'), self._pool)
