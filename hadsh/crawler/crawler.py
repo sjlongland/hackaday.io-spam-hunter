@@ -737,8 +737,6 @@ class Crawler(object):
             user.last_update = datetime.datetime.now(tz=pytz.utc)
             yield user.commit()
 
-        if new:
-            self.new_user_event.set()
         self._log.debug('User %s up-to-date', user)
         raise Return(user)
 
