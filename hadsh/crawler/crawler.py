@@ -699,6 +699,12 @@ class Crawler(object):
                         user.screen_name, user.user_id)
                 yield user.add_groups('auto_legit')
                 yield user.rm_groups('auto_suspect')
+
+            # Remove the user from the "new" list
+            yield self._db.query('''
+                DELETE FROM "new_user"
+                WHERE user_id=%s
+                ''', user_data['id'], commit=True)
             self._log.audit('Finished inspecting %s', user_data)
         except:
             self._log.error('Failed to process user data %r',
