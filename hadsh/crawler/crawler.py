@@ -707,30 +707,29 @@ class Crawler(object):
         user_created = datetime.datetime.fromtimestamp(
                         user_data['created'], tz=pytz.utc)
 
-        # Create or update the user instance
-        yield self._db.query('''
-            INSERT INTO "user"
-                (user_id, screen_name, url, avatar_id, created,
-                 had_created)
-            VALUES
-                (%s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
-            ON CONFLICT DO UPDATE
-            SET
-                screen_name=%s,
-                url=%s,
-                avatar_id=%s,
-                had_created=%s
-            WHERE
-                user_id=%s
-            ''', user_data['id'], user_data['screen_name'],
-                user_data['url'], avatar.avatar_id,
-                user_created, user_data['screen_name'],
-                user_data['url'], avatar.avatar_id,
-                user_created, commit=True)
-        # Fetch the updated user
-        users = yield User.fetch('user_id=%s', user_data['id'])
-        user = users[0]
-        del users
+        # See if the user exists:
+        user = yield User.fetch(self._db, 'user_id=%s', user_data['id'], single=True)
+        if user is None:
+            # Nope, create the user.
+            yield self._db.query('''
+                INSERT INTO "user"
+                    (user_id, screen_name, url, avatar_id, created,
+                     had_created)
+                VALUES
+                    (%s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+                ''',
+                    user_data['id'], user_data['screen_name'],
+                    user_data['url'], avatar.avatar_id,
+                    user_created, commit=True)
+            # Try again
+            user = yield User.fetch(self._db, 'user_id=%s', user_data['id'], single=True)
+        else:
+            # Update the user
+            user.screen_name = user_data['screen_name']
+            user.url = user_data['url']
+            user.avatar_id = avatar.avatar_id
+            user.last_update = datetime.datetime.now(tz=pytz.utc)
+            yield user.commit()
 
         # Inspect the user
         if inspect_all or (user.last_update is None):
