@@ -58,6 +58,7 @@ class Database(object):
             host = None
             port = None
 
+        self._log = kwargs.pop('log', None)
         self._db_args = dict(
             dbname=parsed_uri.path[1:],
             user=user, password=password,
@@ -141,5 +142,11 @@ class Database(object):
                 future.set_exception(ex)
         self._conn_ioloop.add_callback(_query)
 
-        result = yield future
+        try:
+            result = yield future
+        except:
+            if self._log:
+                self._log.exception('Failed SQL query:\n%s\nARGS: %s',
+                        sql, args)
+            raise
         raise Return(result)
