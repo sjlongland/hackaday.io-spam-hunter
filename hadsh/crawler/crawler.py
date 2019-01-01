@@ -415,7 +415,7 @@ class Crawler(object):
                                 (user_id, token, count)
                             VALUES
                                 (%s, %s, %s)
-                            ON CONFLICT DO UPDATE
+                            ON CONFLICT ON CONSTRAINT user_token_pkey DO UPDATE
                             SET
                                 count=%s
                             WHERE
@@ -440,7 +440,7 @@ class Crawler(object):
                         (hostname, score, count)
                     VALUES
                         %(insert_template)s
-                    ON CONFLICT DO NOTHING
+                    ON CONFLICT ON CONSTRAINT hostname_pkey DO NOTHING
                 ''' % {
                     'insert_template': ', '.join([
                         '(%s, 0, 0)' for x
@@ -460,7 +460,7 @@ class Crawler(object):
                         (word, score, count)
                     VALUES
                         %(insert_template)s
-                    ON CONFLICT DO NOTHING
+                    ON CONFLICT ON CONSTRAINT word_pkey DO NOTHING
                 ''' % {
                     'insert_template': ', '.join([
                         '(%s, 0, 0)' for x
@@ -481,7 +481,7 @@ class Crawler(object):
                         (proceeding_id, following_id, score, count)
                     VALUES
                         %(insert_template)s
-                    ON CONFLICT DO NOTHING
+                    ON CONFLICT ON CONSTRAINT word_adjacent_pkey DO NOTHING
                 ''' % {
                     'insert_template': ', '.join([
                         '(%s, %s, 0, 0)' for x
@@ -511,7 +511,7 @@ class Crawler(object):
                                 (user_id, word_id, count)
                             VALUES
                                 (%s, %s, %s)
-                            ON CONFLICT DO UPDATE
+                            ON CONFLICT ON CONSTRAINT user_word_pkey DO UPDATE
                             SET
                                 count=%s
                             WHERE
@@ -543,7 +543,7 @@ class Crawler(object):
                                 (user_id, hostname_id, count)
                             VALUES
                                 (%s, %s, %s)
-                            ON CONFLICT DO UPDATE
+                            ON CONFLICT ON CONSTRAINT user_hostname_pkey DO UPDATE
                             SET
                                 count=%s
                             WHERE
@@ -578,7 +578,7 @@ class Crawler(object):
                                 (user_id, proceeding_id, following_id, count)
                             VALUES
                                 (%s, %s, %s, %s)
-                            ON CONFLICT DO UPDATE
+                            ON CONFLICT ON CONSTRAINT user_word_adjacent_pkey DO UPDATE
                             SET
                                 count=%s
                             WHERE
@@ -626,7 +626,7 @@ class Crawler(object):
                             (user_id, inspect_time, inspections)
                         VALUES
                             (%s, CURRENT_TIMESTAMP + make_interval(secs => %s), 1)
-                        ON CONFLICT DO UPDATE
+                        ON CONFLICT ON CONSTRAINT deferred_user_pkey DO UPDATE
                         SET
                             inspect_time=CURRENT_TIMESTAMP + make_interval(secs => (%s * (inspections+1))),
                             inspections=inspections+1
@@ -654,7 +654,7 @@ class Crawler(object):
                          projects, what_i_would_like_to_do)
                     VALUES
                         (%s, %s, %s, %s, %s, %s)
-                    ON CONFLICT DO UPDATE
+                    ON CONFLICT ON CONSTRAINT user_detail_pkey DO UPDATE
                     SET
                         about_me=%s,
                         who_am_i=%s,
