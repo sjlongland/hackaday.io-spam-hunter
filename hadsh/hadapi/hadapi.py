@@ -299,7 +299,7 @@ class HackadayAPI(object):
         return query
 
     _GET_USERS_WORKAROUND_RE = re.compile(
-            r'<a href="(/[^"]+)" class="hacker-image">')
+            r'<a href="([^"]+)" class="hacker-image">')
     _PRIVATE_MSG_LINK_RE = re.compile(
             r'<a href="/messages/new\?user=(\d+)">')
     @coroutine
@@ -325,8 +325,9 @@ class HackadayAPI(object):
         # This is literally all we need at this point, the rest we'll
         # get from the API.
         for page in pages:
-            response = yield self.api_fetch(
-                    'https://hackaday.io/%s' % (page,))
+            if page.startswith('/'):
+                page = 'https://hackaday.io' + page
+            response = yield self.api_fetch(page)
             (ct, ctopts, body) = self._decode(response)
             for line in body.split('\n'):
                 match = self._PRIVATE_MSG_LINK_RE.search(line)
