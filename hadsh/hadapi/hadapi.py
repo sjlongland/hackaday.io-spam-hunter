@@ -299,7 +299,9 @@ class HackadayAPI(object):
         return query
 
     _GET_USERS_WORKAROUND_RE = re.compile(
-            '    <a href="/hacker/(\d+)" class="hacker-image">')
+            r'<a href="(/[^"]+)" class="hacker-image">')
+    _PRIVATE_MSG_LINK_RE = re.compile(
+            r'<a href="/messages/new\?user=(\d+)">')
     @coroutine
     def get_user_ids(self, sortby=UserSortBy.influence, page=None):
         if page is None:
@@ -311,12 +313,26 @@ class HackadayAPI(object):
                         % (sortby.value, page))
         (ct, ctopts, body) = self._decode(response)
 
-        # Body is in HTML
-        ids = []
+        # Body is in HTML, look for links to profile pages
+        pages = []
         for line in body.split('\n'):
-            match = self._GET_USERS_WORKAROUND_RE.match(line)
+            match = self._GET_USERS_WORKAROUND_RE.search(line)
             if match:
-                ids.append(int(match.group(1)))
+                pages.append(match.group(1))
+
+        ids = []
+        # Fetch each profile page (ugh!) and look for user ID
+        # This is literally all we need at this point, the rest we'll
+        # get from the API.
+        for page in pages:
+            response = yield self.api_fetch(
+                    'https://hackaday.io/%s' % (page,))
+            (ct, ctopts, body) = self._decode(response)
+            for line in body.split('\n'):
+                match = self._PRIVATE_MSG_LINK_RE.search(line)
+                if match:
+                    ids.append(int(match.group(1)))
+                    break
 
         raise Return(ids)
 
