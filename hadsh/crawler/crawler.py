@@ -448,12 +448,15 @@ class Crawler(object):
                             in range(0, len(user_host_freq))
                         ])
                     }, *tuple(user_host_freq.keys()), commit=True)
-                hostnames = dict([
-                    (h.hostname, h) for h in
-                    (yield Hostname.fetch(self._db,
-                        'hostname IN %s',
-                        tuple(user_host_freq.keys())))
-                ])
+
+                    hostnames = dict([
+                        (h.hostname, h) for h in
+                        (yield Hostname.fetch(self._db,
+                            'hostname IN %s',
+                            tuple(user_host_freq.keys())))
+                    ])
+                else:
+                    hostnames = {}
 
                 # Retrieve all the words
                 if user_freq:
@@ -470,12 +473,14 @@ class Crawler(object):
                         ])
                     }, *tuple(user_freq.keys()), commit=True)
 
-                words = dict([
-                    (w.word, w) for w in
-                    (yield Word.fetch(self._db,
-                        'word IN %s',
-                        tuple(user_freq.keys())))
-                ])
+                    words = dict([
+                        (w.word, w) for w in
+                        (yield Word.fetch(self._db,
+                            'word IN %s',
+                            tuple(user_freq.keys())))
+                    ])
+                else:
+                    words = {}
 
                 # Retrieve all the word adjacencies
                 if user_adj_freq:
@@ -495,6 +500,7 @@ class Crawler(object):
                             for w in sum(user_adj_freq.keys(), ())
                         ]),
                         commit=True)
+
                 # There's no clean way I know of to retrieve
                 # composite keys in an IN query.
                 word_adj = {}
