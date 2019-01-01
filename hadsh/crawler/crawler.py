@@ -465,7 +465,7 @@ class Crawler(object):
                             (word, score, count)
                         VALUES
                             %(insert_template)s
-                        ON CONFLICT ON CONSTRAINT word_pkey DO NOTHING
+                        ON CONFLICT ON CONSTRAINT ix_word_word DO NOTHING
                     ''' % {
                         'insert_template': ', '.join([
                             '(%s, 0, 0)' for x
