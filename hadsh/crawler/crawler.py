@@ -435,18 +435,19 @@ class Crawler(object):
                         ''', user.user_id, token, commit=True)
 
                 # Retrieve all the hostnames
-                yield self._db.query('''
-                    INSERT INTO "hostname"
-                        (hostname, score, count)
-                    VALUES
-                        %(insert_template)s
-                    ON CONFLICT ON CONSTRAINT hostname_pkey DO NOTHING
-                ''' % {
-                    'insert_template': ', '.join([
-                        '(%s, 0, 0)' for x
-                        in range(0, len(user_host_freq))
-                    ])
-                }, *tuple(user_host_freq.keys()), commit=True)
+                if user_host_freq:
+                    yield self._db.query('''
+                        INSERT INTO "hostname"
+                            (hostname, score, count)
+                        VALUES
+                            %(insert_template)s
+                        ON CONFLICT ON CONSTRAINT hostname_pkey DO NOTHING
+                    ''' % {
+                        'insert_template': ', '.join([
+                            '(%s, 0, 0)' for x
+                            in range(0, len(user_host_freq))
+                        ])
+                    }, *tuple(user_host_freq.keys()), commit=True)
                 hostnames = dict([
                     (h.hostname, h) for h in
                     (yield Hostname.fetch(self._db,
@@ -455,18 +456,19 @@ class Crawler(object):
                 ])
 
                 # Retrieve all the words
-                yield self._db.query('''
-                    INSERT INTO "word"
-                        (word, score, count)
-                    VALUES
-                        %(insert_template)s
-                    ON CONFLICT ON CONSTRAINT word_pkey DO NOTHING
-                ''' % {
-                    'insert_template': ', '.join([
-                        '(%s, 0, 0)' for x
-                        in range(0, len(user_freq))
-                    ])
-                }, *tuple(user_freq.keys()), commit=True)
+                if user_freq:
+                    yield self._db.query('''
+                        INSERT INTO "word"
+                            (word, score, count)
+                        VALUES
+                            %(insert_template)s
+                        ON CONFLICT ON CONSTRAINT word_pkey DO NOTHING
+                    ''' % {
+                        'insert_template': ', '.join([
+                            '(%s, 0, 0)' for x
+                            in range(0, len(user_freq))
+                        ])
+                    }, *tuple(user_freq.keys()), commit=True)
 
                 words = dict([
                     (w.word, w) for w in
@@ -476,22 +478,23 @@ class Crawler(object):
                 ])
 
                 # Retrieve all the word adjacencies
-                yield self._db.query('''
-                    INSERT INTO "word_adjacenct"
-                        (proceeding_id, following_id, score, count)
-                    VALUES
-                        %(insert_template)s
-                    ON CONFLICT ON CONSTRAINT word_adjacent_pkey DO NOTHING
-                ''' % {
-                    'insert_template': ', '.join([
-                        '(%s, %s, 0, 0)' for x
-                        in range(0, len(user_freq))
-                    ])
-                }, *tuple([
-                        word[w].word_id
-                        for w in sum(user_adj_freq.keys(), ())
-                    ]),
-                    commit=True)
+                if user_adj_freq:
+                    yield self._db.query('''
+                        INSERT INTO "word_adjacenct"
+                            (proceeding_id, following_id, score, count)
+                        VALUES
+                            %(insert_template)s
+                        ON CONFLICT ON CONSTRAINT word_adjacent_pkey DO NOTHING
+                    ''' % {
+                        'insert_template': ', '.join([
+                            '(%s, %s, 0, 0)' for x
+                            in range(0, len(user_freq))
+                        ])
+                    }, *tuple([
+                            word[w].word_id
+                            for w in sum(user_adj_freq.keys(), ())
+                        ]),
+                        commit=True)
                 # There's no clean way I know of to retrieve
                 # composite keys in an IN query.
                 word_adj = {}
