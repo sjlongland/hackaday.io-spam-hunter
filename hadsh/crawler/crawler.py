@@ -753,6 +753,13 @@ class Crawler(object):
             yield user.commit()
 
         self._log.debug('User %s up-to-date', user)
+
+        # User clearly exists, so remove it from the new user list
+        yield self._db.query('''
+            DELETE FROM "new_user"
+            WHERE user_id=%s
+            ''', user.user_id, commit=True)
+
         raise Return(user)
 
     @coroutine
